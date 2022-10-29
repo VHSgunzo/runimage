@@ -1,0 +1,10 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=File Manager
+Categories=System;Utility;Core;GTK;FileTools;FileManager;
+MimeType=inode/directory;
+Exec=sysfilemgr %F
+Icon=system-file-manager
+Terminal=false
+Type=Application
+StartupNotify=true

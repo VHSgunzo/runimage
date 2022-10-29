@@ -1,0 +1,2 @@
+#!/usr/bin/.bash
+/usr/bin/.bash --rcfile /etc/bash.bashrc "$@"
