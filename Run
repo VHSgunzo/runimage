@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-RUNIMAGE_VERSION='0.37.1'
-RUNROOTFS_VERSION='0.37.1'
-RUNSTATIC_VERSION='0.37.1'
+RUNIMAGE_VERSION='0.37.2'
+RUNROOTFS_VERSION='0.37.2'
+RUNSTATIC_VERSION='0.37.2'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -16,9 +16,10 @@ RUNKEY="$RANDOM"
 SYS_PATH="$PATH"
 unset RUNMNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM \
       MKSQFS NVDRVMNT CAPS NVIDIA_DRIVER_BIND EXEC_STATUS \
-      SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME  \
-      NETWORK_BIND SETHOMEDIR SETCONFDIR HOME_BIND \
-      LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND
+      SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNPIDS_BIND \
+      NETWORK_BIND SETHOMEDIR SETCONFDIR HOME_BIND ARGS_BIND \
+      LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND ARGS_BIND \
+      SQFUSE_PIDS XDG_RUN_BIND
 
 if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
     then
@@ -93,7 +94,7 @@ if [[ "$DISPLAY" == "wayland-"* ]]
 elif [[ ! -n "$DISPLAY" && ! -n "$WAYLAND_DISPLAY" ]]
     then
         export DISPLAY="$(who|grep "$RUNUSER"|grep -v "ttyS"|\
-            grep -m1 'tty'|grep -o '(.*)$'|sed 's/(//;s/)//')"
+                          grep -om1 '(.*)$'|sed 's/(//;s/)//')"
 fi
 
 xhost +si:localuser:$RUNUSER &>/dev/null
@@ -128,7 +129,7 @@ else
         export SQFUSE="$BINDIR/squashfuse"
 fi
 
-[ ! -n "$(tty|grep -o dev)" ] && \
+[ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
     NOT_TERM=1
 
 error_msg() {
@@ -240,9 +241,12 @@ mount_nvidia_driver_image() {
                 NVDRVMNT="/tmp/.mount_nv${nvidia_version}drv.$RUNKEY"
             info_msg "Mounting the Nvidia driver image: $(basename "$1")"
             try_mkdir "$NVDRVMNT"
-            "$SQFUSE" "$1" "$NVDRVMNT" -o ro && \
-                nvidia_driver_dir="$NVDRVMNT" && \
-                export SQFUSE_PIDS="$(pidof "$SQFUSE")"
+            "$SQFUSE" -f "$1" "$NVDRVMNT" -o ro &
+            SQFUSE_PID="$!"
+            sleep 0.05
+            [ -d "/proc/$SQFUSE_PID" ] && \
+                export SQFUSE_PIDS="$SQFUSE_PID $SQFUSE_PIDS" && \
+                nvidia_driver_dir="$NVDRVMNT"
         else
             error_msg "You must specify the Nvidia driver image!"
             return 1
@@ -530,17 +534,20 @@ bwrun() {
     [ "$NO_NVIDIA_CHECK" != 1 ] && \
         check_nvidia_driver || \
         warn_msg "Nvidia driver check is disabled!"
-    [[ "$ADD_LD_CACHE" == 1 && ! -n "$LD_CACHE_BIND" ]] && \
-        LD_CACHE_BIND+=("--bind-try" \
+    [ "$ADD_LD_CACHE" == 1 ] && \
+        LD_CACHE_BIND=("--bind-try" \
             "$HOME/.local/share/RunImage/ld.so.cache" "/etc/ld.so.cache")
+    [ ! -n "$XORG_CONF" ] && \
+        XORG_CONF="/etc/X11/xorg.conf"
 
     "$BWRAP" --bind-try "$RUNROOTFS" / \
+        --proc /proc \
+        --tmpfs /var/log \
         --die-with-parent \
-        --bind-try /run /run \
         --bind-try /sys /sys \
         --bind-try /mnt /mnt \
         --bind-try /tmp /tmp \
-        --bind-try /proc /proc \
+        --bind-try /boot /boot \
         --dev-bind-try /dev /dev \
         --bind-try /media /media \
         --bind-try /var/tmp /var/tmp \
@@ -558,19 +565,25 @@ bwrun() {
         --ro-bind-try /etc/localtime /etc/localtime \
         --ro-bind-try /etc/machine-id /etc/machine-id \
         --ro-bind-try /etc/nsswitch.conf /etc/nsswitch.conf \
+        --ro-bind-try "$XORG_CONF" /etc/X11/xorg.conf \
         "${NVIDIA_DRIVER_BIND[@]}" "${TMP_BIND[@]}" \
         "${CAPS[@]}" "${HOME_BIND[@]}" "${NETWORK_BIND[@]}" \
         "${XDG_RUN_BIND[@]}" "${LD_CACHE_BIND[@]}" \
-        "${TMPDIR_BIND[@]}" \
+        "${TMPDIR_BIND[@]}" "${UNPIDS_BIND[@]}" \
         --setenv PATH "$BIN_PATH" \
         --setenv LD_LIBRARY_PATH "$LIB_PATH" \
         --setenv NO_AT_BRIDGE '1' \
         --setenv GDK_BACKEND 'x11' \
         --setenv SHELL '/usr/bin/fish' \
+        --setenv DESKTOP_SESSION 'xfce' \
         --setenv ZDOTDIR '/etc/zsh/zshrc' \
         --setenv GTK_THEME 'Adwaita:dark' \
+        --setenv XDG_CURRENT_DESKTOP 'XFCE' \
+        --setenv QT_QPA_PLATFORMTHEME 'qt5ct' \
         --setenv GTK2_RC_FILES '/usr/share/gtk-2.0/gtkrc' \
+        --setenv XDG_CONFIG_DIRS "/etc/xdg:$XDG_CONFIG_DIRS" \
         --setenv XDG_DATA_DIRS "/usr/local/share:/usr/share:$XDG_DATA_DIRS" \
+        "${ARGS_BIND[@]}" \
         "$@"
     return $?
 }
@@ -755,8 +768,11 @@ if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" ]] # MangoHud and vkBasalt bug in DXVK m
         export RUNMNT="/tmp/.mount_${RUNIMAGENAME}.$RUNKEY"
         export RUNROOTFS="$RUNMNT/rootfs"
         try_mkdir "$RUNMNT"
-        "$SQFUSE" "$RUNIMAGE" "$RUNMNT" -o "ro,offset=$RUNOFFSET" && \
-            export SQFUSE_PIDS="$(pidof "$SQFUSE")"
+        "$SQFUSE" -f "$RUNIMAGE" "$RUNMNT" -o "ro,offset=$RUNOFFSET" &
+        SQFUSE_PID="$!"
+        sleep 0.05
+        [ -d "/proc/$SQFUSE_PID" ] && \
+            export SQFUSE_PIDS="$SQFUSE_PID $SQFUSE_PIDS"
     else
         export RUNROOTFS="$RUNDIR/rootfs"
 fi
@@ -914,19 +930,32 @@ if [[ ! -n "$XAUTHORITY" || "$SETHOMEDIR" == 1 || \
         fi
 fi
 
-if [[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" ]]
+if [[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" || "$UNSHARE_PIDS" == 1 ]]
     then
-        if [ ! -d "/run/user/$EUID" ]
+        export XDG_RUNTIME_DIR="/run/user/$EUID"
+        if [[ "$UNSHARE_PIDS" == 1 || ! -d "$XDG_RUNTIME_DIR" ]]
             then
                 XDG_RUN_BIND+=("--tmpfs" "/run" \
-                               "--dir" "/run/user/$EUID")
+                               "--dir" "$XDG_RUNTIME_DIR" \
+                               "--chmod" "0700" "$XDG_RUNTIME_DIR")
                 for xdg_run in /run/*
                     do
                         [ "$xdg_run" != "/run/user" ] && \
                             XDG_RUN_BIND+=("--bind-try" "$xdg_run" "$xdg_run")
                 done
+                if [ "$UNSHARE_PIDS" == 1 ]
+                    then
+                        UNPIDS_BIND+=("--as-pid-1" \
+                                      "--unshare-pid" \
+                                      "--bind-try" "$XDG_RUNTIME_DIR/pulse" "$XDG_RUNTIME_DIR/pulse" \
+                                      "--bind-try" "$XDG_RUNTIME_DIR/pipewire-0" "$XDG_RUNTIME_DIR/pipewire-0")
+                        ARGS_BIND+=("dbus-launch" "--exit-with-session")
+                fi
+            else
+                XDG_RUN_BIND=("--bind-try" "/run" "/run")
         fi
-        export XDG_RUNTIME_DIR="/run/user/$EUID"
+    else
+        XDG_RUN_BIND=("--bind-try" "/run" "/run")
 fi
 
 if [ ! -n "$DBUS_SESSION_BUS_ADDRESS" ]

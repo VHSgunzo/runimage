@@ -1,0 +1,36 @@
+Port 1337
+ListenAddress 0.0.0.0
+# ListenAddress ::
+
+HostKey ~/.ssh/ssh_host_rsa_key
+HostKey ~/.ssh/ssh_host_ecdsa_key
+HostKey ~/.ssh/ssh_host_ed25519_key
+
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+UsePAM yes
+
+AllowTcpForwarding yes
+# GatewayPorts yes
+X11Forwarding yes
+# X11DisplayOffset 10
+X11UseLocalhost yes
+# PermitTTY yes
+PrintMotd no
+PrintLastLog no
+TCPKeepAlive yes
+# PermitUserEnvironment no
+Compression delayed
+# ClientAliveInterval 0
+# ClientAliveCountMax 3
+# UseDNS no
+# PidFile /run/sshd.pid
+# MaxStartups 10:30:100
+# PermitTunnel no
+# ChrootDirectory none
+# VersionAddendum none
+AcceptEnv LANG LC_*
+Subsystem   sftp  /usr/lib/ssh/sftp-server

@@ -9,10 +9,6 @@ dbus-filemgr() {
 if [ -n "$1" ]
     then
         dbus-filemgr "$@"
-        sleep 0.5
-        dbus-filemgr "$@"
     else
-        dbus-filemgr "$HOME"
-        sleep 0.5
         dbus-filemgr "$HOME"
 fi
