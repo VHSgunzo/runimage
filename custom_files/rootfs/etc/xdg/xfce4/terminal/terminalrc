@@ -1,4 +1,7 @@
 [Configuration]
+BackgroundDarkness=0,850000
+ColorForeground=#0000ffffffff
+CommandLoginShell=TRUE
 MiscAlwaysShowTabs=FALSE
 MiscBell=FALSE
 MiscBellUrgent=FALSE
@@ -27,10 +30,6 @@ MiscNewTabAdjacent=FALSE
 MiscSearchDialogOpacity=100
 MiscShowUnsafePasteDialog=FALSE
 MiscRightClickAction=TERMINAL_RIGHT_CLICK_ACTION_CONTEXT_MENU
-ScrollingUnlimited=TRUE
 ScrollingOnOutput=TRUE
-CommandLoginShell=TRUE
-ColorForeground=#0000ffffffff
-BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
-BackgroundDarkness=0,850000
+ScrollingUnlimited=TRUE
 

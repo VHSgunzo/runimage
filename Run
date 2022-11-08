@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-RUNIMAGE_VERSION='0.37.2'
-RUNROOTFS_VERSION='0.37.2'
-RUNSTATIC_VERSION='0.37.2'
+RUNIMAGE_VERSION='0.37.3'
+RUNROOTFS_VERSION='0.37.3'
+RUNSTATIC_VERSION='0.37.3'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -20,6 +20,9 @@ unset RUNMNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM \
       NETWORK_BIND SETHOMEDIR SETCONFDIR HOME_BIND ARGS_BIND \
       LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND ARGS_BIND \
       SQFUSE_PIDS XDG_RUN_BIND
+
+[[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
+    export LANG=en_US.UTF-8
 
 if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
     then
@@ -100,9 +103,6 @@ fi
 xhost +si:localuser:$RUNUSER &>/dev/null
 [[ "$EUID" == 0 && "$RUNUSER" != "root" ]] && \
     xhost +si:localuser:root &>/dev/null
-
-[[ ! -n "$LANG" || "$LANG" == "C.UTF8" ]] && \
-    export LANG=C
 
 [ "$SYS_TOOLS" == 1 ] && \
     export SYS_MKSQFS=1 SYS_UNSQFS=1 \

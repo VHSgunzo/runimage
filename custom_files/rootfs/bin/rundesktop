@@ -31,7 +31,7 @@ info_msg() {
 }
 
 # PID randomizer (UNSHARE_PIDS ICEauthority bug)
-for _ in $(seq 0 $(shuf -i 10-100 -n 1)) ; do /usr/bin/true ; done
+for _ in $(seq 0 $(echo $RANDOM|head -c 2)) ; do /usr/bin/true ; done
 
 while true
     do
@@ -54,12 +54,9 @@ if [ -n "$(tty|grep -v 'not a'|grep -o tty)" ]
         $XORG -nolisten tcp vt$XDG_VTNR $DISPLAY &
         XORG_PID="$!"
         sleep 0.01
-        if [ "/proc/$XORG_PID" ]
-            then
-                RUN_X=1
-            else
-                error_msg "Failed to start Xorg!"
-        fi
+        [ "/proc/$XORG_PID" ] && \
+            RUN_X=1 || \
+            error_msg "Failed to start Xorg!"
     else
         [ -n "$DISPLAY" ] && \
             XEPHYR=1
