@@ -127,7 +127,7 @@
         <property name="history-ignore-primary-clipboard" type="bool" value="false"/>
       </property>
       <property name="tweaks" type="empty">
-        <property name="paste-on-activate" type="uint" value="1"/>
+        <property name="paste-on-activate" type="uint" value="0"/>
         <property name="popup-at-pointer" type="bool" value="true"/>
         <property name="max-menu-items" type="uint" value="15"/>
         <property name="never-confirm-history-clear" type="bool" value="true"/>

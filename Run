@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-RUNIMAGE_VERSION='0.37.3'
-RUNROOTFS_VERSION='0.37.3'
-RUNSTATIC_VERSION='0.37.3'
+RUNIMAGE_VERSION='0.37.4'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -15,11 +13,12 @@ RUNPID="$BASHPID"
 RUNKEY="$RANDOM"
 SYS_PATH="$PATH"
 unset RUNMNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM \
-      MKSQFS NVDRVMNT CAPS NVIDIA_DRIVER_BIND EXEC_STATUS \
+      MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNPIDS_BIND \
-      NETWORK_BIND SETHOMEDIR SETCONFDIR HOME_BIND ARGS_BIND \
-      LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND ARGS_BIND \
-      SQFUSE_PIDS XDG_RUN_BIND
+      NETWORK_BIND SET_HOME_DIR SET_CONF_DIR HOME_BIND BWRAP_ARGS \
+      LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND EXEC_ARGS \
+      SQFUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BWRAP \
+      SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG
 
 [[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
     export LANG=en_US.UTF-8
@@ -67,67 +66,12 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
             RUNSRC="$RUNDIR/Run"
         fi
 fi
+
+export RUNROOTFS="$RUNDIR/rootfs"
+export RUNCACHEDIR="$RUNIMAGEDIR/cache"
 RUNSRCNAME="$(basename "$RUNSRC" 2>/dev/null)"
-
-if [[ "$EUID" == 0 && "$ALLOW_ROOT" != 1 ]]
-    then
-        echo -e "${RED}\t\t\tDo not run runimage as root!"
-        echo -e "If you really need to run it as root set the ${YELLOW}ALLOW_ROOT${GREEN}=1 ${RED}environment variable.$RESETCOLOR"
-        exit 1
-fi
-
-if logname &>/dev/null
-    then
-        export RUNUSER="$(logname)"
-elif [ -n "$SUDO_USER" ]
-    then
-        export RUNUSER="$SUDO_USER"
-elif [[ "$EUID" != 0 && "$USER" != "root" ]] || \
-     [[ "$EUID" == 0 && "$USER" != "root" ]]
-    then
-        export RUNUSER="$USER"
-elif [ -n "$(who|grep -m1 'tty'|awk '{print$1}')" ]
-    then
-        export RUNUSER="$(who|grep -m1 'tty'|awk '{print$1}')"
-fi
-
-if [[ "$DISPLAY" == "wayland-"* ]]
-    then
-        export DISPLAY=":$(echo "$DISPLAY"|sed 's|wayland-||g')"
-elif [[ ! -n "$DISPLAY" && ! -n "$WAYLAND_DISPLAY" ]]
-    then
-        export DISPLAY="$(who|grep "$RUNUSER"|grep -v "ttyS"|\
-                          grep -om1 '(.*)$'|sed 's/(//;s/)//')"
-fi
-
-xhost +si:localuser:$RUNUSER &>/dev/null
-[[ "$EUID" == 0 && "$RUNUSER" != "root" ]] && \
-    xhost +si:localuser:root &>/dev/null
-
-[ "$SYS_TOOLS" == 1 ] && \
-    export SYS_MKSQFS=1 SYS_UNSQFS=1 \
-           SYS_SQFUSE=1 SYS_BWRAP=1 SYS_ARIA2C=1
-
-[[ "$SYS_MKSQFS" == 1 && -x "$(which mksquashfs 2>/dev/null)" ]] && \
-    export MKSQFS="$(which mksquashfs 2>/dev/null)" || \
-    export MKSQFS="$BINDIR/mksquashfs"
-
-[[ "$SYS_UNSQFS" == 1 && -x "$(which unsquashfs 2>/dev/null)" ]] && \
-    export UNSQFS="$(which unsquashfs 2>/dev/null)" || \
-    export UNSQFS="$BINDIR/unsquashfs"
-
-[[ "$SYS_ARIA2C" == 1 && -x "$(which aria2c 2>/dev/null)" ]] && \
-    export ARIA2C="$(which aria2c 2>/dev/null)" || \
-    export ARIA2C="$BINDIR/aria2c"
-
-if [[ "$SYS_SQFUSE" == 1 && -x "$(which squashfuse 2>/dev/null)" ]]
-    then
-        export SQFUSE="$(which squashfuse 2>/dev/null)"
-else
-    [ -x "$(which fusermount3 2>/dev/null)" ] && \
-        export SQFUSE="$BINDIR/squashfuse3" || \
-        export SQFUSE="$BINDIR/squashfuse"
-fi
+RUNROOTFS_VERSION="$(cat "$RUNROOTFS/.version" 2>/dev/null)"
+RUNSTATIC_VERSION="$(cat "$BINDIR/.version" 2>/dev/null)"
 
 [ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
     NOT_TERM=1
@@ -144,7 +88,7 @@ info_msg() {
     if [ "$QUIET_MODE" != 1 ]
         then
             echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
-            if [ "$NOT_TERM" == 1 ]
+            if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
                 then
                     notify-send -a 'RunImage Info' "$1" 2>/dev/null &
             fi
@@ -155,7 +99,7 @@ warn_msg() {
     if [ "$QUIET_MODE" != 1 ]
         then
             echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
-            if [ "$NOT_TERM" == 1 ]
+            if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
                 then
                     notify-send -a 'RunImage Warning' "$1" 2>/dev/null &
             fi
@@ -163,7 +107,7 @@ warn_msg() {
 }
 
 console_info_notify() {
-    if [ "$NOT_TERM" == 1 ]
+    if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
         then
             notify-send -a "RunImage Info" "See the information in the console!" &
         else
@@ -171,7 +115,40 @@ console_info_notify() {
     fi
 }
 
-create_nvidia_driver_image() {
+mount_exist() {
+    time_out=1000 # =~ 3 sec
+    wait_time=0
+    while true
+        do
+            if [ "$wait_time" -le "$time_out" ]
+                then
+                    if [[ -d "/proc/$1" && -n "$(ls -A "$2" 2>/dev/null)" ]]
+                        then
+                            return 0
+                        else
+                            wait_time="$(( $wait_time + 1 ))"
+                            sleep 0.0001
+                    fi
+                else
+                    return 1
+            fi
+    done
+}
+
+is_sys_exe() {
+    if [[ -x "$(which -a "$1" 2>/dev/null|grep -v "$BINDIR"|head -1)" ]]
+        then
+            return 0
+        else
+            return 1
+    fi
+}
+
+which_sys_exe() { which -a "$1" 2>/dev/null|grep -v "$BINDIR"|head -1 ; }
+
+try_dl() { "$ARIA2C" -x 13 -s 13 --allow-overwrite -d "$1" "$2" ; return $? ; }
+
+get_nvidia_driver_image() {
     (if [[ -n "$1" || -n "$nvidia_version" ]]
         then
             [ ! -n "$nvidia_version" ] && \
@@ -184,19 +161,24 @@ create_nvidia_driver_image() {
                 nvidia_driver_image="$nvidia_version.nv.drv"
             try_mkdir "$nvidia_drivers_dir"
             info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
-            driver_url="https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/NVIDIA-Linux-x86_64-${nvidia_version}.run"
-            if "$ARIA2C" -x 13 -s 13 --allow-overwrite -o "nvidia.run" -d "$nvidia_drivers_dir" "$driver_url"
+            nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
+            driver_url_list=("https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image" \
+                             "https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run")
+            if try_dl "$nvidia_drivers_dir" "${driver_url_list[0]}"
+                then
+                    return 0
+            elif try_dl "$nvidia_drivers_dir" "${driver_url_list[1]}"
                 then
                     trash_libs="libEGL.so.1.1.0 libGLdispatch.so.0 \
                         libGLESv1_CM.so.1.2.0 libGLESv2.so.2.1.0 libGL.so.1.7.0 \
                         libGLX.so.0 libOpenCL.so.1.0.0 libOpenGL.so.0 \
                         libnvidia-opencl* libnvidia-compiler* libcudadebugger*"
-                    chmod u+x "$nvidia_drivers_dir/nvidia.run"
-                    info_msg "Unpacking nvidia.run..."
+                    chmod u+x "$nvidia_drivers_dir/$nvidia_driver_run"
+                    info_msg "Unpacking $nvidia_driver_run..."
                     (cd "$nvidia_drivers_dir" && \
-                        ./nvidia.run -x &>/dev/null
-                        rm -f nvidia.run
-                        mv -f NVIDIA-Linux-x86_64-${nvidia_version} $nvidia_version)
+                        "./$nvidia_driver_run" -x &>/dev/null
+                        rm -f "$nvidia_driver_run"
+                        mv -f "NVIDIA-Linux-x86_64-${nvidia_version}" "$nvidia_version")
                     info_msg "Creating a driver directory structure..."
                     (cd "$nvidia_drivers_dir/$nvidia_version" && \
                         rm -rf html kernel* libglvnd_install_checker 32/libglvnd_install_checker \
@@ -227,7 +209,7 @@ create_nvidia_driver_image() {
                     return 1
             fi
         else
-            error_msg "You must specify the Nvidia driver version!"
+            error_msg "You must specify the nvidia driver version!"
             return 1
     fi)
 }
@@ -239,27 +221,30 @@ mount_nvidia_driver_image() {
                 nvidia_version="$(echo "$1"|sed 's|.nv.drv||g')"
             [ ! -n "$NVDRVMNT" ] && \
                 NVDRVMNT="/tmp/.mount_nv${nvidia_version}drv.$RUNKEY"
-            info_msg "Mounting the Nvidia driver image: $(basename "$1")"
+            info_msg "Mounting the nvidia driver image: $(basename "$1")"
             try_mkdir "$NVDRVMNT"
             "$SQFUSE" -f "$1" "$NVDRVMNT" -o ro &
             SQFUSE_PID="$!"
-            sleep 0.05
-            [ -d "/proc/$SQFUSE_PID" ] && \
-                export SQFUSE_PIDS="$SQFUSE_PID $SQFUSE_PIDS" && \
-                nvidia_driver_dir="$NVDRVMNT"
+            export SQFUSE_PIDS="$SQFUSE_PID $SQFUSE_PIDS"
+            if mount_exist "$SQFUSE_PID" "$NVDRVMNT"
+                then
+                    nvidia_driver_dir="$NVDRVMNT"
+                else
+                    error_msg "Failed to mount the nvidia driver image!"
+            fi
         else
-            error_msg "You must specify the Nvidia driver image!"
+            error_msg "You must specify the nvidia driver image!"
             return 1
     fi
 }
 
 check_nvidia_driver() {
     unset NVIDIA_DRIVER_BIND
-    print_nv_drv_dir() { info_msg "Nvidia driver directory found: $(basename "$nvidia_driver_dir")" ; }
+    print_nv_drv_dir() { info_msg "Found Nvidia driver directory: $(basename "$nvidia_driver_dir")" ; }
     if lsmod|grep nvidia &>/dev/null || nvidia-smi &>/dev/null
         then
             unset nvidia_driver_dir
-            nvidia_drivers_dir="$HOME/.local/share/RunImage/nvidia-drivers"
+            nvidia_drivers_dir="$RUNIMAGEDIR/nvidia-drivers"
             if modinfo nvidia &>/dev/null
                 then
                     nvidia_version="$(modinfo -F version nvidia 2>/dev/null)"
@@ -288,9 +273,11 @@ check_nvidia_driver() {
                                [ ! -f "$RUNIMAGEDIR/$nvidia_driver_image" ] && \
                                [ ! -f "$nvidia_drivers_dir/$nvidia_driver_image" ] && \
                                [ ! -f "$NVDRVMNT/64/nvidia_drv.so" ] && \
+                               [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/nvidia_drv.so" ] && \
+                               [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_driver_image" ] && \
                                [ "${nvidia_version}" != "${nvidia_version_inside}" ]
                                 then
-                                    if create_nvidia_driver_image
+                                    if get_nvidia_driver_image
                                         then
                                             mount_nvidia_driver_image "$nvidia_drivers_dir/$nvidia_driver_image"
                                         else
@@ -311,6 +298,13 @@ check_nvidia_driver() {
                                     elif [ -f "$nvidia_drivers_dir/$nvidia_driver_image" ]
                                         then
                                             mount_nvidia_driver_image "$nvidia_drivers_dir/$nvidia_driver_image"
+                                    elif [ -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/nvidia_drv.so" ]
+                                        then
+                                            nvidia_driver_dir="$RUNDIR/nvidia-drivers/$nvidia_version"
+                                            print_nv_drv_dir
+                                    elif [ -f "$RUNDIR/nvidia-drivers/$nvidia_driver_image" ]
+                                        then
+                                            mount_nvidia_driver_image "$RUNDIR/nvidia-drivers/$nvidia_driver_image"
                                     fi
                             fi
                         else
@@ -400,6 +394,12 @@ check_nvidia_driver() {
                                         "$nvidia_driver_dir/json/nvidia_layers.json" \
                                         "/usr/share/vulkan/implicit_layer.d/nvidia_layers.json")
                             fi
+                            if [ -f "$RUNROOTFS/usr/share/dbus-1/system.d/nvidia-dbus.conf" ]
+                                then
+                                    NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
+                                        "$nvidia_driver_dir/conf/nvidia-dbus.conf" \
+                                        "/usr/share/dbus-1/system.d/nvidia-dbus.conf")
+                            fi
                             if [ -d "$RUNROOTFS/usr/share/nvidia" ]
                                 then
                                     NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
@@ -417,18 +417,17 @@ check_nvidia_driver() {
                                 "--ro-bind-try" "$nvidia_driver_dir/32" "/usr/lib/nvidia/32")
                             add_bin_pth '/usr/bin/nvidia'
                             add_lib_pth '/usr/lib/nvidia/64:/usr/lib/nvidia/32'
-                            if [ "$(cat "$HOME/.local/share/RunImage/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
+                            if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
                                 then
                                     info_msg "Updating the nvidia library cache..."
-                                    if (NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ; bwrun \
-                                        /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null)
+                                    if bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null
                                         then
-                                            try_mkdir "$HOME/.local/share/RunImage"
+                                            try_mkdir "$RUNCACHEDIR"
                                             if mv -f "/tmp/ld.so.cache" \
-                                                "$HOME/.local/share/RunImage/ld.so.cache" 2>/dev/null
+                                                "$RUNCACHEDIR/ld.so.cache" 2>/dev/null
                                                 then
                                                     echo "$RUNROOTFS_VERSION-$nvidia_version" > \
-                                                        "$HOME/.local/share/RunImage/ld.so.version"
+                                                         "$RUNCACHEDIR/ld.so.version"
                                                     ADD_LD_CACHE=1
                                                 else
                                                     error_msg "Failed to merge nvidia library cache!"
@@ -478,6 +477,9 @@ try_unmount() {
                 then DORM=1
             elif kill $SQFUSE_PIDS 2>/dev/null
                 then DORM=1
+            else
+                error_msg "Failed to unmount: '$1'"
+                return 1
             fi
             [ "$DORM" == 1 ] && \
                 rm -rf "$1" 2>/dev/null
@@ -489,7 +491,7 @@ try_mkdir() {
         then
             if ! mkdir -p "$1"
                 then
-                    error_msg "Failed to create directory '$1'"
+                    error_msg "Failed to create directory: '$1'"
                     FORCE_CLEANUP=1 cleanup
                     exit 1
             fi
@@ -505,6 +507,7 @@ cleanup() {
                     try_unmount "$NVDRVMNT"
                     if [ "$FORCE_CLEANUP" == 1 ]
                         then
+                            warn_msg "Forced cleanup is enabled!"
                             ALLPIDS="$(lsof -n "$RUNDIR" 2>/dev/null|sed 1d|\
                                         grep -v "$RUNPID"|awk '{print$2}'|sort -u)"
                             [ -n "$ALLPIDS" ] && \
@@ -519,34 +522,13 @@ cleanup() {
 }
 
 bwrun() {
-    unset CAPS
-    [[ "$SYS_BWRAP" == 1 && -x "$(which bwrap 2>/dev/null)" ]] && \
-        export BWRAP="$(which bwrap 2>/dev/null)" || \
-        export BWRAP="$BINDIR/bwrap"
-    if [[ -x "$(find "$BWRAP" -perm -u=s 2>/dev/null)" && \
-        "$SYS_BWRAP" == 1 && "$EUID" != 0 ]] || [ "$NO_CAP" == 1 ]
-        then
-            warn_msg "Bubblewrap capabilities is disabled!"
-        else
-            CAPS+=("--cap-add" "ALL")
-            CAPS+=("--cap-drop" "CAP_SYS_NICE") # Gamecope bug https://github.com/Plagman/gamescope/issues/309
-    fi
-    [ "$NO_NVIDIA_CHECK" != 1 ] && \
-        check_nvidia_driver || \
-        warn_msg "Nvidia driver check is disabled!"
-    [ "$ADD_LD_CACHE" == 1 ] && \
-        LD_CACHE_BIND=("--bind-try" \
-            "$HOME/.local/share/RunImage/ld.so.cache" "/etc/ld.so.cache")
-    [ ! -n "$XORG_CONF" ] && \
-        XORG_CONF="/etc/X11/xorg.conf"
-
     "$BWRAP" --bind-try "$RUNROOTFS" / \
         --proc /proc \
         --tmpfs /var/log \
         --die-with-parent \
         --bind-try /sys /sys \
         --bind-try /mnt /mnt \
-        --bind-try /tmp /tmp \
+        --bind-try /srv /srv \
         --bind-try /boot /boot \
         --dev-bind-try /dev /dev \
         --bind-try /media /media \
@@ -555,6 +537,7 @@ bwrun() {
         --bind-try /var/opt /var/opt \
         --bind-try /var/home /var/home \
         --bind-try /var/empty /var/empty \
+        --bind-try /var/spool /var/spool \
         --bind-try /var/local /var/local \
         --bind-try /var/games /var/games \
         --ro-bind-try /etc/group /etc/group \
@@ -565,11 +548,11 @@ bwrun() {
         --ro-bind-try /etc/localtime /etc/localtime \
         --ro-bind-try /etc/machine-id /etc/machine-id \
         --ro-bind-try /etc/nsswitch.conf /etc/nsswitch.conf \
-        --ro-bind-try "$XORG_CONF" /etc/X11/xorg.conf \
         "${NVIDIA_DRIVER_BIND[@]}" "${TMP_BIND[@]}" \
-        "${CAPS[@]}" "${HOME_BIND[@]}" "${NETWORK_BIND[@]}" \
-        "${XDG_RUN_BIND[@]}" "${LD_CACHE_BIND[@]}" \
-        "${TMPDIR_BIND[@]}" "${UNPIDS_BIND[@]}" \
+        "${NETWORK_BIND[@]}" "${XDG_RUN_BIND[@]}" \
+        "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}" \
+        "${UNPIDS_BIND[@]}" "${HOME_BIND[@]}" \
+        "${XORG_CONF_BIND[@]}" "${BWRAP_CAP[@]}" \
         --setenv PATH "$BIN_PATH" \
         --setenv LD_LIBRARY_PATH "$LIB_PATH" \
         --setenv NO_AT_BRIDGE '1' \
@@ -583,123 +566,337 @@ bwrun() {
         --setenv GTK2_RC_FILES '/usr/share/gtk-2.0/gtkrc' \
         --setenv XDG_CONFIG_DIRS "/etc/xdg:$XDG_CONFIG_DIRS" \
         --setenv XDG_DATA_DIRS "/usr/local/share:/usr/share:$XDG_DATA_DIRS" \
-        "${ARGS_BIND[@]}" \
+        "${BWRAP_ARGS[@]}" "${EXEC_ARGS[@]}" \
         "$@"
     return $?
 }
 
-pkglist() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun /usr/bin/pacman -Q 2>/dev/null ; }
+pkg_list() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun /usr/bin/pacman -Q 2>/dev/null ; }
 
-binlist() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun /usr/bin/find /usr/bin/ \
+bin_list() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun /usr/bin/find /usr/bin/ \
             -executable -type f -maxdepth 1 2>/dev/null|sed 's|/usr/bin/||g' ; }
 
-bwraphelp() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun --help ; }
+bwrap_help() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun --help ; }
+
+print_version() {
+    info_msg "RunImage version: ${RED}$RUNIMAGE_VERSION"
+    info_msg "RootFS version: ${RED}$RUNROOTFS_VERSION"
+    info_msg "Static version: ${RED}$RUNSTATIC_VERSION"
+}
 
 print_help() {
 if ! console_info_notify
     then
     echo -e "
-    ${GREEN}RuntimeImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
-        ${RED}Usage:
-            $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE$(uname -a|awk '{print$2}')$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$$GREEN $([ -n "$RUNIMAGE" ] && echo "$RUNIMAGE"||echo "$0") {executable} $YELLOW{arguments}
+${GREEN}RuntimeImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
+    ${RED}Usage:
+        $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE$(uname -a|awk '{print$2}')$RED]─[$GREEN$PWD$RED]
+        $RED└──╼ \$$GREEN $([ -n "$RUNIMAGE" ] && echo "$RUNIMAGE"||echo "$0") {executable} $YELLOW{arguments}
 
-            ${BLUE}--runimage-help$GREEN                      Show this usage info
-            ${BLUE}--runimage-bwraphelp$GREEN                 Show Bubblewrap usage info
-            ${BLUE}--runimage-version$GREEN                   Show the runimage version
-            ${BLUE}--runimage-pkglist$GREEN                   Show packages installed in runimage
-            ${BLUE}--runimage-binlist$GREEN                   Show /usr/bin in runimage
-            ${BLUE}--runimage-shell$YELLOW {args}$GREEN              Run the runimage shell or execute a command in runimage shell
+        ${BLUE}--runimage-help$GREEN                      Show this usage info
+        ${BLUE}--runimage-bwraphelp$GREEN                 Show Bubblewrap usage info
+        ${BLUE}--runimage-version$GREEN                   Show the runimage version
+        ${BLUE}--runimage-pkglist$GREEN                   Show packages installed in runimage
+        ${BLUE}--runimage-binlist$GREEN                   Show /usr/bin in runimage
+        ${BLUE}--runimage-shell$YELLOW {args}$GREEN              Run the runimage shell or execute a command in runimage shell
+        ${BLUE}--runimage-desktop$GREEN                   Launch the runimage desktop
 
-        ${RED}Only for not extracted:
-            ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
-            ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run the runimage afer extraction without using FUSE
-            ${BLUE}--runtime-help$GREEN                       Show runimage runtime help (Shown in this help)
-            ${BLUE}--runtime-mount$GREEN                      Mount embedded filesystem image and print
-            ${BLUE}--runtime-offset$GREEN                     Print byte offset to start of embedded
-            ${BLUE}--runtime-portable-home$GREEN              Create a portable home folder to use as ${YELLOW}\$HOME$GREEN
-            ${BLUE}--runtime-portable-config$GREEN            Create a portable config folder to use as ${YELLOW}\$XDG_CONFIG_HOME$GREEN
-            ${BLUE}--runtime-version$GREEN                    Print version of runimage runtime
+    ${RED}Only for not extracted:
+        ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
+        ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run the runimage afer extraction without using FUSE
+        ${BLUE}--runtime-help$GREEN                       Show runimage runtime help (Shown in this help)
+        ${BLUE}--runtime-mount$GREEN                      Mount embedded filesystem image and print
+        ${BLUE}--runtime-offset$GREEN                     Print byte offset to start of embedded
+        ${BLUE}--runtime-portable-home$GREEN              Create a portable home folder to use as ${YELLOW}\$HOME$GREEN
+        ${BLUE}--runtime-portable-config$GREEN            Create a portable config folder to use as ${YELLOW}\$XDG_CONFIG_HOME$GREEN
+        ${BLUE}--runtime-version$GREEN                    Print version of runimage runtime
 
-        ${RED}Environment variables:
-            ${YELLOW}NO_INET$GREEN=1                            Disables network access
-            ${YELLOW}TMP_HOME$GREEN=1                           Creates tmpfs /home/\$USER and /root in RAM and uses it as ${YELLOW}\$HOME
-            ${YELLOW}TMP_HOME_DL$GREEN=1                        As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
-            ${YELLOW}PORTABLE_HOME$GREEN=1                      Creates a portable home folder and uses it as ${YELLOW}\$HOME
-            ${YELLOW}PORTABLE_CONFIG$GREEN=1                    Creates a portable config folder and uses it as ${YELLOW}\$XDG_CONFIG_HOME
-            ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
-            ${YELLOW}FORCE_CLEANUP$GREEN=1                      Kills all runimage background processes when exiting
-            ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
-            ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
-            ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run the runimage with autorun options for /usr/bin executables
-            ${YELLOW}ALLOW_ROOT$GREEN=1                         Allows to run runimage under root user
-            ${YELLOW}QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
+    ${RED}Environment variables:
+        ${YELLOW}NO_INET$GREEN=1                            Disables network access
+        ${YELLOW}TMP_HOME$GREEN=1                           Creates tmpfs /home/\$USER and /root in RAM and uses it as ${YELLOW}\$HOME
+        ${YELLOW}TMP_HOME_DL$GREEN=1                        As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
+        ${YELLOW}PORTABLE_HOME$GREEN=1                      Creates a portable home folder and uses it as ${YELLOW}\$HOME
+        ${YELLOW}PORTABLE_CONFIG$GREEN=1                    Creates a portable config folder and uses it as ${YELLOW}\$XDG_CONFIG_HOME
+        ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
+        ${YELLOW}FORCE_CLEANUP$GREEN=1                      Kills all runimage background processes when exiting
+        ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
+        ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
+        ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run the runimage with autorun options for /usr/bin executables
+        ${YELLOW}ALLOW_ROOT$GREEN=1                         Allows to run runimage under root user
+        ${YELLOW}QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
+        ${YELLOW}NO_NOTIFY$GREEN=1                          Disables all notification
+        ${YELLOW}UNSHARE_PIDS$GREEN=1                       Hides all system processes inside the runimage
+        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run the runimage afer extraction without using FUSE
+        ${YELLOW}TMPDIR$GREEN=\"/path/TMPDIR\"                Used for extract and run options
+        ${YELLOW}RUNIMAGE_CONFIG$GREEN=\"/path/{config_name}.rcfg\"    runimage сonfiguration file (0 to disable)
+        ${YELLOW}XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf inside runimage
+                                             by default, /etc/X11/xorg.conf bind from the system (0 to disable)
+        ${YELLOW}XEPHYR_SIZE$GREEN=\"HEIGHTxWIDTH\"           Sets the runimage desktop resolution (Default: 1600x900)
+        ${YELLOW}XEPHYR_DISPLAY$GREEN=\":9999\"               Sets the runimage desktop \$DISPLAY (Default: :1337)
+        ${YELLOW}XEPHYR_FULLSCREEN$GREEN=1                  Starts the runimage desktop in full screen mode
+        ${YELLOW}UNSHARE_CLIPBOARD$GREEN=1                  Disables clipboard synchronization for the runimage desktop
 
-            ${YELLOW}SYS_BWRAP$GREEN=1                          Using system ${BLUE}bwrap
-            ${YELLOW}SYS_SQFUSE$GREEN=1                         Using system ${BLUE}squashfuse
-            ${YELLOW}SYS_ARIA2C$GREEN=1                         Using system ${BLUE}aria2c
-            ${YELLOW}SYS_UNSQFS$GREEN=1                         Using system ${BLUE}unsquashfs
-            ${YELLOW}SYS_MKSQFS$GREEN=1                         Using system ${BLUE}mksquashfs
-            ${YELLOW}SYS_TOOLS$GREEN=1                          Using all these binaries from the system
-                                                 If they are not found in the system - auto return to the built-in
+        ${YELLOW}SYS_BWRAP$GREEN=1                          Using system ${BLUE}bwrap
+        ${YELLOW}SYS_SQFUSE$GREEN=1                         Using system ${BLUE}squashfuse
+        ${YELLOW}SYS_ARIA2C$GREEN=1                         Using system ${BLUE}aria2c
+        ${YELLOW}SYS_UNSQFS$GREEN=1                         Using system ${BLUE}unsquashfs
+        ${YELLOW}SYS_MKSQFS$GREEN=1                         Using system ${BLUE}mksquashfs
+        ${YELLOW}SYS_TOOLS$GREEN=1                          Using all these binaries from the system
+                                             If they are not found in the system - auto return to the built-in
 
-        ${RED}Additional information:${GREEN}
-            You can create a symlink/hardlink to the runimage or rename runimage and give it the name
-              of some executable file from /usr/bin inside the runimage, this will allow you to run
-              the runimage in autorun mode for this executable file.
-            The same principle applies to the ${YELLOW}AUTORUN$GREEN variable:
-              $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE$(uname -a|awk '{print$2}')$RED]─[$GREEN$PWD$RED]
-              $RED└──╼ \$ ${GREEN}export ${YELLOW}AUTORUN=\"ls -la\"
-              $RED└──╼ \$ ${GREEN}runimage ${YELLOW}{args}${GREEN}
-              Here runimage will become something like an alias for 'ls' inside the runimage
-                with the '-la' argument.
-            This will also work in extracted form for the Run script.
+    ${RED}Additional information:${GREEN}
+        You can create a symlink/hardlink to the runimage or rename runimage and give it the name
+            of some executable file from /usr/bin inside the runimage, this will allow you to run
+            the runimage in autorun mode for this executable file.
+        The same principle applies to the ${YELLOW}AUTORUN$GREEN variable:
+            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE$(uname -a|awk '{print$2}')$RED]─[$GREEN$PWD$RED]
+            $RED└──╼ \$ ${GREEN}export ${YELLOW}AUTORUN=\"ls -la\"
+            $RED└──╼ \$ ${GREEN}runimage ${YELLOW}{args}${GREEN}
+            Here runimage will become something like an alias for 'ls' inside the runimage
+            with the '-la' argument.
+        This will also work in extracted form for the Run script.
 
-            When using the ${YELLOW}PORTABLE_HOME$GREEN and ${YELLOW}PORTABLE_CONFIG$GREEN variables, runimage will create or
-              search for these directories next to itself. The same behavior will occur when
-              adding a runimage or Run script or renamed or symlink/hardlink to them in the PATH
-                it can be used both extracted and compressed:
-                  ${YELLOW}'$RUNIMAGEDIR/Run.home'
-                  ${YELLOW}'$RUNIMAGEDIR/Run.config'$GREEN
-                if symlink/hardlink are used:
-                  ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.home'
-                  ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.config'$GREEN
-                or with the runimage/Run name:
-                  ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.home'
-                  ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.config'$GREEN
+        When using the ${YELLOW}PORTABLE_HOME$GREEN and ${YELLOW}PORTABLE_CONFIG$GREEN variables, runimage will create or
+            search for these directories next to itself. The same behavior will occur when
+            adding a runimage or Run script or renamed or symlink/hardlink to them in the PATH
+            it can be used both extracted and compressed:
+                ${YELLOW}'$RUNIMAGEDIR/Run.home'
+                ${YELLOW}'$RUNIMAGEDIR/Run.config'$GREEN
+            if a symlink/hardlink to the runimage is used:
+                ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.home'
+                ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.config'$GREEN
+            or with the runimage/Run name:
+                ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.home'
+                ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.config'$GREEN
+            It can also be with the name of the executable file from ${YELLOW}\$AUTORUN$GREEN environment variables
 
-            Runimage uses fakeroot and fakechroot, which allows you to use root commands, including in
-              unpacked form, to update the rootfs or install/remove packages. Sudo and pkexec have
-              also been replaced with fake ones.
+        RunImage uses fakeroot and fakechroot, which allows you to use root commands, including in
+            unpacked form, to update the rootfs or install/remove packages. Sudo and pkexec have
+            also been replaced with fake ones.
+
+        ${RED}RunImage configuration file:${GREEN}
+            Special BASH-syntax file with the .rcfg extension, which describes additional
+                instructions and environment variables for running runimage.
+            Сonfiguration file can be located next to the runimage:
+                ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.rcfg'$GREEN
+            if a symlink/hardlink to the runimage is used:
+                ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.rcfg'$GREEN
+            or in ${YELLOW}\$RUNIMAGEDIR$GREEN/config directory:
+                ${YELLOW}'$RUNIMAGEDIR/config/{runimage/Run_name}.rcfg'$GREEN
+                ${YELLOW}'$RUNIMAGEDIR/config/{symlink/hardlink_name}.rcfg'$GREEN
+            It can also be with the name of the executable file from ${YELLOW}\$AUTORUN$GREEN environment variables
+            In \$RUNDIR/config there are default configs inside RunImage, they are run in priority,
+                then external configs are run if they are found.
+
+        ${RED}RunImage desktop:${GREEN}
+            Ability to run RunImage in desktop mode. By default, XFCE is used.
+            If the launch is carried out from an already running desktop, then Xephyr will start
+                in windowed mode (see XEPHYR_* environment variables)
+            It is also possible to run on TTY. To do this, just log in to TTY and run RunImage desktop.
+            ${RED}Important!${GREEN} The launch on the TTY should be carried out only under the user under whom the
+                login to the TTY was carried out.
 
         ${RED}For Nvidia users with a proprietary driver:${GREEN}
             If the nvidia driver version does not match inside runimage and in the host, runimage
-              will make an image with the nvidia driver of the required version. (requires internet)
+                will make an image with the nvidia driver of the required version (requires internet)
+                or will download a ready-made image from the github repository.
+            You can download a ready-made driver image from the releases or build driver image manually:
+                ${BLUE}https://github.com/VHSgunzo/runimage-nvidia-drivers${GREEN}
             Inside runimage, a fake version of the nvidia driver is installed by default to reduce
-              the size, so for nvidia users, an image of the nvidia driver will be automatically
-              created and further used as an additional module to runimage.
+                the size, so for nvidia users, an image of the nvidia driver will be automatically
+                created and further used as an additional module to runimage.
             But you can also install the usual nvidia driver of your version in runimage.
             Checking the nvidia driver version can be disabled using ${YELLOW}NO_NVIDIA_CHECK$GREEN variable.
-              the nvidia driver image can be located next to the runimage:
-                ${YELLOW}'$RUNIMAGEDIR/{nvidia_version}.nv.drv'$GREEN
-              or in ${YELLOW}\$HOME$GREEN (Default):
-                ${YELLOW}'\$HOME/.local/share/RunImage/nvidia-drivers/{nvidia_version}.nv.drv'$GREEN
-              also, the driver can be extracted as the directory
-                ${YELLOW}'\$HOME/.local/share/RunImage/nvidia-drivers/{nvidia_version}'
+                the nvidia driver image can be located next to the runimage:
+                    ${YELLOW}'$RUNIMAGEDIR/{nvidia_version}.nv.drv'$GREEN
+                or in ${YELLOW}\$RUNIMAGEDIR$GREEN/nvidia-drivers (Default):
+                    ${YELLOW}'$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}.nv.drv'$GREEN
+                or the driver can be extracted as the directory
+                    ${YELLOW}'$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}'$GREEN
+                also, the driver can be inside the container in a packed or unpacked form:
+                    ${YELLOW}'\$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv'$GREEN   -  image
+                    ${YELLOW}'\$RUNDIR/nvidia-drivers/{nvidia_version}'$GREEN          -  directory
 
-        ${RED}Recommendations:${GREEN}
-            If the kernel does not support user namespaces, you need to install
-              SUID Bubblewrap into the system, or install a kernel with user namespaces support.
-            If you use SUID Bubblewrap, then you will encounter some limitations, such as the inability to use
-              FUSE inside the container, without running it under the root user, because the capabilities are
-              disabled, and so on. So it would be better for you to install kernel with
-              user namespaces support.
-            I recommend installing the XanMod kernel (${BLUE}https://xanmod.org${GREEN}), because I noticed that the speed
-              of runimage in compressed form on this kernel is much higher due to more correct caching settings
-              and special patches.
-        $RESETCOLOR" >&2
+    ${RED}Recommendations:${GREEN}
+        If the kernel does not support user namespaces, you need to install
+            SUID Bubblewrap into the system, or install a kernel with user namespaces support.
+            If SUID Bubblewrap is found in the system, it will be used automatically.
+        If you use SUID Bubblewrap, then you will encounter some limitations, such as the inability to use
+            FUSE inside the container, without running it under the root user, because the capabilities are
+            disabled, and so on. So it would be better for you to install kernel with
+            user namespaces support.
+        I recommend installing the XanMod kernel (${BLUE}https://xanmod.org${GREEN}), because I noticed that the speed
+            of runimage in compressed form on this kernel is much higher due to more correct caching settings
+            and special patches.
+    $RESETCOLOR" >&2
 fi
 }
+
+if [[ "$EUID" == 0 && "$ALLOW_ROOT" != 1 ]]
+    then
+        error_msg "root user is not allowed!"
+        if ! console_info_notify
+            then
+                echo -e "${RED}\t\t\tDo not run RunImage as root!"
+                echo -e "If you really need to run it as root set the ${YELLOW}ALLOW_ROOT${GREEN}=1 ${RED}environment variable.$RESETCOLOR"
+                exit 1
+        fi
+fi
+
+if [[ "$RUNSRCNAME" != "Run"* && \
+      "$RUNSRCNAME" != "runimage"* ]]
+   then
+        AUTORUN="$RUNSRCNAME"
+fi
+
+if [ ! -n "$AUTORUN" ]
+    then
+        case $1 in
+            --*) : ;;
+            *)
+                [[ -x "$RUNROOTFS/usr/bin/$1" || -x "$1" ]] && \
+                    RUNSRCNAME="$(basename "$1")"
+            ;;
+        esac
+fi
+
+if [ "$RUNIMAGE_CONFIG" != 0 ]
+    then
+        if [ -f "$RUNDIR/config/$RUNSRCNAME.rcfg" ]
+            then
+                RUNIMAGE_INTERNAL_CONFIG="$RUNDIR/config/$RUNSRCNAME.rcfg"
+                SET_RUNIMAGE_INTERNAL_CONFIG=1
+        elif [ -f "$RUNDIR/config/Run.rcfg" ]
+            then
+                RUNIMAGE_INTERNAL_CONFIG="$RUNDIR/config/Run.rcfg"
+                SET_RUNIMAGE_INTERNAL_CONFIG=1
+        fi
+        if [ "$SET_RUNIMAGE_INTERNAL_CONFIG" == 1 ]
+            then
+                NO_NOTIFY=1 info_msg "Found RunImage internal config: $(basename "$RUNIMAGE_INTERNAL_CONFIG")"
+                set -a
+                source "$RUNIMAGE_INTERNAL_CONFIG"
+                set +a
+        fi
+        if [[ -f "$RUNIMAGE_CONFIG" && -n "$(echo "$RUNIMAGE_CONFIG"|grep -o '\.rcfg$')" ]]
+            then
+                SET_RUNIMAGE_CONFIG=1
+        elif [ -f "$RUNIMAGEDIR/$RUNSRCNAME.rcfg" ]
+            then
+                RUNIMAGE_CONFIG="$RUNIMAGEDIR/$RUNSRCNAME.rcfg"
+                SET_RUNIMAGE_CONFIG=1
+        elif [ -f "$RUNIMAGEDIR/config/$RUNSRCNAME.rcfg" ]
+            then
+                RUNIMAGE_CONFIG="$RUNIMAGEDIR/config/$RUNSRCNAME.rcfg"
+                SET_RUNIMAGE_CONFIG=1
+        elif [[ -n "$RUNIMAGE" && -f "$RUNIMAGE.rcfg" ]]
+            then
+                RUNIMAGE_CONFIG="$RUNIMAGE.rcfg"
+                SET_RUNIMAGE_CONFIG=1
+        elif [ -f "$RUNIMAGEDIR/Run.rcfg" ]
+            then
+                RUNIMAGE_CONFIG="$RUNIMAGEDIR/Run.rcfg"
+                SET_RUNIMAGE_CONFIG=1
+        elif [ -f "$RUNIMAGEDIR/config/Run.rcfg" ]
+            then
+                RUNIMAGE_CONFIG="$RUNIMAGEDIR/config/Run.rcfg"
+                SET_RUNIMAGE_CONFIG=1
+        fi
+        if [ "$SET_RUNIMAGE_CONFIG" == 1 ]
+            then
+                info_msg "Found RunImage config: '$RUNIMAGE_CONFIG'"
+                set -a
+                source "$RUNIMAGE_CONFIG"
+                set +a
+        fi
+    else
+        warn_msg "RunImage config is disabled!"
+fi
+
+if logname &>/dev/null
+    then
+        export RUNUSER="$(logname)"
+elif [ -n "$SUDO_USER" ]
+    then
+        export RUNUSER="$SUDO_USER"
+elif [[ "$EUID" != 0 && "$USER" != "root" ]] || \
+     [[ "$EUID" == 0 && "$USER" != "root" ]]
+    then
+        export RUNUSER="$USER"
+elif [ -n "$(who|grep -m1 'tty'|awk '{print$1}')" ]
+    then
+        export RUNUSER="$(who|grep -m1 'tty'|awk '{print$1}')"
+fi
+
+if [[ "$DISPLAY" == "wayland-"* ]]
+    then
+        export DISPLAY=":$(echo "$DISPLAY"|sed 's|wayland-||g')"
+elif [[ ! -n "$DISPLAY" && ! -n "$WAYLAND_DISPLAY" ]]
+    then
+        export DISPLAY="$(who|grep "$RUNUSER"|grep -v "ttyS"|\
+                          grep -om1 '(.*)$'|sed 's/(//;s/)//')"
+fi
+
+xhost +si:localuser:$RUNUSER &>/dev/null
+[[ "$EUID" == 0 && "$RUNUSER" != "root" ]] && \
+    xhost +si:localuser:root &>/dev/null
+
+[ "$SYS_TOOLS" == 1 ] && \
+    export SYS_MKSQFS=1 SYS_UNSQFS=1 \
+           SYS_SQFUSE=1 SYS_BWRAP=1 SYS_ARIA2C=1
+
+if [ "$SYS_MKSQFS" == 1 ] && is_sys_exe mksquashfs
+    then
+        info_msg "The system mksquashfs is used!"
+        export MKSQFS="$(which_sys_exe mksquashfs)"
+    else
+        export MKSQFS="$BINDIR/mksquashfs"
+fi
+
+if [ "$SYS_UNSQFS" == 1 ] && is_sys_exe unsquashfs
+    then
+        info_msg "The system unsquashfs is used!"
+        export UNSQFS="$(which_sys_exe unsquashfs)"
+    else
+        export UNSQFS="$BINDIR/unsquashfs"
+fi
+
+if [ "$SYS_ARIA2C" == 1 ] && is_sys_exe aria2c
+    then
+        info_msg "The system aria2c is used!"
+        export ARIA2C="$(which_sys_exe aria2c)"
+    else
+        export ARIA2C="$BINDIR/aria2c"
+fi
+
+if [ "$SYS_SQFUSE" == 1 ] && is_sys_exe squashfuse
+    then
+        info_msg "The system squashfuse is used!"
+        export SQFUSE="$(which_sys_exe squashfuse)"
+    else
+        [ -x "$(which_sys_exe fusermount3)" ] && \
+            export SQFUSE="$BINDIR/squashfuse3" || \
+            export SQFUSE="$BINDIR/squashfuse"
+fi
+
+if [ "$SYS_BWRAP" == 1 ] && is_sys_exe bwrap
+    then
+        info_msg "The system Bubblewrap is used!"
+        export BWRAP="$(which_sys_exe bwrap)"
+    else
+        export BWRAP="$BINDIR/bwrap"
+fi
+if [[ "$SYS_BWRAP" == 1 && "$EUID" != 0 && \
+      -x "$(find "$BWRAP" -perm -u=s 2>/dev/null)" ]]
+    then
+        warn_msg "Bubblewrap has SUID sticky bit!"
+        SUID_BWRAP=1
+fi
+if [[ "$SUID_BWRAP" == 1 || "$NO_CAP" == 1 ]]
+    then
+        warn_msg "Bubblewrap capabilities is disabled!"
+        BWRAP_CAP=("--cap-drop" "ALL")
+fi
 
 if [ "$EUID" != 0 ]
     then
@@ -770,20 +967,13 @@ if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" ]] # MangoHud and vkBasalt bug in DXVK m
         try_mkdir "$RUNMNT"
         "$SQFUSE" -f "$RUNIMAGE" "$RUNMNT" -o "ro,offset=$RUNOFFSET" &
         SQFUSE_PID="$!"
-        sleep 0.05
-        [ -d "/proc/$SQFUSE_PID" ] && \
-            export SQFUSE_PIDS="$SQFUSE_PID $SQFUSE_PIDS"
-    else
-        export RUNROOTFS="$RUNDIR/rootfs"
-fi
-
-if [ "$RUNSRCNAME" == "lwrun" ]
-    then
-        AUTORUN="lutris-wine"
-elif [[ "$RUNSRCNAME" != "Run"* && \
-        "$RUNSRCNAME" != "runimage"* ]]
-   then
-        AUTORUN="$RUNSRCNAME"
+        export SQFUSE_PIDS="$SQFUSE_PID $SQFUSE_PIDS"
+        if ! mount_exist "$SQFUSE_PID" "$RUNMNT"
+            then
+                error_msg "Failed to mount RunImage rootfs!"
+                FORCE_CLEANUP=1 cleanup
+                exit 1
+        fi
 fi
 
 if [ -n "$AUTORUN" ]
@@ -809,15 +999,14 @@ if [[ "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
         HOME_BIND+=("--tmpfs" "/home" \
                     "--tmpfs" "/root" \
                     "--dir" "$HOME/.cache" \
-                    "--dir" "$HOME/.config" \
-                    "--dir" "$HOME/.local/share/RunImage")
+                    "--dir" "$HOME/.config")
         [[ "$EUID" == 0 && "$RUNUSER" != "root" ]] && \
             HOME_BIND+=("--dir" "/home/$RUNUSER")
         [ "$TMP_HOME_DL" == 1 ] && \
             HOME_BIND+=("--dir" "$HOME/Downloads" \
                         "--symlink" "$HOME/Downloads" "$HOME/Загрузки" \
                         "--bind-try" "$HOME/Downloads" "$HOME/Downloads")
-        info_msg "Setting temporary \$HOME to '$HOME'"
+        info_msg "Setting temporary \$HOME to: '$HOME'"
     else
         if [[ -n "$SYS_HOME" && "$SYS_HOME" != "/root" && \
             "$(echo "$SYS_HOME"|head -c 6)" != "/home/" ]]
@@ -846,71 +1035,70 @@ if [[ "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
                         if [ "$SYS_HOME" == "/home/$RUNUSER" ]
                             then
                                 export HOME="/root"
-                                SETHOMEDIR=1
+                                SET_HOME_DIR=1
                         fi
                         HOME_BIND+=("--bind-try" "/root" "/root")
                     else
                         HOME_BIND+=("--tmpfs" "/root")
                 fi
         fi
-fi
-
-if [[ "$PORTABLE_HOME" == 1 || ! -n "$HOME" || -d "$RUNIMAGEDIR/$RUNSRCNAME.home" ]] && \
-    [[ "$PORTABLE_HOME" != 0 && "$TMP_HOME" != 1 && "$TMP_HOME_DL" != 1 ]]
-    then
-        export HOME="$RUNIMAGEDIR/$RUNSRCNAME.home"
-        SETHOMEDIR=1
-elif [[ -n "$RUNIMAGE" && "$PORTABLE_HOME" != 0 && "$TMP_HOME" != 1 && "$TMP_HOME_DL" != 1 ]] && \
-    [[ "$PORTABLE_HOME" == 1 || -d "$RUNIMAGE.home" ]]
-    then
-        export HOME="$RUNIMAGE.home"
-        SETHOMEDIR=1
-elif [[ "$PORTABLE_HOME" == 1 || -d "$RUNIMAGEDIR/Run.home" ]] && \
-    [[ "$PORTABLE_HOME" != 0 && "$TMP_HOME" != 1 && "$TMP_HOME_DL" != 1 ]]
-    then
-        export HOME="$RUNIMAGEDIR/Run.home"
-        SETHOMEDIR=1
+        if [ "$PORTABLE_HOME" != 0 ]
+            then
+                if [[ "$PORTABLE_HOME" == 1 || -d "$RUNIMAGEDIR/$RUNSRCNAME.home" ]]
+                    then
+                        export HOME="$RUNIMAGEDIR/$RUNSRCNAME.home"
+                        SET_HOME_DIR=1
+                elif [ -n "$RUNIMAGE" ] && [[ "$PORTABLE_HOME" == 1 || -d "$RUNIMAGE.home" ]]
+                    then
+                        export HOME="$RUNIMAGE.home"
+                        SET_HOME_DIR=1
+                elif [[ "$PORTABLE_HOME" == 1 || -d "$RUNIMAGEDIR/Run.home" ]]
+                    then
+                        export HOME="$RUNIMAGEDIR/Run.home"
+                        SET_HOME_DIR=1
+                fi
+        fi
 fi
 if [[ -L "$HOME" && ! -n "$NEW_HOME" && "$HOME" != "/root" ]]
     then
         export HOME="$(realpath "$HOME" 2>/dev/null)"
         warn_msg "Symlinking for \$HOME is not allowed!"
-        SETHOMEDIR=1
+        SET_HOME_DIR=1
 fi
-if [ "$SETHOMEDIR" == 1 ]
+if [ "$SET_HOME_DIR" == 1 ]
     then
         try_mkdir "$HOME"
         try_mkdir "$HOME/.cache"
         try_mkdir "$HOME/.config"
-        info_msg "Setting \$HOME to '$HOME'"
+        info_msg "Setting \$HOME to: '$HOME'"
 fi
 
-if [[ "$PORTABLE_CONFIG" == 1 || -d "$RUNIMAGEDIR/$RUNSRCNAME.config" ]] && \
-    [ "$PORTABLE_CONFIG" != 0 ]
+if [ "$PORTABLE_CONFIG" != 0 ]
     then
-        export XDG_CONFIG_HOME="$RUNIMAGEDIR/$RUNSRCNAME.config"
-        SETCONFDIR=1
-elif [[ -n "$RUNIMAGE" && "$PORTABLE_CONFIG" != 0 ]] && \
-    [[ "$PORTABLE_CONFIG" == 1 || -d "$RUNIMAGE.config" ]]
-    then
-        export XDG_CONFIG_HOME="$RUNIMAGE.config"
-        SETCONFDIR=1
-elif [[ "$PORTABLE_CONFIG" == 1 || -d "$RUNIMAGEDIR/Run.config" ]] && \
-    [ "$PORTABLE_CONFIG" != 0 ]
-    then
-        export XDG_CONFIG_HOME="$RUNIMAGEDIR/Run.config"
-        SETCONFDIR=1
+        if [[ "$PORTABLE_CONFIG" == 1 || -d "$RUNIMAGEDIR/$RUNSRCNAME.config" ]]
+            then
+                export XDG_CONFIG_HOME="$RUNIMAGEDIR/$RUNSRCNAME.config"
+                SET_CONF_DIR=1
+        elif [ -n "$RUNIMAGE" ] && [[ "$PORTABLE_CONFIG" == 1 || -d "$RUNIMAGE.config" ]]
+            then
+                export XDG_CONFIG_HOME="$RUNIMAGE.config"
+                SET_CONF_DIR=1
+        elif [[ "$PORTABLE_CONFIG" == 1 || -d "$RUNIMAGEDIR/Run.config" ]]
+            then
+                export XDG_CONFIG_HOME="$RUNIMAGEDIR/Run.config"
+                SET_CONF_DIR=1
+        fi
 fi
-if [ "$SETCONFDIR" == 1 ]
+if [ "$SET_CONF_DIR" == 1 ]
     then
         try_mkdir "$XDG_CONFIG_HOME"
-        info_msg "Setting \$XDG_CONFIG_HOME to '$XDG_CONFIG_HOME'"
+        info_msg "Setting \$XDG_CONFIG_HOME to: '$XDG_CONFIG_HOME'"
 fi
 
 [ -n "$XAUTHORITY" ] && \
     SYS_XAUTHORITY="$XAUTHORITY"
 
-if [[ ! -n "$XAUTHORITY" || "$SETHOMEDIR" == 1 || \
+if [[ ! -n "$XAUTHORITY" || "$SET_HOME_DIR" == 1 || \
     "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
     then
         export XAUTHORITY="$HOME/.Xauthority"
@@ -938,18 +1126,22 @@ if [[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" || "$UN
                 XDG_RUN_BIND+=("--tmpfs" "/run" \
                                "--dir" "$XDG_RUNTIME_DIR" \
                                "--chmod" "0700" "$XDG_RUNTIME_DIR")
-                for xdg_run in /run/*
-                    do
-                        [ "$xdg_run" != "/run/user" ] && \
-                            XDG_RUN_BIND+=("--bind-try" "$xdg_run" "$xdg_run")
-                done
+                if [ ! -d "$XDG_RUNTIME_DIR" ]
+                    then
+                        for i_run in /run/* /run/.[a-zA-Z0-9]*
+                            do
+                                [ "$i_run" != "/run/user" ] && \
+                                    XDG_RUN_BIND+=("--bind-try" "$i_run" "$i_run")
+                        done
+                fi
                 if [ "$UNSHARE_PIDS" == 1 ]
                     then
+                        warn_msg "System PIDs hiding enabled!"
                         UNPIDS_BIND+=("--as-pid-1" \
                                       "--unshare-pid" \
                                       "--bind-try" "$XDG_RUNTIME_DIR/pulse" "$XDG_RUNTIME_DIR/pulse" \
                                       "--bind-try" "$XDG_RUNTIME_DIR/pipewire-0" "$XDG_RUNTIME_DIR/pipewire-0")
-                        ARGS_BIND+=("dbus-launch" "--exit-with-session")
+                        EXEC_ARGS=("dbus-launch" "--exit-with-session")
                 fi
             else
                 XDG_RUN_BIND=("--bind-try" "/run" "/run")
@@ -958,19 +1150,8 @@ if [[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" || "$UN
         XDG_RUN_BIND=("--bind-try" "/run" "/run")
 fi
 
-if [ ! -n "$DBUS_SESSION_BUS_ADDRESS" ]
-    then
-        if [ -S "$XDG_RUNTIME_DIR/bus" ]
-            then
-                export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
-        elif [ -S "/run/dbus/system_bus_socket" ]
-            then
-                export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/dbus/system_bus_socket"
-        elif [ -S "/var/run/dbus/system_bus_socket" ]
-            then
-                export DBUS_SESSION_BUS_ADDRESS="unix:path=/var/run/dbus/system_bus_socket"
-        fi
-fi
+[[ ! -n "$DBUS_SESSION_BUS_ADDRESS" && -S "$XDG_RUNTIME_DIR/bus" ]] && \
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 
 if [ -d "/tmp/.X11-unix" ] # Gamecope X11 sockets bug
     then
@@ -978,7 +1159,7 @@ if [ -d "/tmp/.X11-unix" ] # Gamecope X11 sockets bug
             then
                 TMP_BIND+=("--tmpfs" "/tmp" \
                            "--dir" "/tmp/.X11-unix")
-                for i_tmp in /tmp/*
+                for i_tmp in /tmp/* /tmp/.[a-zA-Z0-9]*
                     do
                         [ "$i_tmp" != "/tmp/.X11-unix" ] && \
                             TMP_BIND+=("--bind-try" "$i_tmp" "$i_tmp")
@@ -987,7 +1168,7 @@ if [ -d "/tmp/.X11-unix" ] # Gamecope X11 sockets bug
                 TMP_BIND+=("--bind-try" "/tmp" "/tmp" \
                            "--tmpfs" "/tmp/.X11-unix")
         fi
-        if [ -n "$(ls -1 /tmp/.X11-unix 2>/dev/null|head -1)" ]
+        if [ -n "$(ls -A /tmp/.X11-unix 2>/dev/null)" ]
             then
                 for x_socket in /tmp/.X11-unix/X*
                     do
@@ -1001,6 +1182,7 @@ fi
 if [ -d "$TMPDIR" ]
     then
         NEWTMPDIR="/tmp/.TMPDIR"
+        info_msg "Binding \$TMPDIR to: '$NEWTMPDIR'"
         TMPDIR_BIND+=("--dir" "$NEWTMPDIR" \
                       "--bind-try" "$TMPDIR" "$NEWTMPDIR" \
                       "--setenv" "TMPDIR" "$NEWTMPDIR")
@@ -1018,16 +1200,39 @@ if [ "$NO_INET" == 1 ]
                        "--ro-bind-try" "/etc/resolv.conf" "/etc/resolv.conf")
 fi
 
+if [ "$XORG_CONF" != 0 ]
+    then
+        if [[ -f "$XORG_CONF" && "$(basename "$XORG_CONF")" == "xorg.conf" ]]
+            then
+                info_msg "Found xorg.conf in: '$XORG_CONF'"
+                XORG_CONF_BIND=("--ro-bind-try" \
+                                "$XORG_CONF" "/etc/X11/xorg.conf")
+        elif [ -f "/etc/X11/xorg.conf" ]
+            then
+                info_msg "Found xorg.conf in: '/etc/X11/xorg.conf'"
+                XORG_CONF_BIND=("--ro-bind-try" \
+                                "/etc/X11/xorg.conf" "/etc/X11/xorg.conf")
+        fi
+    else
+        warn_msg "Binding xorg.conf is disabled!"
+fi
+
 add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
 /usr/lib/jvm/default/bin:/usr/local/bin:/usr/local/sbin:$SYS_PATH"
 [ -n "$LD_LIBRARY_PATH" ] && \
     add_lib_pth "$LD_LIBRARY_PATH"
 
+[ "$NO_NVIDIA_CHECK" != 1 ] && \
+    check_nvidia_driver || \
+    warn_msg "Nvidia driver check is disabled!"
+
+[ "$ADD_LD_CACHE" == 1 ] && \
+    LD_CACHE_BIND=("--bind-try" \
+                   "$RUNCACHEDIR/ld.so.cache" "/etc/ld.so.cache")
 ##############################################################################
 if [ -n "$AUTORUN" ]
     then
         bwrun /usr/bin/$AUTORUN "$@"
-        EXEC_STATUS="$?"
     else
         if [ ! -n "$1" ]
             then
@@ -1035,15 +1240,17 @@ if [ -n "$AUTORUN" ]
             else
                 case $1 in
                     --runimage-help) print_help ;;
-                    --runimage-bwraphelp) bwraphelp ;;
-                    --runimage-pkglist) pkglist ;;
-                    --runimage-binlist) binlist ;;
-                    --runimage-shell) shift && bwrun /usr/bin/fish "$@" ; EXEC_STATUS="$?" ;;
-                    --runimage-version) info_msg "RuntimeImage version: ${RED}$RUNIMAGE_VERSION" ;;
-                    *) bwrun "$@" ; EXEC_STATUS="$?" ;;
+                    --runimage-bwraphelp) bwrap_help ;;
+                    --runimage-pkglist) pkg_list ;;
+                    --runimage-binlist) bin_list ;;
+                    --runimage-shell) shift && bwrun /usr/bin/fish "$@" ;;
+                    --runimage-desktop) bwrun /usr/bin/rundesktop ;;
+                    --runimage-version) print_version ;;
+                    *) bwrun "$@" ;;
                 esac
         fi
 fi
+EXEC_STATUS="$?"
 cleanup
 exit $EXEC_STATUS
 ##############################################################################
