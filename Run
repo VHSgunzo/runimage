@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-RUNIMAGE_VERSION='0.37.4'
+RUNIMAGE_VERSION='0.37.5'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -620,7 +620,7 @@ ${GREEN}RuntimeImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
         ${YELLOW}FORCE_CLEANUP$GREEN=1                      Kills all runimage background processes when exiting
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
-        ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
+        ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities
         ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run the runimage with autorun options for /usr/bin executables
         ${YELLOW}ALLOW_ROOT$GREEN=1                         Allows to run runimage under root user
         ${YELLOW}QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
@@ -879,25 +879,6 @@ if [ "$SYS_SQFUSE" == 1 ] && is_sys_exe squashfuse
             export SQFUSE="$BINDIR/squashfuse"
 fi
 
-if [ "$SYS_BWRAP" == 1 ] && is_sys_exe bwrap
-    then
-        info_msg "The system Bubblewrap is used!"
-        export BWRAP="$(which_sys_exe bwrap)"
-    else
-        export BWRAP="$BINDIR/bwrap"
-fi
-if [[ "$SYS_BWRAP" == 1 && "$EUID" != 0 && \
-      -x "$(find "$BWRAP" -perm -u=s 2>/dev/null)" ]]
-    then
-        warn_msg "Bubblewrap has SUID sticky bit!"
-        SUID_BWRAP=1
-fi
-if [[ "$SUID_BWRAP" == 1 || "$NO_CAP" == 1 ]]
-    then
-        warn_msg "Bubblewrap capabilities is disabled!"
-        BWRAP_CAP=("--cap-drop" "ALL")
-fi
-
 if [ "$EUID" != 0 ]
     then
         if [ ! -f '/proc/self/ns/user' ]
@@ -952,6 +933,25 @@ if [ "$EUID" != 0 ]
                 fi
                 exit 1
         fi
+fi
+
+if [ "$SYS_BWRAP" == 1 ] && is_sys_exe bwrap
+    then
+        info_msg "The system Bubblewrap is used!"
+        export BWRAP="$(which_sys_exe bwrap)"
+    else
+        export BWRAP="$BINDIR/bwrap"
+fi
+if [[ "$SYS_BWRAP" == 1 && "$EUID" != 0 && \
+      -x "$(find "$BWRAP" -perm -u=s 2>/dev/null)" ]]
+    then
+        warn_msg "Bubblewrap has SUID sticky bit!"
+        SUID_BWRAP=1
+fi
+if [[ "$SUID_BWRAP" == 1 || "$NO_CAP" == 1 ]]
+    then
+        warn_msg "Bubblewrap capabilities is disabled!"
+        BWRAP_CAP=("--cap-drop" "ALL")
 fi
 
 if sestatus &>/dev/null
