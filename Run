@@ -50,6 +50,7 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
         fi
         export RUNIMAGEDIR="$(dirname "$RUNIMAGE" 2>/dev/null)"
         RUNIMAGENAME="$(basename "$RUNIMAGE" 2>/dev/null)"
+        RUNRUNTIME_VERSION="$("$RUNIMAGE" --runtime-version|& awk '{print$2}')"
     else
         [ ! -n "$RUNDIR" ] && \
             export RUNDIR="$(dirname "$(realpath "$0" 2>/dev/null)" 2>/dev/null)"
@@ -65,6 +66,8 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
         else
             RUNSRC="$RUNDIR/Run"
         fi
+        [ -x "$BINDIR/runtime-fuse2-lz4" ] && \
+            RUNRUNTIME_VERSION="$("$BINDIR/runtime-fuse2-lz4" --runtime-version|& awk '{print$2}')"
 fi
 
 export RUNROOTFS="$RUNDIR/rootfs"
@@ -582,13 +585,15 @@ print_version() {
     info_msg "RunImage version: ${RED}$RUNIMAGE_VERSION"
     info_msg "RootFS version: ${RED}$RUNROOTFS_VERSION"
     info_msg "Static version: ${RED}$RUNSTATIC_VERSION"
+    [ -n "$RUNRUNTIME_VERSION" ] && \
+        info_msg "RunImage runtime version: ${RED}$RUNRUNTIME_VERSION"
 }
 
 print_help() {
 if ! console_info_notify
     then
     echo -e "
-${GREEN}RuntimeImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
+${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
     ${RED}Usage:
         $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE$(uname -a|awk '{print$2}')$RED]─[$GREEN$PWD$RED]
         $RED└──╼ \$$GREEN $([ -n "$RUNIMAGE" ] && echo "$RUNIMAGE"||echo "$0") {executable} $YELLOW{arguments}
@@ -601,7 +606,7 @@ ${GREEN}RuntimeImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}--runimage-shell$YELLOW {args}$GREEN              Run the runimage shell or execute a command in runimage shell
         ${BLUE}--runimage-desktop$GREEN                   Launch the runimage desktop
 
-    ${RED}Only for not extracted:
+    ${RED}Only for not extracted (RunImage runtime options):
         ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
         ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run the runimage afer extraction without using FUSE
         ${BLUE}--runtime-help$GREEN                       Show runimage runtime help (Shown in this help)
@@ -692,7 +697,7 @@ ${GREEN}RuntimeImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             Ability to run RunImage in desktop mode. By default, XFCE is used.
             If the launch is carried out from an already running desktop, then Xephyr will start
                 in windowed mode (see XEPHYR_* environment variables)
-            It is also possible to run on TTY with Xorg (see XORG_CONF environment variables).
+            It is also possible to run on TTY with Xorg (see XORG_CONF environment variables)
                 To do this, just log in to TTY and run RunImage desktop.
             ${RED}Important!${GREEN} The launch on the TTY should be carried out only under the user under whom the
                 login to the TTY was carried out.
