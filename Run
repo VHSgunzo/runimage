@@ -692,7 +692,8 @@ ${GREEN}RuntimeImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             Ability to run RunImage in desktop mode. By default, XFCE is used.
             If the launch is carried out from an already running desktop, then Xephyr will start
                 in windowed mode (see XEPHYR_* environment variables)
-            It is also possible to run on TTY. To do this, just log in to TTY and run RunImage desktop.
+            It is also possible to run on TTY with Xorg (see XORG_CONF environment variables).
+                To do this, just log in to TTY and run RunImage desktop.
             ${RED}Important!${GREEN} The launch on the TTY should be carried out only under the user under whom the
                 login to the TTY was carried out.
 
