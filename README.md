@@ -36,152 +36,152 @@ chmod +x runimage
 
 ## Usage (from RunImage help):
 ```
-    ┌──[user@pc]─[~]
-    └──╼ $ runimage {executable} {arguments}
+┌──[user@pc]─[~]
+└──╼ $ runimage {executable} {arguments}
 
-        --runimage-help                      Show this usage info
-        --runimage-bwraphelp                 Show Bubblewrap usage info
-        --runimage-version                   Show runimage, rootfs, static, runtime version
-        --runimage-pkglist                   Show packages installed in runimage
-        --runimage-binlist                   Show /usr/bin in runimage
-        --runimage-shell {args}              Run runimage shell or execute a command in runimage shell
-        --runimage-desktop                   Launch runimage desktop
+    --runimage-help                      Show this usage info
+    --runimage-bwraphelp                 Show Bubblewrap usage info
+    --runimage-version                   Show runimage, rootfs, static, runtime version
+    --runimage-pkglist                   Show packages installed in runimage
+    --runimage-binlist                   Show /usr/bin in runimage
+    --runimage-shell {args}              Run runimage shell or execute a command in runimage shell
+    --runimage-desktop                   Launch runimage desktop
 
-    Only for not extracted (RunImage runtime options):
-        --runtime-extract {pattern}          Extract content from embedded filesystem image
-        --runtime-extract-and-run {args}     Run runimage afer extraction without using FUSE
-        --runtime-help                       Show runimage runtime help (Shown in this help)
-        --runtime-mount                      Mount embedded filesystem image and print
-        --runtime-offset                     Print byte offset to start of embedded
-        --runtime-portable-home              Create a portable home folder to use as $HOME
-        --runtime-portable-config            Create a portable config folder to use as $XDG_CONFIG_HOME
-        --runtime-version                    Print version of runimage runtime
+Only for not extracted (RunImage runtime options):
+    --runtime-extract {pattern}          Extract content from embedded filesystem image
+    --runtime-extract-and-run {args}     Run runimage afer extraction without using FUSE
+    --runtime-help                       Show runimage runtime help (Shown in this help)
+    --runtime-mount                      Mount embedded filesystem image and print
+    --runtime-offset                     Print byte offset to start of embedded
+    --runtime-portable-home              Create a portable home folder to use as $HOME
+    --runtime-portable-config            Create a portable config folder to use as $XDG_CONFIG_HOME
+    --runtime-version                    Print version of runimage runtime
 
-    Environment variables:
-        NO_INET=1                            Disables network access
-        TMP_HOME=1                           Creates tmpfs /home/$USER and /root in RAM and uses it as $HOME
-        TMP_HOME_DL=1                        As above, but with binding $HOME/Downloads directory
-        PORTABLE_HOME=1                      Creates a portable home folder and uses it as $HOME
-        PORTABLE_CONFIG=1                    Creates a portable config folder and uses it as $XDG_CONFIG_HOME
-        NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
-        FORCE_CLEANUP=1                      Kills all runimage background processes when exiting
-        NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
-        NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
-                                                you can also use /usr/bin/nocap in runimage
-        AUTORUN="{executable} {args}"        Run runimage with autorun options for /usr/bin executables
-        ALLOW_ROOT=1                         Allows to run runimage under root user
-        QUIET_MODE=1                         Disables all non-error runimage messages
-        NO_NOTIFY=1                          Disables all notification
-        UNSHARE_PIDS=1                       Hides all system processes in runimage
-        RUNTIME_EXTRACT_AND_RUN=1            Run runimage afer extraction without using FUSE
-        TMPDIR="/path/{TMPDIR}"              Used for extract and run options
-        RUNIMAGE_CONFIG="/path/{config}"     runimage сonfiguration file (0 to disable)
-        XORG_CONF="/path/xorg.conf"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
-                                                (Default: /etc/X11/xorg.conf bind from the system)
-        XEPHYR_SIZE="HEIGHTxWIDTH"           Sets runimage desktop resolution (Default: 1600x900)
-        XEPHYR_DISPLAY=":9999"               Sets runimage desktop $DISPLAY (Default: :1337)
-        XEPHYR_FULLSCREEN=1                  Starts runimage desktop in full screen mode
-        UNSHARE_CLIPBOARD=1                  Disables clipboard synchronization for runimage desktop
+Environment variables:
+    NO_INET=1                            Disables network access
+    TMP_HOME=1                           Creates tmpfs /home/$USER and /root in RAM and uses it as $HOME
+    TMP_HOME_DL=1                        As above, but with binding $HOME/Downloads directory
+    PORTABLE_HOME=1                      Creates a portable home folder and uses it as $HOME
+    PORTABLE_CONFIG=1                    Creates a portable config folder and uses it as $XDG_CONFIG_HOME
+    NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
+    FORCE_CLEANUP=1                      Kills all runimage background processes when exiting
+    NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
+    NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
+                                            you can also use /usr/bin/nocap in runimage
+    AUTORUN="{executable} {args}"        Run runimage with autorun options for /usr/bin executables
+    ALLOW_ROOT=1                         Allows to run runimage under root user
+    QUIET_MODE=1                         Disables all non-error runimage messages
+    NO_NOTIFY=1                          Disables all notification
+    UNSHARE_PIDS=1                       Hides all system processes in runimage
+    RUNTIME_EXTRACT_AND_RUN=1            Run runimage afer extraction without using FUSE
+    TMPDIR="/path/{TMPDIR}"              Used for extract and run options
+    RUNIMAGE_CONFIG="/path/{config}"     runimage сonfiguration file (0 to disable)
+    XORG_CONF="/path/xorg.conf"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
+                                            (Default: /etc/X11/xorg.conf bind from the system)
+    XEPHYR_SIZE="HEIGHTxWIDTH"           Sets runimage desktop resolution (Default: 1600x900)
+    XEPHYR_DISPLAY=":9999"               Sets runimage desktop $DISPLAY (Default: :1337)
+    XEPHYR_FULLSCREEN=1                  Starts runimage desktop in full screen mode
+    UNSHARE_CLIPBOARD=1                  Disables clipboard synchronization for runimage desktop
 
-        SYS_BWRAP=1                          Using system bwrap
-        SYS_SQFUSE=1                         Using system squashfuse
-        SYS_ARIA2C=1                         Using system aria2c
-        SYS_UNSQFS=1                         Using system unsquashfs
-        SYS_MKSQFS=1                         Using system mksquashfs
-        SYS_TOOLS=1                          Using all these binaries from the system
-                                             If they are not found in the system - auto return to the built-in
+    SYS_BWRAP=1                          Using system bwrap
+    SYS_SQFUSE=1                         Using system squashfuse
+    SYS_ARIA2C=1                         Using system aria2c
+    SYS_UNSQFS=1                         Using system unsquashfs
+    SYS_MKSQFS=1                         Using system mksquashfs
+    SYS_TOOLS=1                          Using all these binaries from the system
+                                            If they are not found in the system - auto return to the built-in
 
-    Additional information:
-        You can create a symlink/hardlink to runimage or rename runimage and give it the name
-            of some executable file from /usr/bin in runimage, this will allow you to run
-            runimage in autorun mode for this executable file.
-        The same principle applies to the AUTORUN variable:
-            ┌─[user@pc]─[~]
-            └──╼ $ export AUTORUN="ls -la"
-            └──╼ $ runimage {args}
-        Here runimage will become something like an alias for 'ls' in runimage
-            with the '-la' argument.
-        This will also work in extracted form for the Run script.
+Additional information:
+    You can create a symlink/hardlink to runimage or rename runimage and give it the name
+        of some executable file from /usr/bin in runimage, this will allow you to run
+        runimage in autorun mode for this executable file.
+    The same principle applies to the AUTORUN variable:
+        ┌─[user@pc]─[~]
+        └──╼ $ export AUTORUN="ls -la"
+        └──╼ $ runimage {args}
+    Here runimage will become something like an alias for 'ls' in runimage
+        with the '-la' argument.
+    This will also work in extracted form for the Run script.
 
-        When using the PORTABLE_HOME and PORTABLE_CONFIG variables, runimage will create or
-            search for these directories next to itself. The same behavior will occur when
-            adding a runimage or Run script or renamed or symlink/hardlink to them in the PATH
-            it can be used both extracted and compressed and for all executable files being run:
-                '/path/to/runimage/Run.home'
-                '/path/to/runimage/Run.config'
-            if a symlink/hardlink to runimage is used:
-                '/path/to/runimage/{symlink/hardlink_name}.home'
-                '/path/to/runimage/{symlink/hardlink_name}.config'
-            or with runimage/Run name:
-                '/path/to/runimage/{runimage/Run_name}.home'
-                '/path/to/runimage/{runimage/Run_name}.config'
-            It can also be with the name of the executable file from AUTORUN environment variables,
-                or with the same name as the executable being run.
+    When using the PORTABLE_HOME and PORTABLE_CONFIG variables, runimage will create or
+        search for these directories next to itself. The same behavior will occur when
+        adding a runimage or Run script or renamed or symlink/hardlink to them in the PATH
+        it can be used both extracted and compressed and for all executable files being run:
+            '/path/to/runimage/Run.home'
+            '/path/to/runimage/Run.config'
+        if a symlink/hardlink to runimage is used:
+            '/path/to/runimage/{symlink/hardlink_name}.home'
+            '/path/to/runimage/{symlink/hardlink_name}.config'
+        or with runimage/Run name:
+            '/path/to/runimage/{runimage/Run_name}.home'
+            '/path/to/runimage/{runimage/Run_name}.config'
+        It can also be with the name of the executable file from AUTORUN environment variables,
+            or with the same name as the executable being run.
 
-        RunImage uses fakeroot and fakechroot, which allows you to use root commands, including in
-            unpacked form, to update the rootfs or install/remove packages.
-            sudo and pkexec have also been replaced with fake ones. (see /usr/bin/sudo /usr/bin/pkexec)
+    RunImage uses fakeroot and fakechroot, which allows you to use root commands, including in
+        unpacked form, to update the rootfs or install/remove packages.
+        sudo and pkexec have also been replaced with fake ones. (see /usr/bin/sudo /usr/bin/pkexec)
 
-        RunImage configuration file:
-            Special BASH-syntax file with the .rcfg extension, which describes additional
-                instructions and environment variables for running runimage.
-            Сonfiguration file can be located next to runimage:
-                '/path/to/runimage/{runimage/Run_name}.rcfg'
-            it can be used both extracted and compressed and for all executable files being run:
-                '/path/to/runimage/Run.rcfg'
-            if a symlink/hardlink to runimage is used:
-                '/path/to/runimage/{symlink/hardlink_name}.rcfg'
-            or in $RUNIMAGEDIR/config directory:
-                '/path/to/runimage/config/Run.rcfg'
-                '/path/to/runimage/config/{runimage/Run_name}.rcfg'
-                '/path/to/runimage/config/{symlink/hardlink_name}.rcfg'
-            It can also be with the name of the executable file from AUTORUN environment variables,
-                or with the same name as the executable being run.
-            In $RUNDIR/config there are default configs in RunImage, they are run in priority,
-                then external configs are run if they are found.
+    RunImage configuration file:
+        Special BASH-syntax file with the .rcfg extension, which describes additional
+            instructions and environment variables for running runimage.
+        Сonfiguration file can be located next to runimage:
+            '/path/to/runimage/{runimage/Run_name}.rcfg'
+        it can be used both extracted and compressed and for all executable files being run:
+            '/path/to/runimage/Run.rcfg'
+        if a symlink/hardlink to runimage is used:
+            '/path/to/runimage/{symlink/hardlink_name}.rcfg'
+        or in $RUNIMAGEDIR/config directory:
+            '/path/to/runimage/config/Run.rcfg'
+            '/path/to/runimage/config/{runimage/Run_name}.rcfg'
+            '/path/to/runimage/config/{symlink/hardlink_name}.rcfg'
+        It can also be with the name of the executable file from AUTORUN environment variables,
+            or with the same name as the executable being run.
+        In $RUNDIR/config there are default configs in RunImage, they are run in priority,
+            then external configs are run if they are found.
 
-        RunImage desktop:
-            Ability to run RunImage in desktop mode. Default DE: XFCE (see /usr/bin/rundesktop)
-            If the launch is carried out from an already running desktop, then Xephyr will start
-                in windowed mode (see XEPHYR_* environment variables)
-                Use CTRL+SHIFT to grab the keyboard and mouse.
-            It is also possible to run on TTY with Xorg (see XORG_CONF environment variables)
-                To do this, just log in to TTY and run RunImage desktop.
-            Important! The launch on the TTY should be carried out only under the user under whom the
-                login to the TTY was carried out.
+    RunImage desktop:
+        Ability to run RunImage in desktop mode. Default DE: XFCE (see /usr/bin/rundesktop)
+        If the launch is carried out from an already running desktop, then Xephyr will start
+            in windowed mode (see XEPHYR_* environment variables)
+            Use CTRL+SHIFT to grab the keyboard and mouse.
+        It is also possible to run on TTY with Xorg (see XORG_CONF environment variables)
+            To do this, just log in to TTY and run RunImage desktop.
+        Important! The launch on the TTY should be carried out only under the user under whom the
+            login to the TTY was carried out.
 
-        For Nvidia users with a proprietary driver:
-            If the nvidia driver version does not match in runimage and in the host, runimage
-                will make an image with the nvidia driver of the required version (requires internet)
-                or will download a ready-made image from the github repository and further used as
-                an additional module to runimage.
-            You can download a ready-made driver image from the releases or build driver image manually:
-                https://github.com/VHSgunzo/runimage-nvidia-drivers
-            In runimage, a fake version of the nvidia driver is installed by default to reduce the size:
-                https://github.com/VHSgunzo/runimage-fake-nvidia-utils
-            But you can also install the usual nvidia driver of your version in runimage.
-            Checking the nvidia driver version can be disabled using NO_NVIDIA_CHECK variable.
-            The nvidia driver image can be located next to runimage:
-                    '/path/to/runimage/{nvidia_version}.nv.drv'
-                or in $RUNIMAGEDIR/nvidia-drivers (Default):
-                    '/path/to/runimage/nvidia-drivers/{nvidia_version}.nv.drv'
-                or the driver can be extracted as the directory
-                    '/path/to/runimage/nvidia-drivers/{nvidia_version}'
-                also, the driver can be in RunImage in a packed or unpacked form:
-                    '$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv'   -  image
-                    '$RUNDIR/nvidia-drivers/{nvidia_version}'          -  directory
+    For Nvidia users with a proprietary driver:
+        If the nvidia driver version does not match in runimage and in the host, runimage
+            will make an image with the nvidia driver of the required version (requires internet)
+            or will download a ready-made image from the github repository and further used as
+            an additional module to runimage.
+        You can download a ready-made driver image from the releases or build driver image manually:
+            https://github.com/VHSgunzo/runimage-nvidia-drivers
+        In runimage, a fake version of the nvidia driver is installed by default to reduce the size:
+            https://github.com/VHSgunzo/runimage-fake-nvidia-utils
+        But you can also install the usual nvidia driver of your version in runimage.
+        Checking the nvidia driver version can be disabled using NO_NVIDIA_CHECK variable.
+        The nvidia driver image can be located next to runimage:
+                '/path/to/runimage/{nvidia_version}.nv.drv'
+            or in $RUNIMAGEDIR/nvidia-drivers (Default):
+                '/path/to/runimage/nvidia-drivers/{nvidia_version}.nv.drv'
+            or the driver can be extracted as the directory
+                '/path/to/runimage/nvidia-drivers/{nvidia_version}'
+            also, the driver can be in RunImage in a packed or unpacked form:
+                '$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv'   -  image
+                '$RUNDIR/nvidia-drivers/{nvidia_version}'          -  directory
 
-    Recommendations:
-        If the kernel does not support user namespaces, you need to install
-            SUID Bubblewrap into the system, or install a kernel with user namespaces support.
-            If SUID Bubblewrap is found in the system, it will be used automatically.
-        If you use SUID Bubblewrap, then you will encounter some limitations, such as the inability to use
-            FUSE in RunImage, without running it under the root user, because the capabilities are
-            disabled, and so on. So it would be better for you to install kernel with
-            user namespaces support.
-        I recommend installing the XanMod kernel (https://xanmod.org), because I noticed that the speed
-            of runimage in compressed form on this kernel is much higher due to more correct caching settings
-            and special patches.
+Recommendations:
+    If the kernel does not support user namespaces, you need to install
+        SUID Bubblewrap into the system, or install a kernel with user namespaces support.
+        If SUID Bubblewrap is found in the system, it will be used automatically.
+    If you use SUID Bubblewrap, then you will encounter some limitations, such as the inability to use
+        FUSE in RunImage, without running it under the root user, because the capabilities are
+        disabled, and so on. So it would be better for you to install kernel with
+        user namespaces support.
+    I recommend installing the XanMod kernel (https://xanmod.org), because I noticed that the speed
+        of runimage in compressed form on this kernel is much higher due to more correct caching settings
+        and special patches.
 ```
 
 ## Tested and works on:
