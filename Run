@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-RUNIMAGE_VERSION='0.37.5'
+RUNIMAGE_VERSION='0.37.6'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -110,7 +110,7 @@ warn_msg() {
 }
 
 console_info_notify() {
-    if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
+    if [ "$NOT_TERM" == 1 ]
         then
             notify-send -a "RunImage Info" "See the information in the console!" &
         else
@@ -311,7 +311,7 @@ check_nvidia_driver() {
                                     fi
                             fi
                         else
-                            error_msg "No Nvidia driver found inside the RunImage!"
+                            error_msg "No Nvidia driver found in RunImage!"
                             return 1
                     fi
                     if [ -f "$nvidia_driver_dir/64/nvidia_drv.so" ]
@@ -600,15 +600,15 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
 
         ${BLUE}--runimage-help$GREEN                      Show this usage info
         ${BLUE}--runimage-bwraphelp$GREEN                 Show Bubblewrap usage info
-        ${BLUE}--runimage-version$GREEN                   Show the runimage version
+        ${BLUE}--runimage-version$GREEN                   Show runimage, rootfs, static, runtime version
         ${BLUE}--runimage-pkglist$GREEN                   Show packages installed in runimage
         ${BLUE}--runimage-binlist$GREEN                   Show /usr/bin in runimage
-        ${BLUE}--runimage-shell$YELLOW {args}$GREEN              Run the runimage shell or execute a command in runimage shell
-        ${BLUE}--runimage-desktop$GREEN                   Launch the runimage desktop
+        ${BLUE}--runimage-shell$YELLOW {args}$GREEN              Run runimage shell or execute a command in runimage shell
+        ${BLUE}--runimage-desktop$GREEN                   Launch runimage desktop
 
     ${RED}Only for not extracted (RunImage runtime options):
         ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
-        ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run the runimage afer extraction without using FUSE
+        ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run runimage afer extraction without using FUSE
         ${BLUE}--runtime-help$GREEN                       Show runimage runtime help (Shown in this help)
         ${BLUE}--runtime-mount$GREEN                      Mount embedded filesystem image and print
         ${BLUE}--runtime-offset$GREEN                     Print byte offset to start of embedded
@@ -625,21 +625,22 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
         ${YELLOW}FORCE_CLEANUP$GREEN=1                      Kills all runimage background processes when exiting
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
-        ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities
-        ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run the runimage with autorun options for /usr/bin executables
+        ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
+                                                you can also use /usr/bin/nocap in runimage
+        ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run runimage with autorun options for /usr/bin executables
         ${YELLOW}ALLOW_ROOT$GREEN=1                         Allows to run runimage under root user
         ${YELLOW}QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
         ${YELLOW}NO_NOTIFY$GREEN=1                          Disables all notification
-        ${YELLOW}UNSHARE_PIDS$GREEN=1                       Hides all system processes inside the runimage
-        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run the runimage afer extraction without using FUSE
-        ${YELLOW}TMPDIR$GREEN=\"/path/TMPDIR\"                Used for extract and run options
-        ${YELLOW}RUNIMAGE_CONFIG$GREEN=\"/path/{config_name}.rcfg\"    runimage сonfiguration file (0 to disable)
-        ${YELLOW}XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf inside runimage
-                                             by default, /etc/X11/xorg.conf bind from the system (0 to disable)
-        ${YELLOW}XEPHYR_SIZE$GREEN=\"HEIGHTxWIDTH\"           Sets the runimage desktop resolution (Default: 1600x900)
-        ${YELLOW}XEPHYR_DISPLAY$GREEN=\":9999\"               Sets the runimage desktop \$DISPLAY (Default: :1337)
-        ${YELLOW}XEPHYR_FULLSCREEN$GREEN=1                  Starts the runimage desktop in full screen mode
-        ${YELLOW}UNSHARE_CLIPBOARD$GREEN=1                  Disables clipboard synchronization for the runimage desktop
+        ${YELLOW}UNSHARE_PIDS$GREEN=1                       Hides all system processes in runimage
+        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run runimage afer extraction without using FUSE
+        ${YELLOW}TMPDIR$GREEN=\"/path/{TMPDIR}\"              Used for extract and run options
+        ${YELLOW}RUNIMAGE_CONFIG$GREEN=\"/path/{config}\"     runimage сonfiguration file (0 to disable)
+        ${YELLOW}XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
+                                                (Default: /etc/X11/xorg.conf bind from the system)
+        ${YELLOW}XEPHYR_SIZE$GREEN=\"HEIGHTxWIDTH\"           Sets runimage desktop resolution (Default: 1600x900)
+        ${YELLOW}XEPHYR_DISPLAY$GREEN=\":9999\"               Sets runimage desktop ${YELLOW}\$DISPLAY$GREEN (Default: :1337)
+        ${YELLOW}XEPHYR_FULLSCREEN$GREEN=1                  Starts runimage desktop in full screen mode
+        ${YELLOW}UNSHARE_CLIPBOARD$GREEN=1                  Disables clipboard synchronization for runimage desktop
 
         ${YELLOW}SYS_BWRAP$GREEN=1                          Using system ${BLUE}bwrap
         ${YELLOW}SYS_SQFUSE$GREEN=1                         Using system ${BLUE}squashfuse
@@ -650,76 +651,82 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                                              If they are not found in the system - auto return to the built-in
 
     ${RED}Additional information:${GREEN}
-        You can create a symlink/hardlink to the runimage or rename runimage and give it the name
-            of some executable file from /usr/bin inside the runimage, this will allow you to run
-            the runimage in autorun mode for this executable file.
+        You can create a symlink/hardlink to runimage or rename runimage and give it the name
+            of some executable file from /usr/bin in runimage, this will allow you to run
+            runimage in autorun mode for this executable file.
         The same principle applies to the ${YELLOW}AUTORUN$GREEN variable:
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE$(uname -a|awk '{print$2}')$RED]─[$GREEN$PWD$RED]
             $RED└──╼ \$ ${GREEN}export ${YELLOW}AUTORUN=\"ls -la\"
             $RED└──╼ \$ ${GREEN}runimage ${YELLOW}{args}${GREEN}
-            Here runimage will become something like an alias for 'ls' inside the runimage
+        Here runimage will become something like an alias for 'ls' in runimage
             with the '-la' argument.
         This will also work in extracted form for the Run script.
 
         When using the ${YELLOW}PORTABLE_HOME$GREEN and ${YELLOW}PORTABLE_CONFIG$GREEN variables, runimage will create or
             search for these directories next to itself. The same behavior will occur when
             adding a runimage or Run script or renamed or symlink/hardlink to them in the PATH
-            it can be used both extracted and compressed:
-                ${YELLOW}'$RUNIMAGEDIR/Run.home'
+            it can be used both extracted and compressed and for all executable files being run:
+                ${YELLOW}'$RUNIMAGEDIR/Run.home'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/Run.config'$GREEN
-            if a symlink/hardlink to the runimage is used:
-                ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.home'
+            if a symlink/hardlink to runimage is used:
+                ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.home'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.config'$GREEN
-            or with the runimage/Run name:
-                ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.home'
+            or with runimage/Run name:
+                ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.home'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.config'$GREEN
-            It can also be with the name of the executable file from ${YELLOW}\$AUTORUN$GREEN environment variables
+            It can also be with the name of the executable file from ${YELLOW}AUTORUN$GREEN environment variables,
+                or with the same name as the executable being run.
 
         RunImage uses fakeroot and fakechroot, which allows you to use root commands, including in
-            unpacked form, to update the rootfs or install/remove packages. Sudo and pkexec have
-            also been replaced with fake ones.
+            unpacked form, to update the rootfs or install/remove packages.
+            sudo and pkexec have also been replaced with fake ones. (see /usr/bin/sudo /usr/bin/pkexec)
 
         ${RED}RunImage configuration file:${GREEN}
             Special BASH-syntax file with the .rcfg extension, which describes additional
                 instructions and environment variables for running runimage.
-            Сonfiguration file can be located next to the runimage:
+            Сonfiguration file can be located next to runimage:
                 ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.rcfg'$GREEN
-            if a symlink/hardlink to the runimage is used:
+            it can be used both extracted and compressed and for all executable files being run:
+                ${YELLOW}'$RUNIMAGEDIR/Run.rcfg'$GREEN
+            if a symlink/hardlink to runimage is used:
                 ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.rcfg'$GREEN
             or in ${YELLOW}\$RUNIMAGEDIR$GREEN/config directory:
+                ${YELLOW}'$RUNIMAGEDIR/config/Run.rcfg'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/config/{runimage/Run_name}.rcfg'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/config/{symlink/hardlink_name}.rcfg'$GREEN
-            It can also be with the name of the executable file from ${YELLOW}\$AUTORUN$GREEN environment variables
-            In \$RUNDIR/config there are default configs inside RunImage, they are run in priority,
+            It can also be with the name of the executable file from ${YELLOW}AUTORUN$GREEN environment variables,
+                or with the same name as the executable being run.
+            In ${YELLOW}\$RUNDIR$GREEN/config there are default configs in RunImage, they are run in priority,
                 then external configs are run if they are found.
 
         ${RED}RunImage desktop:${GREEN}
-            Ability to run RunImage in desktop mode. By default, XFCE is used.
+            Ability to run RunImage in desktop mode. Default DE: XFCE (see /usr/bin/rundesktop)
             If the launch is carried out from an already running desktop, then Xephyr will start
-                in windowed mode (see XEPHYR_* environment variables)
-            It is also possible to run on TTY with Xorg (see XORG_CONF environment variables)
+                in windowed mode (see ${YELLOW}XEPHYR_*$GREEN environment variables)
+                Use CTRL+SHIFT to grab the keyboard and mouse.
+            It is also possible to run on TTY with Xorg (see ${YELLOW}XORG_CONF$GREEN environment variables)
                 To do this, just log in to TTY and run RunImage desktop.
             ${RED}Important!${GREEN} The launch on the TTY should be carried out only under the user under whom the
                 login to the TTY was carried out.
 
         ${RED}For Nvidia users with a proprietary driver:${GREEN}
-            If the nvidia driver version does not match inside runimage and in the host, runimage
+            If the nvidia driver version does not match in runimage and in the host, runimage
                 will make an image with the nvidia driver of the required version (requires internet)
-                or will download a ready-made image from the github repository.
+                or will download a ready-made image from the github repository and further used as
+                an additional module to runimage.
             You can download a ready-made driver image from the releases or build driver image manually:
                 ${BLUE}https://github.com/VHSgunzo/runimage-nvidia-drivers${GREEN}
-            Inside runimage, a fake version of the nvidia driver is installed by default to reduce
-                the size, so for nvidia users, an image of the nvidia driver will be automatically
-                created and further used as an additional module to runimage.
+            In runimage, a fake version of the nvidia driver is installed by default to reduce the size:
+                ${BLUE}https://github.com/VHSgunzo/runimage-fake-nvidia-utils${GREEN}
             But you can also install the usual nvidia driver of your version in runimage.
             Checking the nvidia driver version can be disabled using ${YELLOW}NO_NVIDIA_CHECK$GREEN variable.
-                the nvidia driver image can be located next to the runimage:
+            The nvidia driver image can be located next to runimage:
                     ${YELLOW}'$RUNIMAGEDIR/{nvidia_version}.nv.drv'$GREEN
                 or in ${YELLOW}\$RUNIMAGEDIR$GREEN/nvidia-drivers (Default):
                     ${YELLOW}'$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}.nv.drv'$GREEN
                 or the driver can be extracted as the directory
                     ${YELLOW}'$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}'$GREEN
-                also, the driver can be inside the container in a packed or unpacked form:
+                also, the driver can be in RunImage in a packed or unpacked form:
                     ${YELLOW}'\$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv'$GREEN   -  image
                     ${YELLOW}'\$RUNDIR/nvidia-drivers/{nvidia_version}'$GREEN          -  directory
 
@@ -728,7 +735,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             SUID Bubblewrap into the system, or install a kernel with user namespaces support.
             If SUID Bubblewrap is found in the system, it will be used automatically.
         If you use SUID Bubblewrap, then you will encounter some limitations, such as the inability to use
-            FUSE inside the container, without running it under the root user, because the capabilities are
+            FUSE in RunImage, without running it under the root user, because the capabilities are
             disabled, and so on. So it would be better for you to install kernel with
             user namespaces support.
         I recommend installing the XanMod kernel (${BLUE}https://xanmod.org${GREEN}), because I noticed that the speed
@@ -749,13 +756,20 @@ if [[ "$EUID" == 0 && "$ALLOW_ROOT" != 1 ]]
         fi
 fi
 
-if [[ "$RUNSRCNAME" != "Run"* && \
-      "$RUNSRCNAME" != "runimage"* ]]
+if [ -n "$AUTORUN" ] && \
+   [[ "$RUNSRCNAME" == "Run"* || \
+      "$RUNSRCNAME" == "runimage"* ]]
+    then
+        AUTORUN0ARG=($AUTORUN)
+        [ -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ] && \
+            RUNSRCNAME="$AUTORUN0ARG"
+elif [[ "$RUNSRCNAME" != "Run"* && \
+        "$RUNSRCNAME" != "runimage"* ]]
    then
         AUTORUN="$RUNSRCNAME"
 fi
 
-if [ ! -n "$AUTORUN" ]
+if [[ -n "$1" && ! -n "$AUTORUN" ]]
     then
         case $1 in
             --*) : ;;
@@ -779,10 +793,10 @@ if [ "$RUNIMAGE_CONFIG" != 0 ]
         fi
         if [ "$SET_RUNIMAGE_INTERNAL_CONFIG" == 1 ]
             then
-                NO_NOTIFY=1 info_msg "Found RunImage internal config: $(basename "$RUNIMAGE_INTERNAL_CONFIG")"
                 set -a
                 source "$RUNIMAGE_INTERNAL_CONFIG"
                 set +a
+                info_msg "Found RunImage internal config: $(basename "$RUNIMAGE_INTERNAL_CONFIG")"
         fi
         if [[ -f "$RUNIMAGE_CONFIG" && -n "$(echo "$RUNIMAGE_CONFIG"|grep -o '\.rcfg$')" ]]
             then
@@ -810,13 +824,27 @@ if [ "$RUNIMAGE_CONFIG" != 0 ]
         fi
         if [ "$SET_RUNIMAGE_CONFIG" == 1 ]
             then
-                info_msg "Found RunImage config: '$RUNIMAGE_CONFIG'"
                 set -a
                 source "$RUNIMAGE_CONFIG"
                 set +a
+                info_msg "Found RunImage config: '$RUNIMAGE_CONFIG'"
         fi
     else
         warn_msg "RunImage config is disabled!"
+fi
+
+if [ -n "$AUTORUN" ]
+    then
+        AUTORUN0ARG=($AUTORUN)
+        [ -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ] && \
+            RUNSRCNAME="$AUTORUN0ARG"
+        info_msg "Autorun mode: $AUTORUN"
+        if [ ! -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ]
+            then
+                error_msg "$AUTORUN0ARG not found in /usr/bin"
+                FORCE_CLEANUP=1 cleanup
+                exit 1
+        fi
 fi
 
 if logname &>/dev/null
@@ -958,6 +986,9 @@ if [[ "$SUID_BWRAP" == 1 || "$NO_CAP" == 1 ]]
     then
         warn_msg "Bubblewrap capabilities is disabled!"
         BWRAP_CAP=("--cap-drop" "ALL")
+    else
+        BWRAP_CAP=("--cap-add" "ALL" "${BWRAP_CAP[@]}")
+        BWRAP_CAP+=("--cap-drop" "CAP_SYS_NICE") # Gamecope bug https://github.com/Plagman/gamescope/issues/309
 fi
 
 if sestatus &>/dev/null
@@ -977,18 +1008,6 @@ if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" ]] # MangoHud and vkBasalt bug in DXVK m
         if ! mount_exist "$SQFUSE_PID" "$RUNMNT"
             then
                 error_msg "Failed to mount RunImage rootfs!"
-                FORCE_CLEANUP=1 cleanup
-                exit 1
-        fi
-fi
-
-if [ -n "$AUTORUN" ]
-    then
-        AUTORUN0ARG=($AUTORUN)
-        info_msg "Autorun mode: $AUTORUN"
-        if [ ! -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ]
-            then
-                error_msg "$AUTORUN0ARG not found in /usr/bin"
                 FORCE_CLEANUP=1 cleanup
                 exit 1
         fi

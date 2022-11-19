@@ -96,7 +96,7 @@ if [[ "$XEPHYR" == 1 || "$XEPHYR_FULLSCREEN" == 1 ]] || \
                 info_msg "Xephyr screen resolution: $XEPHYR_SIZE"
         fi
         Xephyr $([ "$XEPHYR_FULLSCREEN" == 1 ] && echo "-fullscreen"||echo "-screen $XEPHYR_SIZE") \
-            +extension GLX -br -title "RunImage Desktop [$XEPHYR_DISPLAY]" \
+            -resizeable +extension GLX -br -title "RunImage Desktop [$XEPHYR_DISPLAY]" \
             -once -ac -name 'RunImage' $XEPHYR_DISPLAY &>/dev/null &
         XEPHYR_PID="$!"
         sleep 0.01
