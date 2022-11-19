@@ -1,4 +1,7 @@
 # RunImage
+
+![image](https://user-images.githubusercontent.com/57139938/202873005-a7b4fcf3-aff3-4498-90b4-3b19ef8bd146.png)
+
 Portable single-file Linux container. You can use it to develop and run any applications and games, including applications and games for Windows, launch games from retro platforms using popular emulators, work with the office, with remote desktops, multimedia, browsers, messengers, and even run virtual machines.
 
 The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file pkg_list-{release_type}.txt
