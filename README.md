@@ -279,7 +279,7 @@ Recommendations:
 ```
 * In RunImage used the [patched glibc](https://github.com/DissCent/glibc-eac-rc) to work EAC anti-cheat
 * If SELinux is enabled in the system, then there may be problems with the launch and operation of Wine ([solution](https://www.tecmint.com/disable-selinux-in-centos-rhel-fedora))
-* To start nested bubblewrap containerization, you need to disable capabilities (see NO_CAP env var or use [nocap](https://github.com/VHSgunzo/runimage/blob/main/rootfs/bin/nocap)
+* To start nested bubblewrap containerization, you need to disable capabilities (see NO_CAP env var or use [nocap](https://github.com/VHSgunzo/runimage/blob/main/rootfs/bin/nocap))
 ```
     NO_CAP=1 runimage {args}
     # or nocap in runimage
