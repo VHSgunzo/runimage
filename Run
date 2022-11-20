@@ -596,7 +596,7 @@ if ! console_info_notify
 ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
     ${RED}Usage:
         $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE$(uname -a|awk '{print$2}')$RED]─[$GREEN$PWD$RED]
-        $RED└──╼ \$$GREEN $([ -n "$RUNIMAGE" ] && echo "$RUNIMAGE"||echo "$0") {executable} $YELLOW{arguments}
+        $RED└──╼ \$$GREEN $([ -n "$RUNIMAGE" ] && echo "$RUNIMAGE"||echo "$0")$YELLOW {bubblewrap args} $GREEN{executable} $YELLOW{executable args}
 
         ${BLUE}--runimage-help$GREEN                      Show this usage info
         ${BLUE}--runimage-bwraphelp$GREEN                 Show Bubblewrap usage info
@@ -657,7 +657,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         The same principle applies to the ${YELLOW}AUTORUN$GREEN variable:
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE$(uname -a|awk '{print$2}')$RED]─[$GREEN$PWD$RED]
             $RED└──╼ \$ ${GREEN}export ${YELLOW}AUTORUN=\"ls -la\"
-            $RED└──╼ \$ ${GREEN}runimage ${YELLOW}{args}${GREEN}
+            $RED└──╼ \$ ${GREEN}runimage ${YELLOW}{autorun executable args}${GREEN}
         Here runimage will become something like an alias for 'ls' in runimage
             with the '-la' argument.
         This will also work in extracted form for the Run script.

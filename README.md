@@ -2,36 +2,41 @@
 
 ![image](https://user-images.githubusercontent.com/57139938/202873005-a7b4fcf3-aff3-4498-90b4-3b19ef8bd146.png)
 
-Portable single-file Linux container. You can use it to develop and run any applications and games, including applications and games for Windows, launch games from retro platforms using popular emulators, work with the office, with remote desktops, multimedia, browsers, messengers, and even run virtual machines.
+Portable single-file unprivileged Linux container in user namespaces. You can use it to develop and run any applications and games, including applications and games for Windows, launch games from retro platforms using popular emulators, work with the office, with remote desktops, multimedia, browsers, messengers, and even run virtual machines with QEMU/KVM and Virt-Manager, USB and block device forwarding in VM also works.
 
-The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file pkg_list-{release_type}.txt
+Also inside the container, you can use various means of proxification, such as proxychains, tor and others and run VNC and SSH servers.
 
-RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured Arch Linux. The technology of single-file containerization is based on a modified static AppImage runtime, squashfs image with lz4 compression method, statically compiled binaries for the operation of the container startup script, and containerization itself is carried out by Bubblewrap.
+The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file `pkg_list-{release_type}.txt`
+
+RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured Arch Linux rootfs. The technology of single-file containerization is based on a modified static AppImage runtime, squashfs image with lz4 compression method for better work speed, statically compiled binaries for the operation of the containe [Run script](https://github.com/VHSgunzo/runimage/blob/main/Run), and containerization itself is carried out by statically compiled [Bubblewrap](https://github.com/containers/bubblewrap).
 
 In addition, RunImage has the ability to isolate itself from the main system, use separate portable home directories and configuration files for each executable file being run, and run separate X11 servers, including running multiple Xorg servers on TTY. XFCE is used as DE.
 
 ## Features:
 
 * A Portable single executable file with an idea - downloaded and launched. Nothing needs to be installed in the system.
-* Works on most Linux distributions, including even very old ones or without glibc or systemd and in live mode.
+* Works on most Linux distributions, including even very old ones or without glibc or systemd and in live boot mode.
 * Running and working without root rights, including package management in unpacked form.
 * The ability to work in a packed and unpacked form. Unpacked, you will get a higher work speed, but about ~2-3 more occupied disk space
 * The ability to run both 32-bit and 64-bit executable files.
-* Based on Arch Linux, contains latest software (including latest video drivers).
+* Based on Arch Linux, contains latest software.
 * The ability to use both separate home directories for each executable file, and completely seamless use of the system home directory.
-* The ability to use separate configuration files for each launched executable file.
+* The ability to use separate configuration files for each launched executable file (see [config](https://github.com/VHSgunzo/runimage/tree/main/config)).
 * There is no performance drawdown. All applications and executable files run at the same speed as in the system.
 * Supports filesystem and X11 sandboxing and network isolation.
+* Temporary home directory in RAM (can be used as a real private mode for browsers and applications)
 * The ability to launching a full DE in windowed mode and on TTY.
+* Works with any versions of nvidia proprietary drivers.
+* Usability and comprehensibility.
 
 ## Requirements:
-
-* Linux kernel 3.10+ (tested on Ubuntu 12.04, but recommend 5.0+ with user namespaces support)
+* Supported architectures (should work on any Linux kernel architecture. However, it is currently only built for x86_64)
+* Linux kernel 3.10+ (tested on Ubuntu 12.04, but recommend 5.0+ with [user namespaces](https://lwn.net/Articles/531114) support)
 * FUSE (but not necessarily, because it is possible to work in unpacked form without FUSE mounting)
 
 ## To get started:
 
-1. Download release from the [**releases**](https://github.com/VHSgunzo/runimage/releases) page.
+1. Download latest release from the [**releases**](https://github.com/VHSgunzo/runimage/releases) page.
 2. Make it executable before run.
 ```
 chmod +x runimage
@@ -39,8 +44,8 @@ chmod +x runimage
 
 ## Usage (from RunImage help):
 ```
-┌──[user@pc]─[~]
-└──╼ $ runimage {executable} {arguments}
+┌──[user@host]─[~]
+└──╼ $ runimage {bubblewrap args} {executable} {executable args}
 
     --runimage-help                      Show this usage info
     --runimage-bwraphelp                 Show Bubblewrap usage info
@@ -92,16 +97,16 @@ Environment variables:
     SYS_UNSQFS=1                         Using system unsquashfs
     SYS_MKSQFS=1                         Using system mksquashfs
     SYS_TOOLS=1                          Using all these binaries from the system
-                                            If they are not found in the system - auto return to the built-in
+                                         If they are not found in the system - auto return to the built-in
 
 Additional information:
     You can create a symlink/hardlink to runimage or rename runimage and give it the name
         of some executable file from /usr/bin in runimage, this will allow you to run
         runimage in autorun mode for this executable file.
     The same principle applies to the AUTORUN variable:
-        ┌─[user@pc]─[~]
+        ┌─[user@host]─[~]
         └──╼ $ export AUTORUN="ls -la"
-        └──╼ $ runimage {args}
+        └──╼ $ runimage {autorun executable args}
     Here runimage will become something like an alias for 'ls' in runimage
         with the '-la' argument.
     This will also work in extracted form for the Run script.
@@ -149,7 +154,7 @@ Additional information:
             in windowed mode (see XEPHYR_* environment variables)
             Use CTRL+SHIFT to grab the keyboard and mouse.
         It is also possible to run on TTY with Xorg (see XORG_CONF environment variables)
-            To do this, just log in to TTY and run RunImage desktop.
+            To do this, just login to TTY and run RunImage desktop.
         Important! The launch on the TTY should be carried out only under the user under whom the
             login to the TTY was carried out.
 
@@ -257,6 +262,24 @@ Recommendations:
 * Xubuntu
 * Zorin OS
 
+## Troubleshooting and problem solving
+
+* Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
+* To start the SSH server, SUID Bubblewrap or run as root is required
+```
+    ssh-keygen -q -N "" -t rsa -b 4096 -f ~/.ssh/ssh_host_rsa_key && \
+    ssh-keygen -q -N "" -t ed25519 -b 521 -f ~/.ssh/ssh_host_ed25519_key && \
+    ssh-keygen -q -N "" -t ecdsa -b 521 -f ~/.ssh/ssh_host_ecdsa_key
+    echo 'ssh-rsa AAAAB3NzaC1yc2EA PUB-KEY' >> ~/.ssh/authorized_keys
+    /usr/sbin/sshd
+```
+* When unpacked, the container is not completely static, if necessary, you need to manually add the path to the $RUNDIR/static directory to the PATH
+```
+    export PATH="$PATH:$RUNDIR/static"
+```
+* In RunImage used the [patched glibc](https://github.com/DissCent/glibc-eac-rc) to work EAC anti-cheat
+* If SELinux is enabled in the system, then there may be problems with the launch and operation of Wine ([solution](https://www.tecmint.com/disable-selinux-in-centos-rhel-fedora))
+
 ## Main used projects
 
 * [archlinux](https://archlinux.org)
@@ -290,3 +313,4 @@ Recommendations:
 * [yay](https://github.com/Jguer/yay)
 * [fakeroot](https://github.com/mackyle/fakeroot)
 * [fakechroot](https://github.com/dex4er/fakechroot)
+* [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
