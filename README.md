@@ -287,6 +287,15 @@ Recommendations:
     nocap steam {args}
     ...
 ```
+* When using TMP_HOME* you may run out of RAM, be careful with this.
+* It is also advisable to use TMPDIR when using --runtime-extract-and-run or RUNTIME_EXTRACT_AND_RUN, because by default, unpacking before starting will be carried out in /tmp, which may also lead to the end of RAM
+* With UNSHARE_PIDS, RunImage desktop does not start on TTY, freezes the entire system, (I haven't figured out what the problem is yet). Don't run RunImage desktop with UNSHARE_PIDS on TTY.
+* Xephyr does not support GL acceleration and Vulkan has performance issues (But this is not related to RunImage)
+* If you have problems with sound when running RunImage desktop on TTY, just restart pulseaudio.
+```
+    killall pulseaudio && pulseaudio -D
+```
+* If you disable bubblewrap capabilities using NO_CAP, you will not be able to use FUSE inside the container.
 
 ## Main used projects
 
