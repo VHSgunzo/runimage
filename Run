@@ -684,7 +684,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${RED}RunImage configuration file:${GREEN}
             Special BASH-syntax file with the .rcfg extension, which describes additional
                 instructions and environment variables for running runimage.
-            Сonfiguration file can be located next to runimage:
+            Configuration file can be located next to runimage:
                 ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.rcfg'$GREEN
             it can be used both extracted and compressed and for all executable files being run:
                 ${YELLOW}'$RUNIMAGEDIR/Run.rcfg'$GREEN

@@ -8,7 +8,7 @@ Also inside the container, you can use various means of proxification, such as p
 
 The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file `pkg_list-{release_type}.txt`
 
-RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured Arch Linux rootfs. The technology of single-file containerization is based on a modified static AppImage runtime, squashfs image with lz4 compression method for better work speed, statically compiled binaries for the operation of the containe [Run script](https://github.com/VHSgunzo/runimage/blob/main/Run), and containerization itself is carried out by statically compiled [Bubblewrap](https://github.com/containers/bubblewrap).
+RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured Arch Linux rootfs. The technology of single-file containerization is based on a modified static AppImage runtime, squashfs image with lz4 compression method for better work speed, statically compiled binaries for the operation of the container [Run script](https://github.com/VHSgunzo/runimage/blob/main/Run), and containerization itself is carried out by statically compiled [Bubblewrap](https://github.com/containers/bubblewrap).
 
 In addition, RunImage has the ability to isolate itself from the main system, use separate portable home directories and configuration files for each executable file being run, and run separate X11 servers, including running multiple Xorg servers on TTY. XFCE is used as DE.
 
@@ -133,7 +133,7 @@ Additional information:
     RunImage configuration file:
         Special BASH-syntax file with the .rcfg extension, which describes additional
             instructions and environment variables for running runimage.
-        Сonfiguration file can be located next to runimage:
+        Configuration file can be located next to runimage:
             '/path/to/runimage/{runimage/Run_name}.rcfg'
         it can be used both extracted and compressed and for all executable files being run:
             '/path/to/runimage/Run.rcfg'
