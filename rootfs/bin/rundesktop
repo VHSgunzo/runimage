@@ -69,7 +69,7 @@ if [ -n "$(tty|grep -v 'not a'|grep -o tty)" ]
         $XORG -nolisten tcp vt$XDG_VTNR $DISPLAY &
         XORG_PID="$!"
         sleep 0.01
-        [ "/proc/$XORG_PID" ] && \
+        [ -d "/proc/$XORG_PID" ] && \
             RUN_X=1 || \
             error_msg "Failed to start Xorg!"
     else
@@ -100,7 +100,7 @@ if [[ "$XEPHYR" == 1 || "$XEPHYR_FULLSCREEN" == 1 ]] || \
             -once -ac -name 'RunImage' $XEPHYR_DISPLAY &>/dev/null &
         XEPHYR_PID="$!"
         sleep 0.01
-        if [ "/proc/$XEPHYR_PID" ]
+        if [ -d "/proc/$XEPHYR_PID" ]
             then
                 export DISPLAY=$XEPHYR_DISPLAY
                 RUN_X=1

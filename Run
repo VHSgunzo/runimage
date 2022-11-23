@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-RUNIMAGE_VERSION='0.37.6'
+RUNIMAGE_VERSION='0.37.7'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -66,8 +66,13 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
         else
             RUNSRC="$RUNDIR/Run"
         fi
-        [ -x "$BINDIR/runtime-fuse2-lz4" ] && \
-            RUNRUNTIME_VERSION="$("$BINDIR/runtime-fuse2-lz4" --runtime-version|& awk '{print$2}')"
+        if [ -x "$BINDIR/runtime-fuse2-lz4" ]
+            then
+                RUNRUNTIME_VERSION="$("$BINDIR/runtime-fuse2-lz4" --runtime-version|& awk '{print$2}')"
+        elif [ -x "$BINDIR/runtime-fuse2-all" ]
+            then
+                RUNRUNTIME_VERSION="$("$BINDIR/runtime-fuse2-all" --runtime-version|& awk '{print$2}')"
+        fi
 fi
 
 export RUNROOTFS="$RUNDIR/rootfs"
@@ -208,7 +213,7 @@ get_nvidia_driver_image() {
                             return 1
                     fi
                 else
-                    error_msg "Failed to download Nvidia driver!"
+                    error_msg "Failed to download nvidia driver!"
                     return 1
             fi
         else
@@ -243,7 +248,7 @@ mount_nvidia_driver_image() {
 
 check_nvidia_driver() {
     unset NVIDIA_DRIVER_BIND
-    print_nv_drv_dir() { info_msg "Found Nvidia driver directory: $(basename "$nvidia_driver_dir")" ; }
+    print_nv_drv_dir() { info_msg "Found nvidia driver directory: $(basename "$nvidia_driver_dir")" ; }
     if lsmod|grep nvidia &>/dev/null || nvidia-smi &>/dev/null
         then
             unset nvidia_driver_dir
@@ -262,10 +267,10 @@ check_nvidia_driver() {
                         nvidia_version="$(basename /usr/lib/libGLX_nvidia.so.*.*|tail -c +18)"
                 fi
             fi
-            if [ -n "$nvidia_version" ]
+            if [[ -n "$nvidia_version" && "$nvidia_version" != "*.*" ]]
                 then
                     nvidia_version_inside="$(basename "$RUNROOTFS/usr/lib/libGLX_nvidia.so".*.*|tail -c +18)"
-                    if [ -n "$nvidia_version_inside" ]
+                    if [[ -n "$nvidia_version_inside" && "$nvidia_version_inside" != "*.*" ]]
                         then
                             nvidia_driver_image="$nvidia_version.nv.drv"
                             NVDRVMNT="/tmp/.mount_nv${nvidia_version}drv.$RUNKEY"
@@ -311,7 +316,7 @@ check_nvidia_driver() {
                                     fi
                             fi
                         else
-                            error_msg "No Nvidia driver found in RunImage!"
+                            error_msg "No nvidia driver found in RunImage!"
                             return 1
                     fi
                     if [ -f "$nvidia_driver_dir/64/nvidia_drv.so" ]
@@ -321,7 +326,8 @@ check_nvidia_driver() {
                                 libnvidia-cfg.so libnvidia-eglcore.so libnvidia-encode.so libnvidia-fbc.so \
                                 libnvidia-glcore.so libnvidia-glsi.so libnvidia-glvkspirv.so libnvidia-ml.so \
                                 libnvidia-ngx.so libnvidia-opticalflow.so libnvidia-ptxjitcompiler.so \
-                                libnvidia-rtcore.so libnvidia-tls.so libnvidia-vulkan-producer.so libnvoptix.so"
+                                libnvidia-rtcore.so libnvidia-tls.so libnvidia-vulkan-producer.so libnvoptix.so \
+                                libnvidia-nvvm.so"
                             for lib in ${nvidia_libs_list}
                                 do
                                     if [ -f "$RUNROOTFS/usr/lib/${lib}.${nvidia_version_inside}" ]
@@ -420,27 +426,33 @@ check_nvidia_driver() {
                                 "--ro-bind-try" "$nvidia_driver_dir/32" "/usr/lib/nvidia/32")
                             add_bin_pth '/usr/bin/nvidia'
                             add_lib_pth '/usr/lib/nvidia/64:/usr/lib/nvidia/32'
-                            if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
+                            if [ -n "$RUNIMAGE" ]
                                 then
-                                    info_msg "Updating the nvidia library cache..."
-                                    if bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null
+                                    if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
                                         then
-                                            try_mkdir "$RUNCACHEDIR"
-                                            if mv -f "/tmp/ld.so.cache" \
-                                                "$RUNCACHEDIR/ld.so.cache" 2>/dev/null
+                                            info_msg "Updating the nvidia library cache..."
+                                            if bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null
                                                 then
-                                                    echo "$RUNROOTFS_VERSION-$nvidia_version" > \
-                                                         "$RUNCACHEDIR/ld.so.version"
-                                                    ADD_LD_CACHE=1
+                                                    try_mkdir "$RUNCACHEDIR"
+                                                    if mv -f "/tmp/ld.so.cache" \
+                                                        "$RUNCACHEDIR/ld.so.cache" 2>/dev/null
+                                                        then
+                                                            echo "$RUNROOTFS_VERSION-$nvidia_version" > \
+                                                                "$RUNCACHEDIR/ld.so.version"
+                                                            ADD_LD_CACHE=1
+                                                        else
+                                                            error_msg "Failed to merge nvidia library cache!"
+                                                    fi
                                                 else
-                                                    error_msg "Failed to merge nvidia library cache!"
+                                                    error_msg "Failed to update nvidia library cache!"
                                             fi
                                         else
-                                            error_msg "Failed to update nvidia library cache!"
+                                            ADD_LD_CACHE=1
                                     fi
-                                else
-                                    ADD_LD_CACHE=1
                             fi
+                        else
+                            error_msg "Nvidia driver not found!"
+                            return 1
                     fi
             fi
     fi
@@ -560,7 +572,7 @@ bwrun() {
         --setenv LD_LIBRARY_PATH "$LIB_PATH" \
         --setenv NO_AT_BRIDGE '1' \
         --setenv GDK_BACKEND 'x11' \
-        --setenv SHELL '/usr/bin/fish' \
+        --setenv SHELL "$RUN_SHELL" \
         --setenv DESKTOP_SESSION 'xfce' \
         --setenv ZDOTDIR '/etc/zsh/zshrc' \
         --setenv GTK_THEME 'Adwaita:dark' \
@@ -625,6 +637,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
         ${YELLOW}FORCE_CLEANUP$GREEN=1                      Kills all runimage background processes when exiting
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
+        ${YELLOW}RUN_SHELL$GREEN=\"/path/shell\"              Selects \$SHELL in runimage
         ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
                                                 you can also use /usr/bin/nocap in runimage
         ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run runimage with autorun options for /usr/bin executables
@@ -1013,6 +1026,20 @@ if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" ]] # MangoHud and vkBasalt bug in DXVK m
         fi
 fi
 
+if [ ! -n "$RUN_SHELL" ]
+    then
+        if [ -x "$RUNROOTFS/usr/bin/fish" ]
+            then
+                RUN_SHELL='/usr/bin/fish'
+        elif [ -x "$RUNROOTFS/usr/bin/bash" ]
+            then
+                RUN_SHELL='/usr/bin/bash'
+        elif [ -x "$RUNROOTFS/usr/bin/sh" ]
+            then
+                RUN_SHELL='/usr/bin/sh'
+        fi
+fi
+
 [ -n "$HOME" ] && \
    SYS_HOME="$HOME"
 
@@ -1257,6 +1284,8 @@ add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
 ##############################################################################
 if [ -n "$AUTORUN" ]
     then
+        [ "$1" == "$AUTORUN0ARG" ] && \
+            shift
         bwrun /usr/bin/$AUTORUN "$@"
     else
         if [ ! -n "$1" ]
@@ -1268,7 +1297,7 @@ if [ -n "$AUTORUN" ]
                     --runimage-bwraphelp) bwrap_help ;;
                     --runimage-pkglist) pkg_list ;;
                     --runimage-binlist) bin_list ;;
-                    --runimage-shell) shift && bwrun /usr/bin/fish "$@" ;;
+                    --runimage-shell) shift && bwrun "$RUN_SHELL" "$@" ;;
                     --runimage-desktop) bwrun /usr/bin/rundesktop ;;
                     --runimage-version) print_version ;;
                     *) bwrun "$@" ;;

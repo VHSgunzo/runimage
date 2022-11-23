@@ -8,7 +8,7 @@ Also inside the container, you can use various means of proxification, such as p
 
 The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file `pkg_list-{release_type}.txt`
 
-RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured Arch Linux rootfs. The technology of single-file containerization is based on a modified static AppImage runtime, squashfs image with lz4 compression method for better work speed, statically compiled binaries for the operation of the container [Run script](https://github.com/VHSgunzo/runimage/blob/main/Run), and containerization itself is carried out by statically compiled [Bubblewrap](https://github.com/containers/bubblewrap).
+RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs/releases). The technology of single-file containerization is based on a modified static AppImage [runtime](https://github.com/VHSgunzo/runimage-runtime-static), squashfs image with lz4 compression method for better work speed, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static/releases) for the operation of the container [Run script](https://github.com/VHSgunzo/runimage/blob/main/Run), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap).
 
 In addition, RunImage has the ability to isolate itself from the main system, use separate portable home directories and configuration files for each executable file being run, and run separate X11 servers, including running multiple Xorg servers on TTY. XFCE is used as DE.
 
@@ -27,11 +27,12 @@ In addition, RunImage has the ability to isolate itself from the main system, us
 * Temporary home directory in RAM (can be used as a real private mode for browsers and applications)
 * The ability to launching a full DE in windowed mode and on TTY.
 * Works with any versions of nvidia proprietary drivers.
+* Works in Wayland session
 * Usability and comprehensibility.
 
 ## Requirements:
 * Supported architectures (should work on any Linux kernel architecture. However, it is currently only built for x86_64)
-* Linux kernel 3.10+ (tested on Ubuntu 12.04, but recommend 5.0+ with [user namespaces](https://lwn.net/Articles/531114) support)
+* Minimum recommended Linux kernel version 4.18+ (tested on Centos 7 with 3.10 and on Ubuntu 12.04 with 3.11 using SUID Bubblewrap and it's works, but 5.0+ with [user namespaces](https://lwn.net/Articles/531114) support is recommended)
 * FUSE (but not necessarily, because it is possible to work in unpacked form without FUSE mounting)
 
 ## To get started:
@@ -74,6 +75,7 @@ Environment variables:
     NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
     FORCE_CLEANUP=1                      Kills all runimage background processes when exiting
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
+    RUN_SHELL="/path/shell"              Selects $SHELL in runimage
     NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
                                             you can also use /usr/bin/nocap in runimage
     AUTORUN="{executable} {args}"        Run runimage with autorun options for /usr/bin executables
@@ -331,3 +333,5 @@ Recommendations:
 * [fakeroot](https://github.com/mackyle/fakeroot)
 * [fakechroot](https://github.com/dex4er/fakechroot)
 * [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
+* [MEGAcmd](https://github.com/meganz/MEGAcmd)
+* [lutris-wine](https://github.com/VHSgunzo/lutris-wine)
