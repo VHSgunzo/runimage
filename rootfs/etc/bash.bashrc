@@ -3,7 +3,13 @@
 #
 export SHELL=/usr/bin/bash
 export NO_AT_BRIDGE=1
-export EDITOR='micro'
+if [ -x "/usr/bin/micro" ]
+    then
+        export EDITOR='micro'
+elif [ -x "/usr/bin/nano" ]
+    then
+        export EDITOR='nano'
+fi
 export HISTTIMEFORMAT="%F %T "
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
@@ -80,17 +86,9 @@ alias _='sudo'
 alias _i='sudo -i'
 alias please='sudo'
 alias fucking='sudo'
-alias cip='curl 2ip.ru'
-alias start='systemctl start'
-alias stop='systemctl stop'
-alias restart='systemctl restart'
-alias reload='systemctl reload'
-alias status='systemctl status'
-alias enable='systemctl enable'
-alias disable='systemctl disable'
-alias daemon-reload='systemctl daemon-reload'
-alias dd='dd bs=8192 status=progress'
-if [ "$(id -u)" != 0 ]
+alias cip='curl -s ifconfig.io 2>/dev/null'
+alias dd='dd status=progress'
+if [ "$EUID" != 0 ]
     then
         alias pac='sudo pacman'
         alias pacman='sudo pacman'
@@ -101,14 +99,6 @@ if [ "$(id -u)" != 0 ]
 fi
 
 [ -r /usr/share/bash-completion/bash_completion   ] && . /usr/share/bash-completion/bash_completion
-
-transfer(){ if [ $# -eq 0 ];then echo "No arguments specified.\nUsage:\n transfer <file|directory>\n ... | transfer <file_name>">&2;return 1;fi;if tty -s;then file="$1";file_name=$(basename "$file");if [ ! -e "$file" ];then echo "$file: No such file or directory">&2;return 1;fi;if [ -d "$file" ];then file_name="$file_name.zip" ,;(cd "$file"&&zip -r -q - .)|curl --progress-bar --upload-file "-" "https://transfer.sh/$file_name"|tee /dev/null,;else cat "$file"|curl --progress-bar --upload-file "-" "https://transfer.sh/$file_name"|tee /dev/null;fi;else file_name=$1;curl --progress-bar --upload-file "-" "https://transfer.sh/$file_name"|tee /dev/null;fi;}
-
-webm2gif() {
-    ffmpeg -y -i "$1" -vf palettegen _tmp_palette.png
-    ffmpeg -y -i "$1" -i _tmp_palette.png -filter_complex paletteuse -r 10 "${1%.webm}.gif"
-    rm _tmp_palette.png
-}
 
 export GOPATH=$HOME/go
 #export GO111MODULE=off

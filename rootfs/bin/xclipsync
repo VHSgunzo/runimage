@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/sh
 
 if [[ -z "$DISPLAY" || -z "$SYS_DISPLAY" ]]
     then

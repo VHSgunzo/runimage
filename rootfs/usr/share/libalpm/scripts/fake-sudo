@@ -1,0 +1,4 @@
+#!/usr/bin/bash
+
+echo -e '#!/usr/bin/bash\nfakechroot fakeroot "$@"' > /usr/bin/sudo
+chmod +x /usr/bin/sudo

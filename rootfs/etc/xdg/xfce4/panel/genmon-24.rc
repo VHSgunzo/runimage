@@ -2,5 +2,5 @@ Command=/usr/bin/panelipmon
 UseLabel=0
 Text=
 UpdatePeriod=180000
-Font=Sans 9
+Font=Sans 8
 

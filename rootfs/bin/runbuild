@@ -1,0 +1,168 @@
+#!/usr/bin/bash
+
+RED='\033[1;91m'
+BLUE='\033[1;94m'
+GREEN='\033[1;92m'
+YELLOW='\033[1;33m'
+RESETCOLOR='\033[1;00m'
+PATH="$PATH:$RUNSTATIC"
+
+error_msg() {
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
+    if [ "$NOT_TERM" == 1 ]
+        then
+            notify-send -a 'RunImage Error' "$1" 2>/dev/null &
+    fi
+}
+
+info_msg() {
+    if [ "$QUIET_MODE" != 1 ]
+        then
+            echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
+            if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
+                then
+                    notify-send -a 'RunImage Info' "$1" 2>/dev/null &
+            fi
+    fi
+}
+
+warn_msg() {
+    if [ "$QUIET_MODE" != 1 ]
+        then
+            echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
+            if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
+                then
+                    notify-send -a 'RunImage Warning' "$1" 2>/dev/null &
+            fi
+    fi
+}
+
+[ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
+    NOT_TERM=1
+
+info_msg "RunImage build"
+
+if [ ! -x "$RUNRUNTIME" ]
+     then
+          error_msg "RunImage runtime not found!"
+          exit 1
+fi
+
+[ ! -x "$MKSQFS" ] && \
+     MKSQFS="$RUNSTATIC/mksquashfs"
+
+[ -d "$OVERFS_MNT" ] && \
+     RUNDIR="$OVERFS_MNT"
+
+if [[ -n "$1" && "$1" != '-zstd' && "$1" != '-xz' ]]
+     then
+          if [ -d "$(dirname "$1" 2>/dev/null)" ]
+               then
+                    if [ -d "$1" ]
+                         then
+                              RUNBASENAME="$1/runimage"
+                         else
+                              RUNBASENAME="$1"
+                    fi
+               else
+                    error_msg "The build directory does not exist!"
+                    exit 1
+          fi
+     else
+          RUNBASENAME="runimage"
+fi
+
+if [[ "$1" == '-zstd' || "$2" == '-zstd' ]]
+     then
+          if [[ "$2" == +([0-9]) ]]
+               then
+                    CMPRS_LVL="$2"
+          elif [[ "$3" == +([0-9]) ]]
+               then
+                    CMPRS_LVL="$3"
+          else
+               CMPRS_LVL="19"
+          fi
+          CMPRS_MTHD="1M -comp zstd -Xcompression-level $CMPRS_LVL"
+          info_msg "Compression method: zstd"
+          info_msg "Compression level: $CMPRS_LVL"
+elif [[ "$1" == '-xz' || "$2" == '-xz' ]]
+     then
+          CMPRS_MTHD="1M -comp xz"
+          info_msg "Compression method: xz"
+else
+     CMPRS_MTHD="256K -comp lz4 -Xhc"
+     info_msg "Compression method: lz4"
+fi
+
+if [ "$BUILD_WITH_EXTENSION" == 1 ]
+     then
+          [ -n "$RUNROOTFSTYPE" ] && \
+               ROOTFSTYPE=".$RUNROOTFSTYPE)"
+
+          if [[ "$CMPRS_MTHD" =~ "zstd" ]]
+               then
+                    CMPRSMTHD=".zst"
+          elif [[ "$CMPRS_MTHD" =~ "xz" ]]
+               then
+                    CMPRSMTHD=".xz"
+          else
+              CMPRSMTHD=".lz4"
+          fi
+     else
+          unset CMPRSMTHD RUNROOTFSTYPE
+fi
+
+newrootfs=1
+while true
+    do
+        if [ ! -f "${RUNBASENAME}${CMPRSMTHD}$ROOTFSTYPE" ]
+            then
+                 NEWRUNIMAGE="${RUNBASENAME}${CMPRSMTHD}$ROOTFSTYPE"
+                 break
+        elif [ ! -f "${RUNBASENAME}${CMPRSMTHD}$ROOTFSTYPE.new" ]
+            then
+                 NEWRUNIMAGE="${RUNBASENAME}${CMPRSMTHD}$ROOTFSTYPE.new"
+                 break
+        elif [ ! -f "${RUNBASENAME}${CMPRSMTHD}$ROOTFSTYPE.new$newrootfs" ]
+            then
+                 NEWRUNIMAGE="${RUNBASENAME}${CMPRSMTHD}$ROOTFSTYPE.new$newrootfs"
+                 break
+        fi
+        newrootfs="$(( $newrootfs + 1 ))"
+done
+info_msg "Path: '$(realpath "${NEWRUNIMAGE}")'"
+
+if [ -w "$RUNDIR/rootfs" ]
+     then
+          info_msg "Updating build timestamp..."
+          date '+%y.%m.%d.%H%M%S' > "$RUNDIR/rootfs/.build"
+          info_msg "Removing pacman cache..."
+          rm -rf "$RUNDIR/rootfs/var/lib/pacman/sync/"*
+          rm -rf "$RUNDIR/rootfs/var/cache/pacman/pkg/"*
+          rm -rf "$RUNDIR/rootfs/var/log/pacman.log"
+     else
+          warn_msg "Unable to update build timestamp. Read-only!"
+fi
+
+info_msg "Creating RunImage..."
+echo -en "$BLUE"
+"$MKSQFS" "$RUNDIR" "$NEWRUNIMAGE" -root-owned \
+     -no-xattrs -noappend -quiet -b $CMPRS_MTHD
+echo -en "$RESETCOLOR"
+
+if [ -f "$NEWRUNIMAGE" ]
+     then
+          if superglue "$RUNRUNTIME" "$NEWRUNIMAGE"
+               then
+                    chmod +x "$NEWRUNIMAGE"
+                    info_msg "The build is complete!"
+                    RUNIMAGESIZE=($(du -sh $NEWRUNIMAGE))
+                    info_msg "Final size: $RUNIMAGESIZE"
+               else
+                    error_msg "Gluing RunImage failed!"
+                    rm -rf "$NEWRUNIMAGE"
+          fi
+     else
+          error_msg "The build failed!"
+fi

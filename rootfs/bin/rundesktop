@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 
 unset RUN_X
 RED='\033[1;91m'
@@ -49,12 +49,9 @@ warn_msg() {
 
 while true
     do
-        if [ -f "/tmp/.X$DESKTOP_DISPLAY-lock" ]
-            then
-                DESKTOP_DISPLAY="$(( $DESKTOP_DISPLAY + 1 ))"
-                continue
-        fi
-        break
+        [ ! -f "/tmp/.X$DESKTOP_DISPLAY-lock" ] && \
+            break
+        DESKTOP_DISPLAY="$(( $DESKTOP_DISPLAY + 1 ))"
 done
 
 if [ -n "$(tty|grep -v 'not a'|grep -o tty)" ]

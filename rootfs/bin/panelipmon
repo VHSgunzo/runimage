@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 unset TOR_IP TORIP
 TOR_IP="$(proxychains -q curl 2ip.ru 2>/dev/null)"
 NET_DEV="$(ip route show default|awk '{print$5}'|head -1)"

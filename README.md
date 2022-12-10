@@ -1,25 +1,29 @@
 # RunImage
 
+# **Portable single-file unprivileged Linux container in user namespaces.**
+
 ![image](https://user-images.githubusercontent.com/57139938/202873005-a7b4fcf3-aff3-4498-90b4-3b19ef8bd146.png)
-
-Portable single-file unprivileged Linux container in user namespaces. You can use it to develop and run any applications and games, including applications and games for Windows, launch games from retro platforms using popular emulators, work with the office, with remote desktops, multimedia, browsers, messengers, and even run virtual machines with QEMU/KVM and Virt-Manager, USB and block device forwarding in VM also works.
-
-Also inside the container, you can use various means of proxification, such as proxychains, tor and others and run VNC and SSH servers.
-
-The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file `pkg_list-{release_type}.txt`
 
 RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs/releases). The technology of single-file containerization is based on a modified static AppImage [runtime](https://github.com/VHSgunzo/runimage-runtime-static), squashfs image with lz4 compression method for better work speed, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static/releases) for the operation of the container [Run script](https://github.com/VHSgunzo/runimage/blob/main/Run), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap).
 
 In addition, RunImage has the ability to isolate itself from the main system, use separate portable home directories and configuration files for each executable file being run, and run separate X11 servers, including running multiple Xorg servers on TTY. XFCE is used as DE.
 
+You can use it to develop and run any applications and games, including applications and games for Windows, launch games from retro platforms using popular emulators, work with the office, with remote desktops, multimedia, browsers, messengers, and even run virtual machines with QEMU/KVM and Virt-Manager, USB and block device forwarding in VM also works.
+
+Also inside the container, you can use various means of proxification, such as proxychains, tor and others and run VNC and SSH servers.
+
+The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file `pkg_list-{release_type}.txt`
+
 ## Features:
 
 * A Portable single executable file with an idea - downloaded and launched. Nothing needs to be installed in the system.
 * Works on most Linux distributions, including even very old ones or without glibc or systemd and in live boot mode.
-* Running and working without root rights, including package management in unpacked form.
+* OverlayFS mode (It looks like the usual means of containerization like docker) (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help)).
+* Read-Write mount in OverlayFS mode.
+* Running and working without root rights, including package management in unpacked form or in OverlayFS mode.
 * The ability to work in a packed and unpacked form. Unpacked, you will get a higher work speed, but about ~2-3 more occupied disk space
 * The ability to run both 32-bit and 64-bit executable files.
-* Based on Arch Linux, contains latest software.
+* Based on Arch Linux, contains the latest software and [AUR](https://aur.archlinux.org) support.
 * The ability to use both separate home directories for each executable file, and completely seamless use of the system home directory.
 * The ability to use separate configuration files for each launched executable file (see [config](https://github.com/VHSgunzo/runimage/tree/main/config)).
 * There is no performance drawdown. All applications and executable files run at the same speed as in the system.
@@ -40,12 +44,12 @@ In addition, RunImage has the ability to isolate itself from the main system, us
 1. Download latest release from the [**releases**](https://github.com/VHSgunzo/runimage/releases) page.
 2. Make it executable before run.
 ```
-chmod +x runimage
+chmod +x runimage*
 ```
 
 ## Usage (from RunImage help):
 ```
-┌──[user@host]─[~]
+┌──[user@pc]─[~]
 └──╼ $ runimage {bubblewrap args} {executable} {executable args}
 
     --runimage-help                      Show this usage info
@@ -55,6 +59,9 @@ chmod +x runimage
     --runimage-binlist                   Show /usr/bin in runimage
     --runimage-shell {args}              Run runimage shell or execute a command in runimage shell
     --runimage-desktop                   Launch runimage desktop
+    --overlayfs-list                     Show the list of runimage OverlayFS
+    --overlayfs-rm {id id ...|all}       Remove OverlayFS
+    --runimage-build {args}              Build new runimage container
 
 Only for not extracted (RunImage runtime options):
     --runtime-extract {pattern}          Extract content from embedded filesystem image
@@ -66,7 +73,7 @@ Only for not extracted (RunImage runtime options):
     --runtime-portable-config            Create a portable config folder to use as $XDG_CONFIG_HOME
     --runtime-version                    Print version of runimage runtime
 
-Environment variables:
+Environment variables to configure:
     NO_INET=1                            Disables network access
     TMP_HOME=1                           Creates tmpfs /home/$USER and /root in RAM and uses it as $HOME
     TMP_HOME_DL=1                        As above, but with binding $HOME/Downloads directory
@@ -74,8 +81,13 @@ Environment variables:
     PORTABLE_CONFIG=1                    Creates a portable config folder and uses it as $XDG_CONFIG_HOME
     NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
     FORCE_CLEANUP=1                      Kills all runimage background processes when exiting
+    NO_KILL_FUSE=1                       Disables killing squashfuse processes when exiting
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
-    RUN_SHELL="/path/shell"              Selects $SHELL in runimage
+    OVERFS_MODE=1                        Enables OverlayFS mode
+    KEEP_OVERFS=1                        Enables OverlayFS mode with saving after closing runimage
+    OVERFS_ID=ID                         Specifies the OverlayFS ID
+    BUILD_WITH_EXTENSION=1               Adds an extension when building (compression method and rootfs type)
+    RUN_SHELL="shell"                    Selects $SHELL in runimage
     NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
                                             you can also use /usr/bin/nocap in runimage
     AUTORUN="{executable} {args}"        Run runimage with autorun options for /usr/bin executables
@@ -98,8 +110,99 @@ Environment variables:
     SYS_ARIA2C=1                         Using system aria2c
     SYS_UNSQFS=1                         Using system unsquashfs
     SYS_MKSQFS=1                         Using system mksquashfs
+    SYS_FOVERFS=1                        Using system fuse-overlayfs
     SYS_TOOLS=1                          Using all these binaries from the system
                                          If they are not found in the system - auto return to the built-in
+
+Other environment variables:
+    RunImage path (for packed):
+        RUNIMAGE=""
+    Null argument (for packed):
+        ARGV0=""
+    Squashfs offset (for packed):
+        RUNOFFSET=""
+    Run script directory:
+        RUNDIR=""
+    RootFS directory:
+        RUNROOTFS=""
+    Static binaries directory:
+        RUNSTATIC=""
+    Image or RunDir directory:
+        RUNIMAGEDIR=""
+    Cache directory:
+        RUNCACHEDIR=""
+    RunImage version:
+        RUNIMAGE_VERSION=""
+    RootFS version:
+        RUNROOTFS_VERSION=""
+    Static version:
+        RUNSTATIC_VERSION=""
+    RunImage runtime version:
+        RUNRUNTIME_VERSION=""
+    Directory for all OverlayFS:
+        RUNOVERFSDIR=""
+    OverlayFS ID directory:
+        OVERFS_DIR=""
+    OverlayFS ID mount directory:
+        OVERFS_MNT=""
+    RunImage runtime:
+        RUNRUNTIME=""
+    Rootfs type:
+        RUNROOTFSTYPE=""
+    squashfuse and fuse-overlayfs PIDs:
+        FUSE_PIDS=""
+    The name of the user who runs runimage:
+        RUNUSER=""
+    mksquashfs:
+        MKSQFS=""
+    unsquashfs:
+        UNSQFS=""
+    aria2c:
+        ARIA2C=""
+    fuse-overlayfs:
+        FOVERFS=""
+    squashfuse:
+        SQFUSE=""
+    bwrap:
+        BWRAP=""
+
+Custom scripts and aliases:
+    /bin/cip                          Сheck public ip
+    /bin/dbus-flmgr                   Launch the system file manager via dbus
+    /bin/nocap                        Disables container capabilities
+    /bin/sudo                         Fake sudo (fakechroot fakeroot)
+    /bin/pac                          sudo pacman (fake sudo)
+    /bin/packey                       sudo pacman-key (fake sudo)
+    /bin/panelipmon                   Shows information about an active network connection
+    /bin/runbuild                     Starts the runimage build
+    /bin/rundesktop                   Starts the desktop mode
+    /bin/{xclipsync,xclipfrom}        For clipboard synchronization in desktop mode
+    /bin/webm2gif                     Convert webm to gif
+    /bin/transfer                     Upload file to https://transfer.sh
+
+    ls='ls --color=auto'
+    dir='dir --color=auto'
+    grep='grep --color=auto'
+    vdir='vdir --color=auto'
+    fgrep='fgrep --color=auto'
+    egrep='egrep --color=auto'
+    rm='rm -i'
+    cp='cp -i'
+    mv='mv -i'
+    ll='ls -lh'
+    la='ls -lha'
+    l='ls -CF'
+    em='emacs -nw'
+    _='sudo'
+    _i='sudo -i'
+    please='sudo'
+    fucking='sudo'
+    cip='curl -s ifconfig.io 2>/dev/null'
+    dd='dd status=progress'
+    pac='sudo pacman'
+    pacman='sudo pacman'
+    pacman-key='sudo pacman-key'
+    packey='sudo pacman-key'
 
 Additional information:
     You can create a symlink/hardlink to runimage or rename runimage and give it the name
@@ -107,24 +210,24 @@ Additional information:
         runimage in autorun mode for this executable file.
     The same principle applies to the AUTORUN variable:
         ┌─[user@host]─[~]
-        └──╼ $ export AUTORUN="ls -la"
-        └──╼ $ runimage {autorun executable args}
+        └──╼ $ AUTORUN="ls -la" runimage {autorun executable args}
     Here runimage will become something like an alias for 'ls' in runimage
-        with the '-la' argument.
+        with the '-la' argument. You can also use AUTORUN as an array for complex commands in the config.
+        AUTORUN=("ls" "-la" "/path/to something")
     This will also work in extracted form for the Run script.
 
     When using the PORTABLE_HOME and PORTABLE_CONFIG variables, runimage will create or
         search for these directories next to itself. The same behavior will occur when
         adding a runimage or Run script or renamed or symlink/hardlink to them in the PATH
         it can be used both extracted and compressed and for all executable files being run:
-            '/path/to/runimage/Run.home'
-            '/path/to/runimage/Run.config'
+            '$RUNIMAGEDIR/Run.home'
+            '$RUNIMAGEDIR/Run.config'
         if a symlink/hardlink to runimage is used:
-            '/path/to/runimage/{symlink/hardlink_name}.home'
-            '/path/to/runimage/{symlink/hardlink_name}.config'
+            '$RUNIMAGEDIR/{symlink/hardlink_name}.home'
+            '$RUNIMAGEDIR/{symlink/hardlink_name}.config'
         or with runimage/Run name:
-            '/path/to/runimage/{runimage/Run_name}.home'
-            '/path/to/runimage/{runimage/Run_name}.config'
+            '$RUNIMAGEDIR/{runimage/Run_name}.home'
+            '$RUNIMAGEDIR/{runimage/Run_name}.config'
         It can also be with the name of the executable file from AUTORUN environment variables,
             or with the same name as the executable being run.
 
@@ -136,15 +239,15 @@ Additional information:
         Special BASH-syntax file with the .rcfg extension, which describes additional
             instructions and environment variables for running runimage.
         Configuration file can be located next to runimage:
-            '/path/to/runimage/{runimage/Run_name}.rcfg'
+            '$RUNIMAGEDIR/{runimage/Run_name}.rcfg'
         it can be used both extracted and compressed and for all executable files being run:
-            '/path/to/runimage/Run.rcfg'
+            '$RUNIMAGEDIR/Run.rcfg'
         if a symlink/hardlink to runimage is used:
-            '/path/to/runimage/{symlink/hardlink_name}.rcfg'
+            '$RUNIMAGEDIR/{symlink/hardlink_name}.rcfg'
         or in $RUNIMAGEDIR/config directory:
-            '/path/to/runimage/config/Run.rcfg'
-            '/path/to/runimage/config/{runimage/Run_name}.rcfg'
-            '/path/to/runimage/config/{symlink/hardlink_name}.rcfg'
+            '$RUNIMAGEDIR/config/Run.rcfg'
+            '$RUNIMAGEDIR/config/{runimage/Run_name}.rcfg'
+            '$RUNIMAGEDIR/config/{symlink/hardlink_name}.rcfg'
         It can also be with the name of the executable file from AUTORUN environment variables,
             or with the same name as the executable being run.
         In $RUNDIR/config there are default configs in RunImage, they are run in priority,
@@ -156,9 +259,36 @@ Additional information:
             in windowed mode (see XEPHYR_* environment variables)
             Use CTRL+SHIFT to grab the keyboard and mouse.
         It is also possible to run on TTY with Xorg (see XORG_CONF environment variables)
-            To do this, just login to TTY and run RunImage desktop.
+            To do this, just log in to TTY and run RunImage desktop.
         Important! The launch on the TTY should be carried out only under the user under whom the
             login to the TTY was carried out.
+
+    RunImage OverlayFS:
+        Allows you to create additional separate layers to modify the container file system without
+            changing the original container file system. Works packed and unpacked. Also, in packed form,
+            it allows you to mount the container in RW mode.
+        It also allows you to attach to the same OverlayFS when you specify its ID:
+        ┌─[user@host]─[~]
+        └──╼ $ OVERFS_ID=1337 runimage {args}
+            If OverlayFS with such ID does not exist, it will be created.
+        To save OverlayFS after closing the container, use KEEP_OVERFS:
+        ┌─[user@host]─[~]
+        └──╼ $ KEEP_OVERFS=1 runimage {args}
+        To run a one-time OverlayFS, use OVERFS_MODE:
+        ┌─[user@host]─[~]
+        └──╼ $ OVERFS_MODE=1 runimage {args}
+
+    RunImage build:
+        Allows you to create your own runimage containers.
+        This works both externally by passing args:
+        ┌─[user@host]─[~]
+        └──╼ $ runimage --runimage-build {args}
+        And it also works inside the running instance (see /bin/runbuild):
+        ┌─[user@host]─[~] - in runimage
+        └──╼ $ runbuild {args}
+        Optionally, you can specify the following arguments for the build:
+            {/path/new_runimage_name} {-zstd|-xz} {zstd compression level}
+        By default, runimage is created in the same directory with a standard name and with lz4 compression.
 
     For Nvidia users with a proprietary driver:
         If the nvidia driver version does not match in runimage and in the host, runimage
@@ -172,11 +302,11 @@ Additional information:
         But you can also install the usual nvidia driver of your version in runimage.
         Checking the nvidia driver version can be disabled using NO_NVIDIA_CHECK variable.
         The nvidia driver image can be located next to runimage:
-                '/path/to/runimage/{nvidia_version}.nv.drv'
+                '$RUNIMAGEDIR/{nvidia_version}.nv.drv'
             or in $RUNIMAGEDIR/nvidia-drivers (Default):
-                '/path/to/runimage/nvidia-drivers/{nvidia_version}.nv.drv'
+                '$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}.nv.drv'
             or the driver can be extracted as the directory
-                '/path/to/runimage/nvidia-drivers/{nvidia_version}'
+                '$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}'
             also, the driver can be in RunImage in a packed or unpacked form:
                 '$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv'   -  image
                 '$RUNDIR/nvidia-drivers/{nvidia_version}'          -  directory
@@ -194,7 +324,34 @@ Recommendations:
         and special patches.
 ```
 
-## Tested and works on:
+## Build/Rebuild your own runimage:
+* [Download](https://github.com/VHSgunzo/runimage/releases) base version of the runimage (it will be called `runimage.base*`)
+* Make it executable:
+```
+chmod +x runimage.base
+```
+* Run it in OverlayFS mode:
+```
+OVERFS_MODE=1 ./runimage.base bash
+echo $OVERFS_MNT
+echo $OVERFS_ID
+```
+* Install or remove the necessary packages, change $OVERFS_MNT/rootfs, etc. You can change $OVERFS_MNT/rootfs in the standard ways for you. But do not close the container until the moment of build.
+* After all the manipulations with rootfs, create a new runimage using this command in the container (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help)):
+```
+runbuild
+```
+* Or from another terminal tab (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help)):
+```
+OVERFS_ID=$OVERFS_ID ./runimage.base --runimage-build
+```
+* After the build is completed, you can close the container:
+```
+exit
+# or CTRL-D
+```
+
+## RunImage tested and works on:
 
 * Adelie Linux
 * AlmaLinux
@@ -222,6 +379,8 @@ Recommendations:
 * Garuda Linux
 * Gentoo
 * GoboLinux
+* Green Linux
+* Grml Linux
 * Kali Linux
 * KDE neon
 * Kodachi
@@ -335,3 +494,5 @@ Recommendations:
 * [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
 * [MEGAcmd](https://github.com/meganz/MEGAcmd)
 * [lutris-wine](https://github.com/VHSgunzo/lutris-wine)
+* [fuse-overlayfs](https://github.com/containers/fuse-overlayfs)
+* [superglue](https://github.com/VHSgunzo/superglue)

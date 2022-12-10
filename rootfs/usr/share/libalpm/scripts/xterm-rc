@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+
+mv -f /usr/bin/xterm /usr/bin/.xterm
+echo -e '#!/usr/bin/bash\n/usr/bin/.xterm -bg black -fg white "$@"' > /usr/bin/xterm
+chmod +x /usr/bin/xterm

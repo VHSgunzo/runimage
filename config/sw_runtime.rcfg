@@ -1,0 +1,2 @@
+unset AUTORUN
+NO_KILL_FUSE=1

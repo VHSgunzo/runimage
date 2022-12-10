@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 GAMEMODEAUTO_NAME="libgamemodeauto.so.0"
 ! pgrep -fa gamemoded &>/dev/null && /usr/bin/gamemoded &>/dev/null &
 sleep 0.1
