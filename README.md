@@ -50,7 +50,7 @@ chmod +x runimage*
 
 ## Usage (from RunImage help):
 ```
-┌──[user@pc]─[~]
+┌──[user@host]─[~]
 └──╼ $ runimage {bubblewrap args} {executable} {executable args}
 
     --run-help   |--rH                   Show this usage info
@@ -287,10 +287,10 @@ Additional information:
     RunImage build:
         Allows you to create your own runimage containers.
         This works both externally by passing build args:
-        ┌─[user@pc]─[/media/CRU256GB/runimage]
+        ┌─[user@host]─[~]
         └──╼ $ runimage --run-build {build args}
         And it also works inside the running instance (see /bin/runbuild):
-        ┌─[user@pc]─[/media/CRU256GB/runimage] - in runimage
+        ┌─[user@host]─[~] - in runimage
         └──╼ $ runbuild {build args}
         Optionally, you can specify the following build arguments:
             {/path/new_runimage_name} {-zstd|-xz} {zstd compression level 1-19}
@@ -302,7 +302,7 @@ Additional information:
             Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
                 not be performed. When running an update, you can also pass arguments for a new build.
                 (see RunImage build)
-            ┌─[user@pc]─[/media/CRU256GB/runimage]
+            ┌─[user@host]─[~]
             └──╼ $ runimage --run-update {build args}
             By default, update and rebuild is performed in '$RUNIMAGEDIR'
 
@@ -509,7 +509,6 @@ exit
 * [fakechroot](https://github.com/dex4er/fakechroot)
 * [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
 * [MEGAcmd](https://github.com/meganz/MEGAcmd)
-* [lutris-wine](https://github.com/VHSgunzo/lutris-wine)
 * [fuse-overlayfs](https://github.com/containers/fuse-overlayfs)
 * [superglue](https://github.com/VHSgunzo/superglue)
 
