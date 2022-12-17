@@ -14,20 +14,20 @@ export SYS_DISPLAY="$DISPLAY"
     NOT_TERM=1
 
 error_msg() {
-    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
     if [ "$NOT_TERM" == 1 ]
         then
-            notify-send -a 'RunImage Error' "$1" 2>/dev/null &
+            notify-send -a 'RunImage Error' "$@" 2>/dev/null &
     fi
 }
 
 info_msg() {
     if [ "$QUIET_MODE" != 1 ]
         then
-            echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
+            echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
                 then
-                    notify-send -a 'RunImage Info' "$1" 2>/dev/null &
+                    notify-send -a 'RunImage Info' "$@" 2>/dev/null &
             fi
     fi
 }
@@ -35,10 +35,10 @@ info_msg() {
 warn_msg() {
     if [ "$QUIET_MODE" != 1 ]
         then
-            echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
+            echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
                 then
-                    notify-send -a 'RunImage Warning' "$1" 2>/dev/null &
+                    notify-send -a 'RunImage Warning' "$@" 2>/dev/null &
             fi
     fi
 }

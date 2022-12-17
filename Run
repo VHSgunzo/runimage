@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
+set -m
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.37.8'
+export RUNIMAGE_VERSION='0.37.9'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -72,7 +73,7 @@ export RUNROOTFS="$RUNDIR/rootfs"
 export RUNCACHEDIR="$RUNIMAGEDIR/cache"
 export RUNOVERFSDIR="$RUNCACHEDIR/overlayfs"
 export RUNRUNTIME="$RUNSTATIC/runtime-fuse2-all"
-RUNSRCNAME="$(basename "$RUNSRC" 2>/dev/null)"
+export RUNSRCNAME="$(basename "$RUNSRC" 2>/dev/null)"
 OVERFSLIST="$(ls -A "$RUNOVERFSDIR" 2>/dev/null)"
 export RUNSTATIC_VERSION="$(cat "$RUNSTATIC/.version" 2>/dev/null)"
 export RUNROOTFS_VERSION="$(cat "$RUNROOTFS/.version" \
@@ -86,20 +87,20 @@ export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version|& awk '{print$2}')"
     NOT_TERM=1
 
 error_msg() {
-    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
     if [ "$NOT_TERM" == 1 ]
         then
-            notify-send -a 'RunImage Error' "$1" 2>/dev/null &
+            notify-send -a 'RunImage Error' "$@" 2>/dev/null &
     fi
 }
 
 info_msg() {
     if [ "$QUIET_MODE" != 1 ]
         then
-            echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
+            echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
                 then
-                    notify-send -a 'RunImage Info' "$1" 2>/dev/null &
+                    notify-send -a 'RunImage Info' "$@" 2>/dev/null &
             fi
     fi
 }
@@ -107,10 +108,10 @@ info_msg() {
 warn_msg() {
     if [ "$QUIET_MODE" != 1 ]
         then
-            echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $1 $RESETCOLOR"
+            echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
                 then
-                    notify-send -a 'RunImage Warning' "$1" 2>/dev/null &
+                    notify-send -a 'RunImage Warning' "$@" 2>/dev/null &
             fi
     fi
 }
@@ -708,6 +709,29 @@ print_version() {
         info_msg "RunImage runtime version: ${RED}$RUNRUNTIME_VERSION"
 }
 
+run_update() {
+    (info_msg "RunImage update"
+    cd "$RUNIMAGEDIR" && \
+    QUIET_MODE=1 NO_NVIDIA_CHECK=1 bwrun /usr/bin/pac \
+        -Syu --noconfirm --overwrite '*'
+    UPDATE_STATUS="$?"
+    if [ "$UPDATE_STATUS" == 0 ]
+        then
+            if [ -n "$RUNIMAGE" ]
+                then
+                    "$RUNROOTFS/usr/bin/runbuild" "$@"
+                    UPDATE_STATUS="$?"
+            fi
+    fi
+    if [ "$UPDATE_STATUS" == 0 ]
+        then
+            info_msg "Update completed!"
+        else
+            error_msg "The update failed!"
+    fi
+    return $UPDATE_STATUS)
+}
+
 print_help() {
 if ! console_info_notify
     then
@@ -718,16 +742,17 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
         $RED└──╼ \$$GREEN $([ -n "$RUNIMAGE" ] && echo "$RUNIMAGE"||echo "$0")$YELLOW {bubblewrap args} $GREEN{executable} $YELLOW{executable args}
 
-        ${BLUE}--runimage-help$GREEN                      Show this usage info
-        ${BLUE}--runimage-bwraphelp$GREEN                 Show Bubblewrap usage info
-        ${BLUE}--runimage-version$GREEN                   Show runimage, rootfs, static, runtime version
-        ${BLUE}--runimage-pkglist$GREEN                   Show packages installed in runimage
-        ${BLUE}--runimage-binlist$GREEN                   Show /usr/bin in runimage
-        ${BLUE}--runimage-shell$YELLOW {args}$GREEN              Run runimage shell or execute a command in runimage shell
-        ${BLUE}--runimage-desktop$GREEN                   Launch runimage desktop
-        ${BLUE}--overlayfs-list$GREEN                     Show the list of runimage OverlayFS
-        ${BLUE}--overlayfs-rm$YELLOW {id id ...|all}$GREEN       Remove OverlayFS
-        ${BLUE}--runimage-build$YELLOW {args}$GREEN              Build new runimage container
+        ${BLUE}--run-help   ${RED}|${BLUE}--rH$GREEN                   Show this usage info
+        ${BLUE}--run-bwhelp ${RED}|${BLUE}--rBwh$GREEN                 Show Bubblewrap usage info
+        ${BLUE}--run-version${RED}|${BLUE}--rV$GREEN                   Show runimage, rootfs, static, runtime version
+        ${BLUE}--run-pkglist${RED}|${BLUE}--rP$GREEN                   Show packages installed in runimage
+        ${BLUE}--run-binlist${RED}|${BLUE}--rBin$GREEN                 Show /usr/bin in runimage
+        ${BLUE}--run-shell  ${RED}|${BLUE}--rS$YELLOW {args}$GREEN            Run runimage shell or execute a command in runimage shell
+        ${BLUE}--run-desktop${RED}|${BLUE}--rD$GREEN                   Launch runimage desktop
+        ${BLUE}--overfs-list${RED}|${BLUE}--oL$GREEN                   Show the list of runimage OverlayFS
+        ${BLUE}--overfs-rm  ${RED}|${BLUE}--oR$YELLOW {id id ...|all}$GREEN   Remove OverlayFS
+        ${BLUE}--run-build  ${RED}|${BLUE}--rB$YELLOW {{build args}$GREEN     Build new runimage container
+        ${BLUE}--run-update ${RED}|${BLUE}--rU$YELLOW {build args}$GREEN      Update packages and rebuild runimage
 
     ${RED}Only for not extracted (RunImage runtime options):
         ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
@@ -749,9 +774,11 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}FORCE_CLEANUP$GREEN=1                      Kills all runimage background processes when exiting
         ${YELLOW}NO_KILL_FUSE$GREEN=1                       Disables killing squashfuse processes when exiting
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
+        ${YELLOW}NO_DOUBLE_MOUNT$GREEN=1                    Disables the second mount that fixes MangoHud and VkBasalt bug
         ${YELLOW}OVERFS_MODE$GREEN=1                        Enables OverlayFS mode
         ${YELLOW}KEEP_OVERFS$GREEN=1                        Enables OverlayFS mode with saving after closing runimage
         ${YELLOW}OVERFS_ID$GREEN=ID                         Specifies the OverlayFS ID
+        ${YELLOW}KEEP_OLD_BUILD$GREEN=1                     Creates a backup of the old RunImage when building a new one
         ${YELLOW}BUILD_WITH_EXTENSION$GREEN=1               Adds an extension when building (compression method and rootfs type)
         ${YELLOW}RUN_SHELL$GREEN=\"shell\"                    Selects ${YELLOW}\$SHELL$GREEN in runimage
         ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
@@ -793,10 +820,12 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}RUNROOTFS${GREEN}=\"$RUNROOTFS\"
         ${GREEN}Static binaries directory:
             ${YELLOW}RUNSTATIC${GREEN}=\"$RUNSTATIC\"
-        ${GREEN}Image or RunDir directory:
+        ${GREEN}RunImage or RunDir directory:
             ${YELLOW}RUNIMAGEDIR${GREEN}=\"$RUNIMAGEDIR\"
         ${GREEN}Cache directory:
             ${YELLOW}RUNCACHEDIR${GREEN}=\"$RUNCACHEDIR\"
+        ${GREEN}RunImage name or link name:
+            ${YELLOW}RUNSRCNAME${GREEN}=\"$RUNCACHEDIR\"
         ${GREEN}RunImage version:
             ${YELLOW}RUNIMAGE_VERSION${GREEN}=\"$RUNIMAGE_VERSION\"
         ${GREEN}RootFS version:
@@ -946,15 +975,25 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
 
         ${RED}RunImage build:${GREEN}
             Allows you to create your own runimage containers.
-            This works both externally by passing args:
+            This works both externally by passing build args:
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${GREEN}runimage ${YELLOW}--runimage-build {args}${GREEN}
+            $RED└──╼ \$ ${GREEN}runimage ${BLUE}--run-build ${YELLOW}{build args}${GREEN}
             And it also works inside the running instance (see /bin/runbuild):
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - in runimage
-            $RED└──╼ \$ ${GREEN}runbuild ${YELLOW}{args}${GREEN}
-            Optionally, you can specify the following arguments for the build:
-                ${YELLOW}{/path/new_runimage_name} {-zstd|-xz} {zstd compression level}${GREEN}
-            By default, runimage is created in the same directory with a standard name and with lz4 compression.
+            $RED└──╼ \$ ${GREEN}runbuild ${YELLOW}{build args}${GREEN}
+            Optionally, you can specify the following build arguments:
+                ${YELLOW}{/path/new_runimage_name} {-zstd|-xz} {zstd compression level 1-19}${GREEN}
+            By default, runimage is created in the current directory with a standard name and
+                with lz4 compression. If a new RunImage is successfully build, the old one is deleted.
+                (see ${YELLOW}KEEP_OLD_BUILD${GREEN} and ${YELLOW}BUILD_WITH_EXTENSION${GREEN})
+
+        ${RED}RunImage update:${GREEN}
+            Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
+                not be performed. When running an update, you can also pass arguments for a new build.
+                (see RunImage build)
+            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
+            $RED└──╼ \$ ${GREEN}runimage ${BLUE}--run-update ${YELLOW}{build args}${GREEN}
+            By default, update and rebuild is performed in ${YELLOW}'\$RUNIMAGEDIR'${GREEN}
 
         ${RED}For Nvidia users with a proprietary driver:${GREEN}
             If the nvidia driver version does not match in runimage and in the host, runimage
@@ -1022,6 +1061,10 @@ if [[ -n "$1" && ! -n "$AUTORUN" ]]
             ;;
         esac
 fi
+
+case $1 in
+    --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1 ;;
+esac
 
 if [ "$RUNIMAGE_CONFIG" != 0 ]
     then
@@ -1233,7 +1276,7 @@ fi
 [ "$(getenforce 2>/dev/null)" == "Enforcing" ] && \
     echo "SELinux in enforcing mode!"
 
-if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" ]] # MangoHud and vkBasalt bug in DXVK mode
+if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$NO_DOUBLE_MOUNT" != 1 ]] # MangoHud and vkBasalt bug in DXVK mode
     then
         RO_MNT="/tmp/.mount_${RUNIMAGENAME}.$RUNKEY"
         try_mkdir "$RO_MNT"
@@ -1292,7 +1335,7 @@ if [ -n "$AUTORUN" ]
         AUTORUN0ARG=($AUTORUN)
         [ -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ] && \
             RUNSRCNAME="$AUTORUN0ARG"
-        info_msg "Autorun mode: $AUTORUN"
+        info_msg "Autorun mode: ${AUTORUN[@]}"
         if [ ! -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ]
             then
                 error_msg "$AUTORUN0ARG not found in /usr/bin"
@@ -1562,8 +1605,7 @@ if [[ "${CUSTROOTFLST[@]}" =~ "$RUNROOTFSTYPE" ]]
                         "--setenv" "DESKTOP_SESSION" "xfce")
         [ -f "$RUNROOTFS/usr/share/gtk-2.0/gtkrc" ] && \
             SETENV_ARGS+=("--setenv" "GTK2_RC_FILES" "/usr/share/gtk-2.0/gtkrc")
-        [ -d "$RUNROOTFS/usr/share/themes/Adwaita-dark" ] && \
-            SETENV_ARGS+=("--setenv" "GTK_THEME" "Adwaita:dark")
+        SETENV_ARGS+=("--setenv" "GTK_THEME" "Adwaita:dark")
 fi
 
 ##############################################################################
@@ -1583,16 +1625,17 @@ if [ -n "$AUTORUN" ]
                 print_help
             else
                 case $1 in
-                    --runimage-help) print_help ;;
-                    --runimage-pkglist) pkg_list ;;
-                    --runimage-binlist) bin_list ;;
-                    --overlayfs-list) overlayfs_list ;;
-                    --runimage-bwraphelp) bwrap_help ;;
-                    --runimage-version) print_version ;;
-                    --overlayfs-rm) shift ; overlayfs_rm "$@" ;;
-                    --runimage-desktop) bwrun /usr/bin/rundesktop ;;
-                    --runimage-shell) shift ; bwrun "$RUN_SHELL" "$@" ;;
-                    --runimage-build) shift ; "$RUNROOTFS/usr/bin/runbuild" "$@" ;;
+                    --run-pkglist|--rP) pkg_list ;;
+                    --run-help   |--rH) print_help ;;
+                    --run-binlist|--rBin) bin_list ;;
+                    --run-bwhelp |--rBwh) bwrap_help ;;
+                    --run-version|--rV) print_version ;;
+                    --overfs-list|--oL) overlayfs_list ;;
+                    --run-update |--rU) shift ; run_update "$@" ;;
+                    --overfs-rm  |--oR) shift ; overlayfs_rm "$@" ;;
+                    --run-desktop|--rD) bwrun /usr/bin/rundesktop ;;
+                    --run-shell  |--rS) shift ; bwrun "$RUN_SHELL" "$@" ;;
+                    --run-build  |--rB) shift ; "$RUNROOTFS/usr/bin/runbuild" "$@" ;;
                     *) bwrun "$@" ;;
                 esac
         fi

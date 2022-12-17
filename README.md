@@ -24,6 +24,7 @@ The full list of installed packages can be found in the [**releases**](https://g
 * The ability to work in a packed and unpacked form. Unpacked, you will get a higher work speed, but about ~2-3 more occupied disk space
 * The ability to run both 32-bit and 64-bit executable files.
 * Based on Arch Linux, contains the latest software and [AUR](https://aur.archlinux.org) support.
+* Access to [BlackArch](https://github.com/BlackArch/blackarch) repositories.
 * The ability to use both separate home directories for each executable file, and completely seamless use of the system home directory.
 * The ability to use separate configuration files for each launched executable file (see [config](https://github.com/VHSgunzo/runimage/tree/main/config)).
 * There is no performance drawdown. All applications and executable files run at the same speed as in the system.
@@ -52,16 +53,17 @@ chmod +x runimage*
 ┌──[user@pc]─[~]
 └──╼ $ runimage {bubblewrap args} {executable} {executable args}
 
-    --runimage-help                      Show this usage info
-    --runimage-bwraphelp                 Show Bubblewrap usage info
-    --runimage-version                   Show runimage, rootfs, static, runtime version
-    --runimage-pkglist                   Show packages installed in runimage
-    --runimage-binlist                   Show /usr/bin in runimage
-    --runimage-shell {args}              Run runimage shell or execute a command in runimage shell
-    --runimage-desktop                   Launch runimage desktop
-    --overlayfs-list                     Show the list of runimage OverlayFS
-    --overlayfs-rm {id id ...|all}       Remove OverlayFS
-    --runimage-build {args}              Build new runimage container
+    --run-help   |--rH                   Show this usage info
+    --run-bwhelp |--rBwh                 Show Bubblewrap usage info
+    --run-version|--rV                   Show runimage, rootfs, static, runtime version
+    --run-pkglist|--rP                   Show packages installed in runimage
+    --run-binlist|--rBin                 Show /usr/bin in runimage
+    --run-shell  |--rS {args}            Run runimage shell or execute a command in runimage shell
+    --run-desktop|--rD                   Launch runimage desktop
+    --overfs-list|--oL                   Show the list of runimage OverlayFS
+    --overfs-rm  |--oR {id id ...|all}   Remove OverlayFS
+    --run-build  |--rB {{build args}     Build new runimage container
+    --run-update |--rU {build args}      Update packages and rebuild runimage
 
 Only for not extracted (RunImage runtime options):
     --runtime-extract {pattern}          Extract content from embedded filesystem image
@@ -83,9 +85,11 @@ Environment variables to configure:
     FORCE_CLEANUP=1                      Kills all runimage background processes when exiting
     NO_KILL_FUSE=1                       Disables killing squashfuse processes when exiting
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
+    NO_DOUBLE_MOUNT=1                    Disables the second mount that fixes MangoHud and VkBasalt bug
     OVERFS_MODE=1                        Enables OverlayFS mode
     KEEP_OVERFS=1                        Enables OverlayFS mode with saving after closing runimage
     OVERFS_ID=ID                         Specifies the OverlayFS ID
+    KEEP_OLD_BUILD=1                     Creates a backup of the old RunImage when building a new one
     BUILD_WITH_EXTENSION=1               Adds an extension when building (compression method and rootfs type)
     RUN_SHELL="shell"                    Selects $SHELL in runimage
     NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
@@ -127,10 +131,12 @@ Other environment variables:
         RUNROOTFS=""
     Static binaries directory:
         RUNSTATIC=""
-    Image or RunDir directory:
+    RunImage or RunDir directory:
         RUNIMAGEDIR=""
     Cache directory:
         RUNCACHEDIR=""
+    RunImage name or link name:
+        RUNSRCNAME=""
     RunImage version:
         RUNIMAGE_VERSION=""
     RootFS version:
@@ -280,15 +286,25 @@ Additional information:
 
     RunImage build:
         Allows you to create your own runimage containers.
-        This works both externally by passing args:
-        ┌─[user@host]─[~]
-        └──╼ $ runimage --runimage-build {args}
+        This works both externally by passing build args:
+        ┌─[user@pc]─[/media/CRU256GB/runimage]
+        └──╼ $ runimage --run-build {build args}
         And it also works inside the running instance (see /bin/runbuild):
-        ┌─[user@host]─[~] - in runimage
-        └──╼ $ runbuild {args}
-        Optionally, you can specify the following arguments for the build:
-            {/path/new_runimage_name} {-zstd|-xz} {zstd compression level}
-        By default, runimage is created in the same directory with a standard name and with lz4 compression.
+        ┌─[user@pc]─[/media/CRU256GB/runimage] - in runimage
+        └──╼ $ runbuild {build args}
+        Optionally, you can specify the following build arguments:
+            {/path/new_runimage_name} {-zstd|-xz} {zstd compression level 1-19}
+        By default, runimage is created in the current directory with a standard name and
+            with lz4 compression. If a new RunImage is successfully build, the old one is deleted.
+            (see KEEP_OLD_BUILD and BUILD_WITH_EXTENSION)
+
+        RunImage update:
+            Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
+                not be performed. When running an update, you can also pass arguments for a new build.
+                (see RunImage build)
+            ┌─[user@pc]─[/media/CRU256GB/runimage]
+            └──╼ $ runimage --run-update {build args}
+            By default, update and rebuild is performed in '$RUNIMAGEDIR'
 
     For Nvidia users with a proprietary driver:
         If the nvidia driver version does not match in runimage and in the host, runimage
@@ -324,13 +340,13 @@ Recommendations:
         and special patches.
 ```
 
-## Build/Rebuild your own runimage:
+## Build/Rebuild your own runimage in manual mode:
 * [Download](https://github.com/VHSgunzo/runimage/releases) base version of the runimage (it will be called `runimage.base*`)
 * Make it executable:
 ```
 chmod +x runimage.base
 ```
-* Run it in OverlayFS mode:
+* Run it in OverlayFS mode (If you are using a proprietary nvidia driver, then I recommend disabling the driver check function by NO_NVIDIA_CHECK=1 for proper build/rebuild in manual mode. You do not need to do this in automatic mode):
 ```
 OVERFS_MODE=1 ./runimage.base bash
 echo $OVERFS_MNT
@@ -496,3 +512,6 @@ exit
 * [lutris-wine](https://github.com/VHSgunzo/lutris-wine)
 * [fuse-overlayfs](https://github.com/containers/fuse-overlayfs)
 * [superglue](https://github.com/VHSgunzo/superglue)
+
+## Projects based on RunImage:
+* [stable-diffusion](https://github.com/VHSgunzo/stable-diffusion)
