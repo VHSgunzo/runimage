@@ -359,7 +359,7 @@ runbuild
 ```
 * Or from another terminal tab (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help)):
 ```
-OVERFS_ID=$OVERFS_ID ./runimage.base --runimage-build
+OVERFS_ID=$OVERFS_ID ./runimage.base --run-build
 ```
 * After the build is completed, you can close the container:
 ```
