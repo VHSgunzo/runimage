@@ -57,7 +57,7 @@ done
 if [ -n "$(tty|grep -v 'not a'|grep -o tty)" ]
     then
         export DISPLAY=:$DESKTOP_DISPLAY
-        info_msg "Xorg \$DISPLAY=$DISPLAY"
+        info_msg "Xorg ${YELLOW}DISPLAY${GREEN}=$DISPLAY"
         unset XEPHYR XEPHYR_FULLSCREEN \
               XEPHYR_SIZE XEPHYR_DISPLAY
         [ -x "/usr/lib/Xorg.wrap" ] && \
@@ -79,7 +79,7 @@ if [[ "$XEPHYR" == 1 || "$XEPHYR_FULLSCREEN" == 1 ]] || \
     then
         [ ! -n "$XEPHYR_DISPLAY" ] && \
             XEPHYR_DISPLAY=:$DESKTOP_DISPLAY
-        info_msg "Xephyr \$DISPLAY=$XEPHYR_DISPLAY"
+        info_msg "Xephyr ${YELLOW}DISPLAY${GREEN}=$XEPHYR_DISPLAY"
         if [ "$XEPHYR_FULLSCREEN" == 1 ]
             then
                 info_msg "Xephyr in full-screen mode"

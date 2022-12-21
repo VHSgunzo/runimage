@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-set -m
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.37.9'
+export RUNIMAGE_VERSION='0.38'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -544,6 +543,7 @@ try_mkdir() {
 }
 
 cleanup() {
+    CLEANUPPID="$BASHPID"
     if [[ "$NO_CLEANUP" != 1 || "$FORCE_CLEANUP" == 1 ]]
         then
             if [ -n "$FUSE_PIDS" ]
@@ -557,7 +557,8 @@ cleanup() {
                             warn_msg "Forced cleanup is enabled!"
                             try_unmount "$OVERFS_MNT"
                             ALLPIDS="$(lsof -n "$RUNDIR" 2>/dev/null|sed 1d|\
-                                        grep -v "$RUNPID"|awk '{print$2}'|sort -u)"
+                                        grep -v "$RUNPID"|grep -v "$CLEANUPPID"|\
+                                        awk '{print$2}'|sort -u)"
                             [ -n "$ALLPIDS" ] && \
                                 kill -9 $ALLPIDS 2>/dev/null
                         else
@@ -710,16 +711,18 @@ print_version() {
 }
 
 run_update() {
-    (info_msg "RunImage update"
-    cd "$RUNIMAGEDIR" && \
-    QUIET_MODE=1 NO_NVIDIA_CHECK=1 bwrun /usr/bin/pac \
-        -Syu --noconfirm --overwrite '*'
+    info_msg "RunImage update"
+    QUIET_MODE=1 NO_NVIDIA_CHECK=1 bwrun /usr/bin/bash -c \
+        "/usr/bin/pac -Sy archlinux-keyring chaotic-keyring \
+        blackarch-keyring --needed --noconfirm && \
+        /usr/bin/pac -Su --noconfirm --overwrite '*'"
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
         then
             if [ -n "$RUNIMAGE" ]
                 then
-                    "$RUNROOTFS/usr/bin/runbuild" "$@"
+                    (cd "$RUNIMAGEDIR" && \
+                    "$RUNROOTFS/usr/bin/runbuild" "$@")
                     UPDATE_STATUS="$?"
             fi
     fi
@@ -729,7 +732,7 @@ run_update() {
         else
             error_msg "The update failed!"
     fi
-    return $UPDATE_STATUS)
+    return $UPDATE_STATUS
 }
 
 print_help() {
@@ -751,7 +754,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}--run-desktop${RED}|${BLUE}--rD$GREEN                   Launch runimage desktop
         ${BLUE}--overfs-list${RED}|${BLUE}--oL$GREEN                   Show the list of runimage OverlayFS
         ${BLUE}--overfs-rm  ${RED}|${BLUE}--oR$YELLOW {id id ...|all}$GREEN   Remove OverlayFS
-        ${BLUE}--run-build  ${RED}|${BLUE}--rB$YELLOW {{build args}$GREEN     Build new runimage container
+        ${BLUE}--run-build  ${RED}|${BLUE}--rB$YELLOW {build args}$GREEN      Build new runimage container
         ${BLUE}--run-update ${RED}|${BLUE}--rU$YELLOW {build args}$GREEN      Update packages and rebuild runimage
 
     ${RED}Only for not extracted (RunImage runtime options):
@@ -824,7 +827,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}RUNIMAGEDIR${GREEN}=\"$RUNIMAGEDIR\"
         ${GREEN}Cache directory:
             ${YELLOW}RUNCACHEDIR${GREEN}=\"$RUNCACHEDIR\"
-        ${GREEN}RunImage name or link name:
+        ${GREEN}RunImage name or link name or executable name:
             ${YELLOW}RUNSRCNAME${GREEN}=\"$RUNCACHEDIR\"
         ${GREEN}RunImage version:
             ${YELLOW}RUNIMAGE_VERSION${GREEN}=\"$RUNIMAGE_VERSION\"
@@ -1062,9 +1065,13 @@ if [[ -n "$1" && ! -n "$AUTORUN" ]]
         esac
 fi
 
-case $1 in
-    --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1 ;;
-esac
+if [[ "$RUNSRCNAME" == "Run"* || \
+      "$RUNSRCNAME" == "runimage"* ]]
+    then
+        case $1 in
+            --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1 ;;
+        esac
+fi
 
 if [ "$RUNIMAGE_CONFIG" != 0 ]
     then
@@ -1274,7 +1281,7 @@ if [[ "$SUID_BWRAP" == 1 || "$NO_CAP" == 1 ]]
 fi
 
 [ "$(getenforce 2>/dev/null)" == "Enforcing" ] && \
-    echo "SELinux in enforcing mode!"
+    warn_msg "SELinux in enforcing mode!"
 
 if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$NO_DOUBLE_MOUNT" != 1 ]] # MangoHud and vkBasalt bug in DXVK mode
     then
@@ -1349,9 +1356,14 @@ if [ ! -n "$RUN_SHELL" ]
         if [ -x "$RUNROOTFS/usr/bin/fish" ]
             then
                 RUN_SHELL='/usr/bin/fish'
+        elif [ -x "$RUNROOTFS/usr/bin/zsh" ]
+            then
+                RUN_SHELL='/usr/bin/zsh'
+                [ -d "$RUNROOTFS/etc/zsh/zshrc" ] && \
+                    SETENV_ARGS+=("--setenv" "ZDOTDIR" "/etc/zsh/zshrc")
         elif [ -x "$RUNROOTFS/usr/bin/bash" ]
             then
-                RUN_SHELL='/usr/bin/bash'
+                RUN_SHELL=('/usr/bin/bash' '--rcfile' '/etc/bash.bashrc')
         elif [ -x "$RUNROOTFS/usr/bin/sh" ]
             then
                 RUN_SHELL='/usr/bin/sh'
@@ -1598,17 +1610,16 @@ if [[ "${CUSTROOTFLST[@]}" =~ "$RUNROOTFSTYPE" ]]
     then
         [ -x "$RUNROOTFS/usr/bin/qt5ct" ] && \
             SETENV_ARGS+=("--setenv" "QT_QPA_PLATFORMTHEME" "qt5ct")
-        [[ -x "$RUNROOTFS/usr/bin/zsh" && -d "$RUNROOTFS/etc/zsh/zshrc" ]] && \
-            SETENV_ARGS+=("--setenv" "ZDOTDIR" "/etc/zsh/zshrc")
         [ -x "$RUNROOTFS/usr/bin/startxfce4" ] && \
             SETENV_ARGS+=("--setenv" "XDG_CURRENT_DESKTOP" "XFCE" \
-                        "--setenv" "DESKTOP_SESSION" "xfce")
+                          "--setenv" "DESKTOP_SESSION" "xfce")
         [ -f "$RUNROOTFS/usr/share/gtk-2.0/gtkrc" ] && \
             SETENV_ARGS+=("--setenv" "GTK2_RC_FILES" "/usr/share/gtk-2.0/gtkrc")
         SETENV_ARGS+=("--setenv" "GTK_THEME" "Adwaita:dark")
 fi
 
 ##############################################################################
+(set -m
 if [ -n "$AUTORUN" ]
     then
         [ "$1" == "$AUTORUN0ARG" ] && \
@@ -1634,7 +1645,7 @@ if [ -n "$AUTORUN" ]
                     --run-update |--rU) shift ; run_update "$@" ;;
                     --overfs-rm  |--oR) shift ; overlayfs_rm "$@" ;;
                     --run-desktop|--rD) bwrun /usr/bin/rundesktop ;;
-                    --run-shell  |--rS) shift ; bwrun "$RUN_SHELL" "$@" ;;
+                    --run-shell  |--rS) shift ; bwrun "${RUN_SHELL[@]}" "$@" ;;
                     --run-build  |--rB) shift ; "$RUNROOTFS/usr/bin/runbuild" "$@" ;;
                     *) bwrun "$@" ;;
                 esac
@@ -1642,5 +1653,5 @@ if [ -n "$AUTORUN" ]
 fi
 EXEC_STATUS="$?"
 cleanup
-exit $EXEC_STATUS
+exit $EXEC_STATUS)
 ##############################################################################

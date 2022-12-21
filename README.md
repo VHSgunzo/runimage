@@ -62,7 +62,7 @@ chmod +x runimage*
     --run-desktop|--rD                   Launch runimage desktop
     --overfs-list|--oL                   Show the list of runimage OverlayFS
     --overfs-rm  |--oR {id id ...|all}   Remove OverlayFS
-    --run-build  |--rB {{build args}     Build new runimage container
+    --run-build  |--rB {build args}      Build new runimage container
     --run-update |--rU {build args}      Update packages and rebuild runimage
 
 Only for not extracted (RunImage runtime options):
@@ -135,7 +135,7 @@ Other environment variables:
         RUNIMAGEDIR=""
     Cache directory:
         RUNCACHEDIR=""
-    RunImage name or link name:
+    RunImage name or link name or executable name:
         RUNSRCNAME=""
     RunImage version:
         RUNIMAGE_VERSION=""
@@ -341,7 +341,7 @@ Recommendations:
 ```
 
 ## Build/Rebuild your own runimage in manual mode:
-* [Download](https://github.com/VHSgunzo/runimage/releases) base version of the runimage (it will be called `runimage.base*`)
+* [Download](https://github.com/VHSgunzo/runimage/releases) base version of the runimage (it will be called `runimage.base`)
 * Make it executable:
 ```
 chmod +x runimage.base
@@ -504,13 +504,11 @@ exit
 * [xz-static](https://github.com/VHSgunzo/xz-static)
 * [minos-static](https://github.com/minos-org/minos-static)
 * [aria2-static-build](https://github.com/abcfy2/aria2-static-build)
-* [yay](https://github.com/Jguer/yay)
 * [fakeroot](https://github.com/mackyle/fakeroot)
 * [fakechroot](https://github.com/dex4er/fakechroot)
 * [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
 * [MEGAcmd](https://github.com/meganz/MEGAcmd)
 * [fuse-overlayfs](https://github.com/containers/fuse-overlayfs)
-* [superglue](https://github.com/VHSgunzo/superglue)
 
 ## Projects based on RunImage:
 * [stable-diffusion](https://github.com/VHSgunzo/stable-diffusion)
