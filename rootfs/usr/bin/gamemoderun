@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+GAMEMODEAUTO_NAME="libgamemodeauto.so.0"
+pidof gamemoded &>/dev/null||/usr/bin/gamemoded &>/dev/null &
+sleep 0.1
+LD_PRELOAD="${GAMEMODEAUTO_NAME}${LD_PRELOAD:+:$LD_PRELOAD}" $GAMEMODERUNEXEC "$@"

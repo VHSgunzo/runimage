@@ -1,2 +1,0 @@
-#!/usr/bin/bash
-curl -s ifconfig.io 2>/dev/null
