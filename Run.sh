@@ -88,6 +88,8 @@ export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version|& awk '{print$2}')"
 [ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
     NOT_TERM=1
 
+bash() { "$RUNSTATIC/bash" "$@" ; }
+
 error_msg() {
     echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
     if [ "$NOT_TERM" == 1 ]
@@ -558,8 +560,9 @@ run_attach() {
                   grep -v "bwrap .*/cache/overlayfs/"|grep -v "bwrap .*/tmp/\.mount.*"|head -1|awk '{print$1}')"
         if [ -n "$target" ]
             then
-                info_msg "Attaching to RunImage RUNPID: ${BLUE}$1"
-                (UNLIM_WAIT=1 wait_pid "$target" ; FORCE_CLEANUP=1 cleanup) &
+                info_msg "Attaching to RunImage RUNPID: $1"
+                (while [[ -d "/proc/$target" && -d "/proc/$RUNPID" ]]; do sleep 0.5; done
+                FORCE_CLEANUP=1 cleanup) &
                 shift
                 for args in "-n -p" "-n" "-p" " "
                     do
@@ -586,7 +589,7 @@ run_attach() {
                             ns_attach "$@" "${RUN_SHELL[@]}"
                     fi
                 else
-                    error_msg "RunImage container not found by RUNPID: ${BLUE}$1"
+                    error_msg "RunImage container not found by RUNPID: $1"
                     return 1
             fi
         else
@@ -606,7 +609,7 @@ run_attach() {
                     fi
             else
                 error_msg "Specify the RunImage RUNPID!"
-                info_msg "Available RUNPIDs: ${BLUE}$(echo $(ls -1 /tmp/.rpids.* 2>/dev/null|cut -d'.' -f3))"
+                info_msg "Available RUNPIDs: $(echo $(ls -1 /tmp/.rpids.* 2>/dev/null|cut -d'.' -f3))"
                 return 1
             fi
     fi
@@ -829,7 +832,7 @@ overlayfs_rm() {
             if [[ -n "$1" || -n "$OVERFS_ID" ]]
                 then
                     overfsrm() {
-                        info_msg "Removing OverlayFS: ${BLUE}$overfs_id"
+                        info_msg "Removing OverlayFS: $overfs_id"
                         if [ "$1" == 'force' ]
                             then
                                 try_kill "$(lsof -n "$RMOVERFS_MNT"|sed 1d|awk '{print$2}'|sort -u)"
@@ -847,7 +850,7 @@ overlayfs_rm() {
                                     RMOVERFS_MNT="$RMOVERFS_DIR/mnt"
                                     if [ -n "$(ls -A "$RMOVERFS_MNT" 2>/dev/null)" ]
                                         then
-                                            warn_msg "Maybe OverlayFS is currently in use: ${BLUE}$overfs_id"
+                                            warn_msg "Maybe OverlayFS is currently in use: $overfs_id"
                                             while true
                                                 do
                                                     read -p "$(echo -e "\t${RED}Are you sure you want to delete it? ${GREEN}(y/n) ${BLUE}> $RESETCOLOR")" yn
@@ -862,7 +865,7 @@ overlayfs_rm() {
                                     fi
                                     unset RMOVERFS_MNT
                                 else
-                                    error_msg "Not found OverlayFS: ${BLUE}$overfs_id"
+                                    error_msg "Not found OverlayFS: $overfs_id"
                             fi
                             unset RMOVERFS_DIR
                     done
@@ -903,7 +906,7 @@ run_update() {
             if [ -n "$RUNIMAGE" ]
                 then
                     (cd "$RUNIMAGEDIR" && \
-                    "$RUNROOTFS/usr/bin/runbuild" "$@")
+                    bash "$RUNROOTFS/usr/bin/runbuild" "$@")
                     UPDATE_STATUS="$?"
             fi
     fi
@@ -1261,7 +1264,8 @@ if [[ "$RUNSRCNAME" == "Run"* || \
             --overfs-rm  |--oR|\
             --run-build  |--rB|\
             --run-attach |--rA) NO_DOUBLE_MOUNT=1 ;;
-            --run-procmon|--rPm) NO_DOUBLE_MOUNT=1 && NO_RPIDSMON=1 ;;
+            --run-procmon|--rPm) NO_DOUBLE_MOUNT=1 ; NO_RPIDSMON=1
+                                 NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ;;
         esac
 fi
 
@@ -1857,7 +1861,7 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                         execjoboutfl="$EXECFL.$jobnum.o"
                         jobnum=$(( $jobnum + 1 ))
                         flock -x "$EXECFL" mv -f "$EXECFL" "$execjobfl" 2>/dev/null
-                        ("$RUNSTATIC/bash" "$execjobfl" &>$execjoboutfl &
+                        (bash "$execjobfl" &>$execjoboutfl &
                         execjobpid=$!
                         touch "$execjobfl.p.$execjobpid"
                         wait $execjobpid 2>/dev/null
@@ -1895,13 +1899,13 @@ if [ -n "$AUTORUN" ]
                     --run-bwhelp |--rBwh) bwrap_help ;;
                     --run-version|--rV) print_version ;;
                     --overfs-list|--oL) overlayfs_list ;;
+                    --run-attach |--rA) shift ; run_attach "$@" ;;
                     --run-update |--rU) shift ; run_update "$@" ;;
                     --overfs-rm  |--oR) shift ; overlayfs_rm "$@" ;;
                     --run-desktop|--rD) bwrun /usr/bin/rundesktop ;;
                     --run-shell  |--rS) shift ; bwrun "${RUN_SHELL[@]}" "$@" ;;
-                    --run-attach |--rA) shift ; run_attach "$@" ;;
-                    --run-build  |--rB) shift ; "$RUNROOTFS/usr/bin/runbuild" "$@" ;;
-                    --run-procmon|--rPm) shift ; "$RUNROOTFS/usr/bin/rpidsmon" "$@" ;;
+                    --run-procmon|--rPm) shift ; bwrun "/usr/bin/rpidsmon" "$@" ;;
+                    --run-build  |--rB) shift ; bash "$RUNROOTFS/usr/bin/runbuild" "$@" ;;
                     *) bwrun "$@" ;;
                 esac
         fi

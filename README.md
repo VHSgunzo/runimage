@@ -348,7 +348,7 @@ chmod +x runimage.base
 ```
 * Run it in OverlayFS mode (If you are using a proprietary nvidia driver, then I recommend disabling the driver check function by NO_NVIDIA_CHECK=1 for proper build/rebuild in manual mode. You do not need to do this in automatic mode):
 ```
-OVERFS_MODE=1 ./runimage.base bash
+OVERFS_MODE=1 ./runimage.base --run-shell
 echo $OVERFS_MNT
 echo $OVERFS_ID
 ```
