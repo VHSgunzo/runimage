@@ -36,6 +36,7 @@ The full list of installed packages can be found in the [**releases**](https://g
 * Usability and comprehensibility.
 
 ## Requirements:
+
 * Supported architectures (should work on any Linux kernel architecture. However, it is currently only built for x86_64)
 * Minimum recommended Linux kernel version 4.18+ (tested on Centos 7 with 3.10 and on Ubuntu 12.04 with 3.11 using SUID Bubblewrap and it's works, but 5.0+ with [user namespaces](https://lwn.net/Articles/531114) support is recommended)
 * FUSE (but not necessarily, because it is possible to work in unpacked form without FUSE mounting)
@@ -49,6 +50,7 @@ chmod +x runimage*
 ```
 
 ## Usage (from RunImage help):
+
 ```
 ┌──[user@host]─[~]
 └──╼ $ runimage {bubblewrap args} {executable} {executable args}
@@ -350,6 +352,7 @@ Recommendations:
 ```
 
 ## Build/Rebuild your own runimage in manual mode:
+
 * [Download](https://github.com/VHSgunzo/runimage/releases) base version of the runimage (it will be called `runimage.base`)
 * Make it executable:
 ```
@@ -451,10 +454,12 @@ exit
 * [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper)
 
 ## Projects based on RunImage:
+
 * [stable-diffusion](https://github.com/VHSgunzo/stable-diffusion)
 * [NitroWine](https://github.com/RusNor/NitroWine)
 
 ## Similar projects:
+
 * [Conty](https://github.com/Kron4ek/Conty)
 
 ## RunImage tested and works on:
