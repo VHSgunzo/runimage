@@ -376,7 +376,7 @@ exit
 # or CTRL-D
 ```
 
-## Troubleshooting and problem solving
+## Troubleshooting and problem solving:
 
 * By default, all container processes running in the background will be killed after the container is closed, to allow background processes, use the environment variable ALLOW_BG=1
 * Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
@@ -409,7 +409,7 @@ exit
 ```
 * If you disable bubblewrap capabilities using NO_CAP, you will not be able to use FUSE inside the container.
 
-## Main used projects
+## Main used projects:
 
 * [archlinux](https://archlinux.org)
 * [bubblewrap-static](https://github.com/VHSgunzo/bubblewrap-static)
