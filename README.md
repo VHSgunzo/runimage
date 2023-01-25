@@ -452,6 +452,7 @@ exit
 
 ## Projects based on RunImage:
 * [stable-diffusion](https://github.com/VHSgunzo/stable-diffusion)
+* [NitroWine](https://github.com/RusNor/NitroWine)
 
 ## Similar projects:
 * [Conty](https://github.com/Kron4ek/Conty)
