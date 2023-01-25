@@ -2,9 +2,9 @@
 
 ## **Portable single-file unprivileged Linux container in user namespaces.**
 
-![image](https://user-images.githubusercontent.com/57139938/202873005-a7b4fcf3-aff3-4498-90b4-3b19ef8bd146.png)
+![image](screenshots/run-shell.png)
 
-RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs/releases). The technology of single-file containerization is based on a modified static AppImage [runtime](https://github.com/VHSgunzo/runimage-runtime-static), squashfs image with lz4 compression method for better work speed, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static/releases) for the operation of the container [Run script](https://github.com/VHSgunzo/runimage/blob/main/Run), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap).
+RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs/releases). The technology of single-file containerization is based on a modified static AppImage [runtime](https://github.com/VHSgunzo/runimage-runtime-static), squashfs image with lz4 compression method for better work speed, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static/releases) for the operation of the container [Run.sh script](https://github.com/VHSgunzo/runimage/blob/main/Run.sh), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap).
 
 In addition, RunImage has the ability to isolate itself from the main system, use separate portable home directories and configuration files for each executable file being run, and run separate X11 servers, including running multiple Xorg servers on TTY. XFCE is used as DE.
 
@@ -53,17 +53,20 @@ chmod +x runimage*
 ┌──[user@host]─[~]
 └──╼ $ runimage {bubblewrap args} {executable} {executable args}
 
-    --run-help   |--rH                   Show this usage info
-    --run-bwhelp |--rBwh                 Show Bubblewrap usage info
-    --run-version|--rV                   Show runimage, rootfs, static, runtime version
-    --run-pkglist|--rP                   Show packages installed in runimage
-    --run-binlist|--rBin                 Show /usr/bin in runimage
-    --run-shell  |--rS {args}            Run runimage shell or execute a command in runimage shell
-    --run-desktop|--rD                   Launch runimage desktop
-    --overfs-list|--oL                   Show the list of runimage OverlayFS
-    --overfs-rm  |--oR {id id ...|all}   Remove OverlayFS
-    --run-build  |--rB {build args}      Build new runimage container
-    --run-update |--rU {build args}      Update packages and rebuild runimage
+    --run-help   |--rH                    Show this usage info
+    --run-bwhelp |--rBwh                  Show Bubblewrap usage info
+    --run-version|--rV                    Show runimage, rootfs, static, runtime version
+    --run-pkglist|--rP                    Show packages installed in runimage
+    --run-binlist|--rBin                  Show /usr/bin in runimage
+    --run-shell  |--rS  {args}            Run runimage shell or execute a command in runimage shell
+    --run-desktop|--rD                    Launch runimage desktop
+    --overfs-list|--oL                    Show the list of runimage OverlayFS
+    --overfs-rm  |--oR  {id id ...|all}   Remove OverlayFS
+    --run-build  |--rB  {build args}      Build new runimage container
+    --run-update |--rU  {build args}      Update packages and rebuild runimage
+    --run-kill   |--rK                    Kill all running runimage containers
+    --run-procmon|--rPm {RUNPIDs}         Monitoring of processes running in runimage containers
+    --run-attach |--rA  {RUNPID} {args}   Attach to a running runimage container or exec command
 
 Only for not extracted (RunImage runtime options):
     --runtime-extract {pattern}          Extract content from embedded filesystem image
@@ -82,10 +85,9 @@ Environment variables to configure:
     PORTABLE_HOME=1                      Creates a portable home folder and uses it as $HOME
     PORTABLE_CONFIG=1                    Creates a portable config folder and uses it as $XDG_CONFIG_HOME
     NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
-    FORCE_CLEANUP=1                      Kills all runimage background processes when exiting
-    NO_KILL_FUSE=1                       Disables killing squashfuse processes when exiting
+    ALLOW_BG=1                           Allows you to run processes in the background and exit the container
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
-    NO_DOUBLE_MOUNT=1                    Disables the second mount that fixes MangoHud and VkBasalt bug
+    NO_DOUBLE_MOUNT=1                    Disables the squashfuse remount for fix MangoHud and VkBasalt bug
     OVERFS_MODE=1                        Enables OverlayFS mode
     KEEP_OVERFS=1                        Enables OverlayFS mode with saving after closing runimage
     OVERFS_ID=ID                         Specifies the OverlayFS ID
@@ -102,6 +104,9 @@ Environment variables to configure:
     RUNTIME_EXTRACT_AND_RUN=1            Run runimage afer extraction without using FUSE
     TMPDIR="/path/{TMPDIR}"              Used for extract and run options
     RUNIMAGE_CONFIG="/path/{config}"     runimage сonfiguration file (0 to disable)
+    ENABLE_HOSTEXEC=1                    Enables the ability to execute commands at the host level
+    NO_RPIDSMON=1                        Disables the monitoring thread of running processes
+    NO_BWRAP_WAIT=1                      Disables the delay when closing the container too quickly
     XORG_CONF="/path/xorg.conf"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
                                             (Default: /etc/X11/xorg.conf bind from the system)
     XEPHYR_SIZE="HEIGHTxWIDTH"           Sets runimage desktop resolution (Default: 1600x900)
@@ -121,11 +126,13 @@ Environment variables to configure:
 Other environment variables:
     RunImage path (for packed):
         RUNIMAGE=""
-    Null argument (for packed):
-        ARGV0=""
     Squashfs offset (for packed):
         RUNOFFSET=""
-    Run script directory:
+    Null argument:
+        ARGV0=""
+    PID of Run.sh script:
+        RUNPID=""
+    Run binary directory:
         RUNDIR=""
     RootFS directory:
         RUNROOTFS=""
@@ -185,6 +192,8 @@ Custom scripts and aliases:
     /bin/{xclipsync,xclipfrom}        For clipboard synchronization in desktop mode
     /bin/webm2gif                     Convert webm to gif
     /bin/transfer                     Upload file to https://transfer.sh
+    /bin/rpidsmon                     For monitoring of processes running in runimage containers
+    /bin/hostexec                     For execute commands at the host level (see ENABLE_HOSTEXEC)
 
     ls='ls --color=auto'
     dir='dir --color=auto'
@@ -220,11 +229,11 @@ Additional information:
     Here runimage will become something like an alias for 'ls' in runimage
         with the '-la' argument. You can also use AUTORUN as an array for complex commands in the config.
         AUTORUN=("ls" "-la" "/path/to something")
-    This will also work in extracted form for the Run script.
+    This will also work in extracted form for the Run binary.
 
     When using the PORTABLE_HOME and PORTABLE_CONFIG variables, runimage will create or
         search for these directories next to itself. The same behavior will occur when
-        adding a runimage or Run script or renamed or symlink/hardlink to them in the PATH
+        adding a runimage or Run binary or renamed or symlink/hardlink to them in the PATH
         it can be used both extracted and compressed and for all executable files being run:
             '$RUNIMAGEDIR/Run.home'
             '$RUNIMAGEDIR/Run.config'
@@ -367,82 +376,11 @@ exit
 # or CTRL-D
 ```
 
-## RunImage tested and works on:
-
-* Adelie Linux
-* AlmaLinux
-* Alpine
-* Alt Workstation
-* Antergos
-* antiX
-* Arch Linux
-* ArcoLinux
-* Artix Linux
-* Astra Linux
-* Batocera
-* Bodhi Linux
-* CachyOS
-* CentOS
-* ChromeOS Flex
-* Clear Linux
-* Debian
-* Deepin
-* ElementaryOS
-* EndeavourOS
-* EuroLinux
-* Fedora Silverblue
-* Fedora Workstation
-* Garuda Linux
-* Gentoo
-* GoboLinux
-* Green Linux
-* Grml Linux
-* Kali Linux
-* KDE neon
-* Kodachi
-* Kubuntu
-* Linux Lite
-* Linux Mint
-* Lubuntu
-* Mageia
-* Manjaro
-* MX Linux
-* Nitrux nxOS
-* NixOS
-* Nobara
-* openSUSE
-* Oracle Linux
-* Parrot
-* PCLinuxOS
-* PeppermintOS (Devuan)
-* Pop!_OS
-* Porteus
-* Puppy Linux
-* Qubes
-* Red OS
-* Rocky Linux
-* ROSA
-* Simply/ALT Linux
-* Slackware
-* Slax Linux
-* Solus
-* Sparky Linux
-* SteamOS (HoloISO)
-* Tails
-* Ubuntu
-* Ubuntu MATE
-* Venom Linux
-* Void
-* Whonix
-* Windowsfx (Linuxfx)
-* Windows Subsystem for Linux (WSL 2 on Win 11)
-* Xubuntu
-* Zorin OS
-
 ## Troubleshooting and problem solving
 
+* By default, all container processes running in the background will be killed after the container is closed, to allow background processes, use the environment variable ALLOW_BG=1
 * Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
-* To start the SSH server, SUID Bubblewrap or run as root is required
+* To start the SSH server, SUID Bubblewrap or run as root is required (see [sshd_config](https://github.com/VHSgunzo/runimage/blob/main/rootfs/etc/ssh/sshd_config))
 ```
     ssh-keygen -q -N "" -t rsa -b 4096 -f ~/.ssh/ssh_host_rsa_key && \
     ssh-keygen -q -N "" -t ed25519 -b 521 -f ~/.ssh/ssh_host_ed25519_key && \
@@ -450,13 +388,10 @@ exit
     echo 'ssh-rsa AAAAB3NzaC1yc2EA PUB-KEY' >> ~/.ssh/authorized_keys
     /usr/sbin/sshd
 ```
-* When unpacked, the container is not completely static, if necessary, you need to manually add the path to the $RUNDIR/static directory to the PATH
-```
-    export PATH="$PATH:$RUNDIR/static"
-```
-* In RunImage used the [patched glibc](https://github.com/DissCent/glibc-eac-rc) to work EAC anti-cheat
+* When unpacked, use the [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper) binary file to properly launch the container.
+* In RunImage used the [patched glibc](https://github.com/DissCent/glibc-eac-rc) to work EAC anti-cheat. (Not used in the base version)
 * If SELinux is enabled in the system, then there may be problems with the launch and operation of Wine ([solution](https://www.tecmint.com/disable-selinux-in-centos-rhel-fedora))
-* To start nested bubblewrap containerization, you need to disable capabilities (see NO_CAP env var or use [nocap](https://github.com/VHSgunzo/runimage/blob/main/rootfs/bin/nocap))
+* To start nested bubblewrap containerization, you need to disable capabilities (see NO_CAP env var or use [nocap](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/nocap))
 ```
     NO_CAP=1 runimage {args}
     # or nocap in runimage
@@ -509,6 +444,86 @@ exit
 * [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
 * [MEGAcmd](https://github.com/meganz/MEGAcmd)
 * [fuse-overlayfs](https://github.com/containers/fuse-overlayfs)
+* [importenv](https://github.com/VHSgunzo/importenv/releases)
+* [slirp4netns](https://github.com/rootless-containers/slirp4netns/releases)
+* [util-linux-static](https://github.com/VHSgunzo/util-linux-static/releases)
+* [hosts](https://github.com/StevenBlack/hosts)
+* [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper)
 
 ## Projects based on RunImage:
 * [stable-diffusion](https://github.com/VHSgunzo/stable-diffusion)
+
+## Similar projects:
+* [Conty](https://github.com/Kron4ek/Conty)
+
+## RunImage tested and works on:
+
+* [Adelie Linux](https://www.adelielinux.org/)
+* [AlmaLinux](https://almalinux.org/)
+* [Alpine](https://www.alpinelinux.org/)
+* [Alt Workstation](https://www.basealt.ru/alt-workstation/description)
+* [Antergos](https://en.wikipedia.org/wiki/Antergos)
+* [antiX](https://antixlinux.com/)
+* [Arch Linux](https://archlinux.org/)
+* [ArcoLinux](https://arcolinux.com/)
+* [Artix Linux](https://artixlinux.org/)
+* [Astra Linux](https://astralinux.ru/)
+* [Batocera](https://batocera.org/)
+* [Bodhi Linux](https://www.bodhilinux.com/)
+* [CachyOS](https://cachyos.org/)
+* [CentOS](https://www.centos.org/)
+* [ChromeOS Flex](https://chromeenterprise.google/intl/en_us/os/chromeosflex/)
+* [Clear Linux](https://clearlinux.org/)
+* [Debian](https://www.debian.org/)
+* [Deepin](https://www.deepin.org/)
+* [ElementaryOS](https://elementary.io/)
+* [EndeavourOS](https://endeavouros.com/)
+* [EuroLinux](https://en.euro-linux.com/)
+* [Fedora Silverblue](https://silverblue.fedoraproject.org/)
+* [Fedora Workstation](https://getfedora.org/en/workstation/)
+* [Garuda Linux](https://garudalinux.org/)
+* [Gentoo](https://www.gentoo.org/)
+* [GoboLinux](https://gobolinux.org/)
+* [Green Linux](https://greenlinux.ru/)
+* [Grml Linux](https://grml.org/)
+* [Kali Linux](https://www.kali.org/)
+* [KDE neon](https://neon.kde.org/)
+* [Kodachi](https://www.digi77.com/linux-kodachi/)
+* [Kubuntu](https://kubuntu.org/)
+* [Linux Lite](https://www.linuxliteos.com/)
+* [Linux Mint](https://linuxmint.com/)
+* [Lubuntu](https://lubuntu.me/)
+* [Mageia](https://www.mageia.org/)
+* [Manjaro](https://manjaro.org/)
+* [MX Linux](https://mxlinux.org/)
+* [Nitrux nxOS](https://nxos.org/)
+* [NixOS](https://nixos.org/)
+* [Nobara](https://nobaraproject.org/)
+* [openSUSE](https://www.opensuse.org/)
+* [Oracle Linux](https://www.oracle.com/linux/)
+* [Parrot](https://www.parrotsec.org/)
+* [PCLinuxOS](https://www.pclinuxos.com/)
+* [PeppermintOS (Devuan)](https://peppermintos.com/)
+* [Pop!_OS](https://pop.system76.com/)
+* [Porteus](http://www.porteus.org/)
+* [Puppy Linux](https://puppylinux.com/)
+* [Qubes](https://www.qubes-os.org/)
+* [Red OS](https://redos.red-soft.ru/)
+* [Rocky Linux](https://rockylinux.org/ru/)
+* [ROSA](https://www.rosalinux.ru/)
+* [Simply/ALT Linux](https://www.basealt.ru/simplylinux)
+* [Slackware](http://www.slackware.com/)
+* [Slax Linux](https://www.slax.org/)
+* [Solus](https://getsol.us/home/)
+* [SparkyLinux](https://sparkylinux.org/)
+* [SteamOS (HoloISO)](https://github.com/theVakhovskeIsTaken/holoiso)
+* [Tails](https://tails.boum.org/)
+* [Ubuntu](https://ubuntu.com/)
+* [Ubuntu MATE](https://ubuntu-mate.org/)
+* [Venom Linux](https://venomlinux.org/)
+* [Void Linux](https://voidlinux.org/)
+* [Whonix](https://www.whonix.org/)
+* [Windowsfx (Linuxfx)](https://www.windowsfx.org/)
+* [Windows Subsystem for Linux (WSL 2 on Win 11)](https://learn.microsoft.com/en-us/windows/wsl/install)
+* [Xubuntu](https://xubuntu.org/)
+* [Zorin OS](https://zorin.com/os/)

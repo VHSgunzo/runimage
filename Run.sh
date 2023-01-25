@@ -19,7 +19,7 @@ unset RO_MNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM FOVERFS \
       LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND EXEC_ARGS \
       FUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BWRAP OVERFS_MNT \
       SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG OVERFS_DIR \
-      RUNRUNTIME RUNSTATIC
+      RUNRUNTIME RUNSTATIC UNLIM_WAIT
 
 [[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
     export LANG=en_US.UTF-8
@@ -545,7 +545,7 @@ try_mkdir() {
             if ! mkdir -p "$1"
                 then
                     error_msg "Failed to create directory: '$1'"
-                    QUIET_MODE=1 FORCE_CLEANUP=1 cleanup
+                    QUIET_MODE=1 ALLOW_BG=0 cleanup
                     exit 1
             fi
     fi
@@ -562,7 +562,7 @@ run_attach() {
             then
                 info_msg "Attaching to RunImage RUNPID: $1"
                 (while [[ -d "/proc/$target" && -d "/proc/$RUNPID" ]]; do sleep 0.5; done
-                FORCE_CLEANUP=1 cleanup) &
+                ALLOW_BG=0 cleanup) &
                 shift
                 for args in "-n -p" "-n" "-p" " "
                     do
@@ -696,8 +696,6 @@ try_upd_rpids() {
 cleanup() {
     if [[ "$NO_CLEANUP" != 1 || "$FORCE_CLEANUP" == 1 ]]
         then
-            [ "$FORCE_CLEANUP" == 1 ] && \
-                unset ALLOW_BG
             if [ -n "$FUSE_PIDS" ]
                 then
                     try_unmount "$RO_MNT"
@@ -927,19 +925,22 @@ if ! console_info_notify
 ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
     ${RED}Usage:
         $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-        $RED└──╼ \$$GREEN $([ -n "$RUNIMAGE" ] && echo "$RUNIMAGE"||echo "$0")$YELLOW {bubblewrap args} $GREEN{executable} $YELLOW{executable args}
+        $RED└──╼ \$$GREEN $([ -n "$ARGV0" ] && echo "$ARGV0"||echo "$0")$YELLOW {bubblewrap args} $GREEN{executable} $YELLOW{executable args}
 
-        ${BLUE}--run-help   ${RED}|${BLUE}--rH$GREEN                   Show this usage info
-        ${BLUE}--run-bwhelp ${RED}|${BLUE}--rBwh$GREEN                 Show Bubblewrap usage info
-        ${BLUE}--run-version${RED}|${BLUE}--rV$GREEN                   Show runimage, rootfs, static, runtime version
-        ${BLUE}--run-pkglist${RED}|${BLUE}--rP$GREEN                   Show packages installed in runimage
-        ${BLUE}--run-binlist${RED}|${BLUE}--rBin$GREEN                 Show /usr/bin in runimage
-        ${BLUE}--run-shell  ${RED}|${BLUE}--rS$YELLOW {args}$GREEN            Run runimage shell or execute a command in runimage shell
-        ${BLUE}--run-desktop${RED}|${BLUE}--rD$GREEN                   Launch runimage desktop
-        ${BLUE}--overfs-list${RED}|${BLUE}--oL$GREEN                   Show the list of runimage OverlayFS
-        ${BLUE}--overfs-rm  ${RED}|${BLUE}--oR$YELLOW {id id ...|all}$GREEN   Remove OverlayFS
-        ${BLUE}--run-build  ${RED}|${BLUE}--rB$YELLOW {build args}$GREEN      Build new runimage container
-        ${BLUE}--run-update ${RED}|${BLUE}--rU$YELLOW {build args}$GREEN      Update packages and rebuild runimage
+        ${BLUE}--run-help   ${RED}|${BLUE}--rH$GREEN                    Show this usage info
+        ${BLUE}--run-bwhelp ${RED}|${BLUE}--rBwh$GREEN                  Show Bubblewrap usage info
+        ${BLUE}--run-version${RED}|${BLUE}--rV$GREEN                    Show runimage, rootfs, static, runtime version
+        ${BLUE}--run-pkglist${RED}|${BLUE}--rP$GREEN                    Show packages installed in runimage
+        ${BLUE}--run-binlist${RED}|${BLUE}--rBin$GREEN                  Show /usr/bin in runimage
+        ${BLUE}--run-shell  ${RED}|${BLUE}--rS$YELLOW  {args}$GREEN            Run runimage shell or execute a command in runimage shell
+        ${BLUE}--run-desktop${RED}|${BLUE}--rD$GREEN                    Launch runimage desktop
+        ${BLUE}--overfs-list${RED}|${BLUE}--oL$GREEN                    Show the list of runimage OverlayFS
+        ${BLUE}--overfs-rm  ${RED}|${BLUE}--oR$YELLOW  {id id ...|all}$GREEN   Remove OverlayFS
+        ${BLUE}--run-build  ${RED}|${BLUE}--rB$YELLOW  {build args}$GREEN      Build new runimage container
+        ${BLUE}--run-update ${RED}|${BLUE}--rU$YELLOW  {build args}$GREEN      Update packages and rebuild runimage
+        ${BLUE}--run-kill   ${RED}|${BLUE}--rK$GREEN                    Kill all running runimage containers
+        ${BLUE}--run-procmon${RED}|${BLUE}--rPm$YELLOW {RUNPIDs}$GREEN         Monitoring of processes running in runimage containers
+        ${BLUE}--run-attach ${RED}|${BLUE}--rA$YELLOW  {RUNPID} {args}$GREEN   Attach to a running runimage container or exec command
 
     ${RED}Only for not extracted (RunImage runtime options):
         ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
@@ -958,10 +959,9 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}PORTABLE_HOME$GREEN=1                      Creates a portable home folder and uses it as ${YELLOW}\$HOME
         ${YELLOW}PORTABLE_CONFIG$GREEN=1                    Creates a portable config folder and uses it as ${YELLOW}\$XDG_CONFIG_HOME
         ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
-        ${YELLOW}FORCE_CLEANUP$GREEN=1                      Kills all runimage background processes when exiting
         ${YELLOW}ALLOW_BG$GREEN=1                           Allows you to run processes in the background and exit the container
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
-        ${YELLOW}NO_DOUBLE_MOUNT$GREEN=1                    Disables the second mount that fixes MangoHud and VkBasalt bug
+        ${YELLOW}NO_DOUBLE_MOUNT$GREEN=1                    Disables the squashfuse remount for fix MangoHud and VkBasalt bug
         ${YELLOW}OVERFS_MODE$GREEN=1                        Enables OverlayFS mode
         ${YELLOW}KEEP_OVERFS$GREEN=1                        Enables OverlayFS mode with saving after closing runimage
         ${YELLOW}OVERFS_ID$GREEN=ID                         Specifies the OverlayFS ID
@@ -978,6 +978,9 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run runimage afer extraction without using FUSE
         ${YELLOW}TMPDIR$GREEN=\"/path/{TMPDIR}\"              Used for extract and run options
         ${YELLOW}RUNIMAGE_CONFIG$GREEN=\"/path/{config}\"     runimage сonfiguration file (0 to disable)
+        ${YELLOW}ENABLE_HOSTEXEC$GREEN=1                    Enables the ability to execute commands at the host level
+        ${YELLOW}NO_RPIDSMON$GREEN=1                        Disables the monitoring thread of running processes
+        ${YELLOW}NO_BWRAP_WAIT$GREEN=1                      Disables the delay when closing the container too quickly
         ${YELLOW}XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
                                                 (Default: /etc/X11/xorg.conf bind from the system)
         ${YELLOW}XEPHYR_SIZE$GREEN=\"HEIGHTxWIDTH\"           Sets runimage desktop resolution (Default: 1600x900)
@@ -997,11 +1000,13 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
     ${RED}Other environment variables:
         ${GREEN}RunImage path (for packed):
             ${YELLOW}RUNIMAGE${GREEN}=\"$RUNIMAGE\"
-        ${GREEN}Null argument (for packed):
-            ${YELLOW}ARGV0${GREEN}=\"$ARGV0\"
         ${GREEN}Squashfs offset (for packed):
             ${YELLOW}RUNOFFSET${GREEN}=\"$RUNOFFSET\"
-        ${GREEN}Run script directory:
+        ${GREEN}Null argument:
+            ${YELLOW}ARGV0${GREEN}=\"$ARGV0\"
+        ${GREEN}PID of Run.sh script:
+            ${YELLOW}RUNPID${GREEN}=\"$RUNPID\"
+        ${GREEN}Run binary directory:
             ${YELLOW}RUNDIR${GREEN}=\"$RUNDIR\"
         ${GREEN}RootFS directory:
             ${YELLOW}RUNROOTFS${GREEN}=\"$RUNROOTFS\"
@@ -1061,6 +1066,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}/bin/{xclipsync,xclipfrom}$GREEN        For clipboard synchronization in desktop mode
         ${YELLOW}/bin/webm2gif$GREEN                     Convert webm to gif
         ${YELLOW}/bin/transfer$GREEN                     Upload file to ${BLUE}https://transfer.sh
+        ${YELLOW}/bin/rpidsmon$GREEN                     For monitoring of processes running in runimage containers
+        ${YELLOW}/bin/hostexec$GREEN                     For execute commands at the host level (see ${YELLOW}ENABLE_HOSTEXEC$GREEN)
 
         ${YELLOW}ls$GREEN='ls --color=auto'
         ${YELLOW}dir$GREEN='dir --color=auto'
@@ -1096,11 +1103,11 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         Here runimage will become something like an alias for 'ls' in runimage
             with the '-la' argument. You can also use ${YELLOW}AUTORUN${GREEN} as an array for complex commands in the config.
             ${YELLOW}AUTORUN=(\"ls\" \"-la\" \"/path/to something\")${GREEN}
-        This will also work in extracted form for the Run script.
+        This will also work in extracted form for the Run binary.
 
         When using the ${YELLOW}PORTABLE_HOME$GREEN and ${YELLOW}PORTABLE_CONFIG$GREEN variables, runimage will create or
             search for these directories next to itself. The same behavior will occur when
-            adding a runimage or Run script or renamed or symlink/hardlink to them in the PATH
+            adding a runimage or Run binary or renamed or symlink/hardlink to them in the PATH
             it can be used both extracted and compressed and for all executable files being run:
                 ${YELLOW}'$RUNIMAGEDIR/Run.home'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/Run.config'$GREEN
@@ -1516,7 +1523,7 @@ if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$NO_DOUBLE_MOUNT" != 1 ]] # MangoHud
         if ! mount_exist "$FUSE_PID" "$RO_MNT"
             then
                 error_msg "Failed to mount RunImage in RO mode!"
-                QUIET_MODE=1 FORCE_CLEANUP=1 cleanup
+                QUIET_MODE=1 ALLOW_BG=0 cleanup
                 exit 1
         fi
         export RUNROOTFS="$RO_MNT/rootfs"
@@ -1554,7 +1561,7 @@ if [[ "$OVERFS_MODE" == 1 || "$KEEP_OVERFS" == 1 || -n "$OVERFS_ID" ]]
         if ! mount_exist "$FOVERFS_PID" "$OVERFS_MNT"
             then
                 error_msg "Failed to mount RunImage in OverlayFS mode!"
-                QUIET_MODE=1 FORCE_CLEANUP=1 cleanup
+                QUIET_MODE=1 ALLOW_BG=0 cleanup
                 exit 1
         fi
         export RUNROOTFS="$OVERFS_MNT/rootfs"
@@ -1569,7 +1576,7 @@ if [ -n "$AUTORUN" ]
         if [ ! -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ]
             then
                 error_msg "$AUTORUN0ARG not found in /usr/bin"
-                QUIET_MODE=1 FORCE_CLEANUP=1 cleanup
+                QUIET_MODE=1 ALLOW_BG=0 cleanup
                 exit 1
         fi
 fi
