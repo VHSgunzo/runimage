@@ -11,6 +11,7 @@ RESETCOLOR='\033[1;00m'
 
 export RUNPID="$BASHPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
+BWINFFL="/tmp/.bwinf.$RUNPID"
 SYS_PATH="$PATH"
 unset RO_MNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM FOVERFS \
       MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
@@ -262,7 +263,7 @@ check_nvidia_driver() {
         if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
             then
                 info_msg "Updating the nvidia library cache..."
-                if bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null
+                if (NO_BWRAP_WAIT=1 SANDBOX_INET=0 bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null)
                     then
                         try_mkdir "$RUNCACHEDIR"
                         if mv -f "/tmp/ld.so.cache" \
@@ -739,27 +740,40 @@ bwrun() {
         LD_CACHE_BIND=("--bind-try" \
                     "$RUNCACHEDIR/ld.so.cache" "/etc/ld.so.cache") || \
         unset LD_CACHE_BIND
+    if [[ "$SANDBOX_INET" == 1 && "$NO_INET" != 1 ]]
+        then
+            (while [[ -d "/proc/$RUNPID" && ! -f "$BWINFFL" ]]; do sleep 0.01; done
+            slirp4netns --configure --disable-host-loopback \
+                $([ -n "$SANDBOX_INET_CIDR" ] && echo "--cidr=$SANDBOX_INET_CIDR") \
+                $([ -n "$SANDBOX_INET_MTU" ] && echo "--mtu=$SANDBOX_INET_MTU") \
+                $([ -n "$SANDBOX_INET_MAC" ] && echo "--macaddress=$SANDBOX_INET_MAC") \
+                "$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')" \
+                $([ -n "$SANDBOX_INET_TAPNAME" ] && echo "$SANDBOX_INET_TAPNAME"||echo 'eth0') &
+            SLIRP_PID=$!
+            sleep 0.1
+            if [[ -n "$SLIRP_PID" && -d "/proc/$SLIRP_PID" ]]
+                then
+                    while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" ]]; do sleep 0.01; done
+                    try_kill "$SLIRP_PID"
+                else
+                    error_msg "Failed to start slirp4netns!"
+                    sleep 1
+                    QUIET_MODE=1 ALLOW_BG=0 cleanup
+                    exit 1
+            fi) &
+    fi
     if [ "$NO_BWRAP_WAIT" != 1 ]
         then
-            (wait_bwrap=20
-            unset bwrap_pid
-            while true
+            (wait_bwrap=100
+            while [[ "$wait_bwrap" -gt 0 && ! -f "$BWINFFL" ]]
                 do
-                    [ ! -n "$bwrap_pid" ] && \
-                        bwrap_pid="$(pgrep -fa "bwrap"|grep "RUNPID $RUNPID"|\
-                                     awk '{print$1}'|head -1)"
-                    if [[ "$wait_bwrap" -gt 0 && ! -n "$bwrap_pid" ]]
-                        then
-                            wait_bwrap="$(( $wait_bwrap - 1 ))"
-                            sleep 0.01
-                        else
-                            sleep 1
-                            break
-                    fi
-            done) &
+                    wait_bwrap="$(( $wait_bwrap - 1 ))"
+                    sleep 0.01
+            done; sleep 1) &
             WAITBWPID=$!
     fi
     "$BWRAP" --bind-try "$RUNROOTFS" / \
+        --info-fd 8 \
         --proc /proc \
         --tmpfs /var/log \
         --die-with-parent \
@@ -801,10 +815,12 @@ bwrun() {
         --setenv XDG_DATA_DIRS "/usr/local/share:/usr/share:$XDG_DATA_DIRS" \
         "${SETENV_ARGS[@]}" "${BWRAP_ARGS[@]}" \
         "${EXEC_ARGS[@]}" \
-        "$@"
+        "$@" 8>$BWINFFL
     EXEC_STATUS=$?
     [ -n "$WAITBWPID" ] && \
         wait "$WAITBWPID"
+    [ -f "$BWINFFL" ] && \
+        rm -f "$BWINFFL" 2>/dev/null
     return $EXEC_STATUS
 }
 
@@ -1271,7 +1287,7 @@ if [[ "$RUNSRCNAME" == "Run"* || \
             --overfs-rm  |--oR|\
             --run-build  |--rB|\
             --run-attach |--rA) NO_DOUBLE_MOUNT=1 ;;
-            --run-procmon|--rPm) NO_DOUBLE_MOUNT=1 ; NO_RPIDSMON=1
+            --run-procmon|--rPm) NO_DOUBLE_MOUNT=1 ; NO_RPIDSMON=1 ; SANDBOX_INET=0
                                  NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ;;
         esac
 fi
@@ -1490,7 +1506,7 @@ if [ "$NO_RPIDSMON" != 1 ]
     then
         "$RUNSTATIC/headpid" $RUNPID &
         headpid=$!
-        (wait_rpids=10
+        (wait_rpids=15
         oldrpids="$(get_child_pids "$headpid")"
         while ps -o pid= -p $oldrpids &>/dev/null
             do
@@ -1553,9 +1569,9 @@ if [[ "$OVERFS_MODE" == 1 || "$KEEP_OVERFS" == 1 || -n "$OVERFS_ID" ]]
         try_mkdir "$OVERFS_DIR"
         mkdir -p "$OVERFS_DIR"/{layers,tmp,mnt}
         export OVERFS_MNT="$OVERFS_DIR/mnt"
-        "$FOVERFS" -f -o squash_to_uid="$EUID" -o squash_to_gid="$(id -g)" -o auto_unmount -o \
+        "$FOVERFS" -f -o squash_to_uid="$EUID" -o squash_to_gid="$(id -g)" -o \
             lowerdir="$([ -n "$RO_MNT" ] && echo "$RO_MNT"||echo "$RUNDIR"\
-            )",upperdir="$OVERFS_DIR/layers",workdir="$OVERFS_DIR/tmp" "$OVERFS_MNT" &>/dev/null &
+            )",upperdir="$OVERFS_DIR/layers",workdir="$OVERFS_DIR/tmp" "$OVERFS_MNT" &
         FOVERFS_PID="$!"
         export FUSE_PIDS="$FOVERFS_PID $FUSE_PIDS"
         if ! mount_exist "$FOVERFS_PID" "$OVERFS_MNT"
@@ -1805,10 +1821,13 @@ if [ -d "$TMPDIR" ]
         unset TMPDIR
 fi
 
-if [ "$NO_INET" == 1 ]
+if [[ "$NO_INET" == 1 || "$SANDBOX_INET" == 1 ]]
     then
         NETWORK_BIND+=("--unshare-net")
-        warn_msg "Network is disabled!"
+        [ "$NO_INET" == 1 ] && \
+            warn_msg "Network is disabled!"
+        [ "$SANDBOX_INET" == 1 ] && \
+            info_msg "Network is sandboxed!"
     else
         NETWORK_BIND+=("--share-net" \
                        "--ro-bind-try" "/etc/hosts" "/etc/hosts" \
