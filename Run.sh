@@ -1009,8 +1009,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}SANDBOX_NET_TAPNAME$GREEN=tap0             Specifies tap interface name in network sandbox (Def: eth0)
         ${YELLOW}SANDBOX_NET_MAC$GREEN=B6:40:E0:8B:A6:D7    Specifies tap interface MAC in network sandbox (Def: random)
         ${YELLOW}SANDBOX_NET_MTU$GREEN=65520                Specifies tap interface MTU in network sandbox (Def: 1500)
-        ${YELLOW}SANDBOX_NET_HOSTS$GREEN=\"file\"           Binds specified file to /etc/hosts in network sandbox
-        ${YELLOW}SANDBOX_NET_RESOLVCONF$GREEN=\"file\"      Binds specified file to /etc/resolv.conf in network sandbox
+        ${YELLOW}SANDBOX_NET_HOSTS$GREEN=\"file\"             Binds specified file to /etc/hosts in network sandbox
+        ${YELLOW}SANDBOX_NET_RESOLVCONF$GREEN=\"file\"        Binds specified file to /etc/resolv.conf in network sandbox
         ${YELLOW}BWRAP_ARGS$GREEN+=()                       Array with Bubblewrap arguments (for config file)
         ${YELLOW}EXEC_ARGS$GREEN+=()                        Array with Bubblewrap exec arguments (for config file)
         ${YELLOW}NO_BWRAP_WAIT$GREEN=1                      Disables the delay when closing the container too quickly

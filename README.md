@@ -90,7 +90,7 @@ Environment variables to configure:
     NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
     ALLOW_BG=1                           Allows you to run processes in the background and exit the container
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
-    NO_DOUBLE_MOUNT=1                    Disables the squashfuse remount for fix MangoHud and VkBasalt bug
+    SQFUSE_REMOUNT=1                     Remounts the container using squashfuse (fix MangoHud and VkBasalt bug)
     OVERFS_MODE=1                        Enables OverlayFS mode
     KEEP_OVERFS=1                        Enables OverlayFS mode with saving after closing runimage
     OVERFS_ID=ID                         Specifies the OverlayFS ID
@@ -111,10 +111,10 @@ Environment variables to configure:
     NO_RPIDSMON=1                        Disables the monitoring thread of running processes
     FORCE_UPDATE=1                       Disables all checks when updating
     SANDBOX_NET=1                        Creates a network sandbox
-    SANDBOX_NET_CIDR=11.22.33.0/24       Creates a network sandbox in the specified subnet
-    SANDBOX_NET_TAPNAME=tap0             Creates a network sandbox with specified tap interface name
-    SANDBOX_NET_MAC=B6:40:E0:8B:A6:D7    Creates a network sandbox with specified tap interface MAC
-    SANDBOX_NET_MTU=65520                Creates a network sandbox with specified tap interface MTU
+    SANDBOX_NET_CIDR=11.22.33.0/24       Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
+    SANDBOX_NET_TAPNAME=tap0             Specifies tap interface name in network sandbox (Def: eth0)
+    SANDBOX_NET_MAC=B6:40:E0:8B:A6:D7    Specifies tap interface MAC in network sandbox (Def: random)
+    SANDBOX_NET_MTU=65520                Specifies tap interface MTU in network sandbox (Def: 1500)
     SANDBOX_NET_HOSTS="file"             Binds specified file to /etc/hosts in network sandbox
     SANDBOX_NET_RESOLVCONF="file"        Binds specified file to /etc/resolv.conf in network sandbox
     BWRAP_ARGS+=()                       Array with Bubblewrap arguments (for config file)
