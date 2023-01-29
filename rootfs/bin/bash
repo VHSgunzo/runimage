@@ -1,3 +1,0 @@
-#!/usr/bin/.bash
-set -m
-/usr/bin/.bash "$@"

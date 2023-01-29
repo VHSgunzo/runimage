@@ -1,5 +1,0 @@
-#!/usr/bin/bash
-
-mv -f /usr/bin/bash /usr/bin/.bash
-echo -e '#!/usr/bin/.bash\nset -m\n/usr/bin/.bash "$@"' > /usr/bin/bash
-chmod +x /usr/bin/bash

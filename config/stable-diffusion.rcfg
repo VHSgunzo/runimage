@@ -1,3 +1,2 @@
 KEEP_OVERFS=1
-NO_DOUBLE_MOUNT=1
 OVERFS_ID=stable-diffusion

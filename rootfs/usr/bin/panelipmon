@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+unset TOR_IP TORIP
+TOR_IP="$(proxychains -q curl 2ip.ru 2>/dev/null)"
+NET_DEV="$(ip route show default|awk '{print$5}'|head -1)"
+PUB_IP="$(curl ifconfig.io 2>/dev/null)"
+[ -n "$TOR_IP" ] && \
+    TORIP=" | TOR IP : $TOR_IP"
+echo -e "PUB IP : ${PUB_IP}${TORIP}\n\
+NET $NET_DEV : $(ip route|grep -w "$NET_DEV"|grep -om1 'src .*'|awk '{print$2}')"
