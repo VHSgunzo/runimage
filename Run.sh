@@ -9,10 +9,10 @@ GREEN='\033[1;92m'
 YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 
+SYS_PATH="$PATH"
 export RUNPID="$BASHPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
 BWINFFL="/tmp/.bwinf.$RUNPID"
-SYS_PATH="$PATH"
 unset RO_MNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM FOVERFS \
       MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNPIDS_BIND  \
@@ -20,7 +20,7 @@ unset RO_MNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM FOVERFS \
       LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND EXEC_ARGS \
       FUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BWRAP OVERFS_MNT \
       SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG OVERFS_DIR \
-      RUNRUNTIME RUNSTATIC UNLIM_WAIT
+      RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP FORCE_CLEANUP
 
 [[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
     export LANG=en_US.UTF-8
@@ -103,7 +103,7 @@ info_msg() {
     if [ "$QUIET_MODE" != 1 ]
         then
             echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
                 then
                     notify-send -a 'RunImage Info' "$@" 2>/dev/null &
             fi
@@ -114,7 +114,7 @@ warn_msg() {
     if [ "$QUIET_MODE" != 1 ]
         then
             echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
                 then
                     notify-send -a 'RunImage Warning' "$@" 2>/dev/null &
             fi
@@ -263,7 +263,7 @@ check_nvidia_driver() {
         if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
             then
                 info_msg "Updating the nvidia library cache..."
-                if (NO_BWRAP_WAIT=1 SANDBOX_INET=0 bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null)
+                if (NO_BWRAP_WAIT=1 SANDBOX_NET=0 bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null)
                     then
                         try_mkdir "$RUNCACHEDIR"
                         if mv -f "/tmp/ld.so.cache" \
@@ -546,7 +546,7 @@ try_mkdir() {
             if ! mkdir -p "$1"
                 then
                     error_msg "Failed to create directory: '$1'"
-                    QUIET_MODE=1 ALLOW_BG=0 cleanup
+                    FORCE_CLEANUP=1 cleanup
                     exit 1
             fi
     fi
@@ -563,7 +563,7 @@ run_attach() {
             then
                 info_msg "Attaching to RunImage RUNPID: $1"
                 (while [[ -d "/proc/$target" && -d "/proc/$RUNPID" ]]; do sleep 0.5; done
-                ALLOW_BG=0 cleanup) &
+                FORCE_CLEANUP=1 cleanup) &
                 shift
                 for args in "-n -p" "-n" "-p" " "
                     do
@@ -697,6 +697,8 @@ try_upd_rpids() {
 cleanup() {
     if [[ "$NO_CLEANUP" != 1 || "$FORCE_CLEANUP" == 1 ]]
         then
+            [ "$FORCE_CLEANUP" == 1 ] && \
+                ALLOW_BG=0 && QUIET_MODE=1
             if [ -n "$FUSE_PIDS" ]
                 then
                     try_unmount "$RO_MNT"
@@ -740,15 +742,16 @@ bwrun() {
         LD_CACHE_BIND=("--bind-try" \
                     "$RUNCACHEDIR/ld.so.cache" "/etc/ld.so.cache") || \
         unset LD_CACHE_BIND
-    if [[ "$SANDBOX_INET" == 1 && "$NO_INET" != 1 ]]
+    if [[ "$SANDBOX_NET" == 1 && "$NO_NET" != 1 ]]
         then
             (while [[ -d "/proc/$RUNPID" && ! -f "$BWINFFL" ]]; do sleep 0.01; done
-            slirp4netns --configure --disable-host-loopback \
-                $([ -n "$SANDBOX_INET_CIDR" ] && echo "--cidr=$SANDBOX_INET_CIDR") \
-                $([ -n "$SANDBOX_INET_MTU" ] && echo "--mtu=$SANDBOX_INET_MTU") \
-                $([ -n "$SANDBOX_INET_MAC" ] && echo "--macaddress=$SANDBOX_INET_MAC") \
+            info_msg "Creating a network sandbox..."
+            "$SLIRP" --configure --disable-host-loopback \
+                $([ -n "$SANDBOX_NET_CIDR" ] && echo "--cidr=$SANDBOX_NET_CIDR") \
+                $([ -n "$SANDBOX_NET_MTU" ] && echo "--mtu=$SANDBOX_NET_MTU") \
+                $([ -n "$SANDBOX_NET_MAC" ] && echo "--macaddress=$SANDBOX_NET_MAC") \
                 "$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')" \
-                $([ -n "$SANDBOX_INET_TAPNAME" ] && echo "$SANDBOX_INET_TAPNAME"||echo 'eth0') &
+                $([ -n "$SANDBOX_NET_TAPNAME" ] && echo "$SANDBOX_NET_TAPNAME"||echo 'eth0') &
             SLIRP_PID=$!
             sleep 0.1
             if [[ -n "$SLIRP_PID" && -d "/proc/$SLIRP_PID" ]]
@@ -756,9 +759,9 @@ bwrun() {
                     while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" ]]; do sleep 0.01; done
                     try_kill "$SLIRP_PID"
                 else
-                    error_msg "Failed to start slirp4netns!"
+                    error_msg "Failed to create a network sandbox!"
                     sleep 1
-                    QUIET_MODE=1 ALLOW_BG=0 cleanup
+                    FORCE_CLEANUP=1 cleanup
                     exit 1
             fi) &
     fi
@@ -909,11 +912,17 @@ print_version() {
 }
 
 run_update() {
+    unset PACARG
     info_msg "RunImage update"
+    if [ "$FORCE_UPDATE" == 1 ]
+        then
+            warn_msg "Forced update enabled!"
+            PACARGS="-dd"
+    fi
     QUIET_MODE=1 NO_NVIDIA_CHECK=1 bwrun /usr/bin/bash -c \
         "/usr/bin/pac -Sy archlinux-keyring chaotic-keyring \
         blackarch-keyring --needed --noconfirm && \
-        /usr/bin/pac -Su --noconfirm --overwrite '*'"
+        /usr/bin/pac -Su $PACARGS --noconfirm --overwrite '*'"
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
         then
@@ -925,10 +934,8 @@ run_update() {
             fi
     fi
     if [ "$UPDATE_STATUS" == 0 ]
-        then
-            info_msg "Update completed!"
-        else
-            error_msg "The update failed!"
+        then info_msg "Update completed!"
+        else error_msg "The update failed!"
     fi
     return $UPDATE_STATUS
 }
@@ -969,7 +976,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}--runtime-version$GREEN                    Print version of runimage runtime
 
     ${RED}Environment variables to configure:
-        ${YELLOW}NO_INET$GREEN=1                            Disables network access
+        ${YELLOW}NO_NET$GREEN=1                             Disables network access
         ${YELLOW}TMP_HOME$GREEN=1                           Creates tmpfs /home/\$USER and /root in RAM and uses it as ${YELLOW}\$HOME
         ${YELLOW}TMP_HOME_DL$GREEN=1                        As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
         ${YELLOW}PORTABLE_HOME$GREEN=1                      Creates a portable home folder and uses it as ${YELLOW}\$HOME
@@ -977,7 +984,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
         ${YELLOW}ALLOW_BG$GREEN=1                           Allows you to run processes in the background and exit the container
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
-        ${YELLOW}NO_DOUBLE_MOUNT$GREEN=1                    Disables the squashfuse remount for fix MangoHud and VkBasalt bug
+        ${YELLOW}SQFUSE_REMOUNT$GREEN=1                     Remounts the container using squashfuse (fix MangoHud and VkBasalt bug)
         ${YELLOW}OVERFS_MODE$GREEN=1                        Enables OverlayFS mode
         ${YELLOW}KEEP_OVERFS$GREEN=1                        Enables OverlayFS mode with saving after closing runimage
         ${YELLOW}OVERFS_ID$GREEN=ID                         Specifies the OverlayFS ID
@@ -989,13 +996,23 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run runimage with autorun options for /usr/bin executables
         ${YELLOW}ALLOW_ROOT$GREEN=1                         Allows to run runimage under root user
         ${YELLOW}QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
-        ${YELLOW}NO_NOTIFY$GREEN=1                          Disables all notification
+        ${YELLOW}DONT_NOTIFY$GREEN=1                        Disables all notification
         ${YELLOW}UNSHARE_PIDS$GREEN=1                       Hides all system processes in runimage
         ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run runimage afer extraction without using FUSE
         ${YELLOW}TMPDIR$GREEN=\"/path/{TMPDIR}\"              Used for extract and run options
         ${YELLOW}RUNIMAGE_CONFIG$GREEN=\"/path/{config}\"     runimage сonfiguration file (0 to disable)
         ${YELLOW}ENABLE_HOSTEXEC$GREEN=1                    Enables the ability to execute commands at the host level
         ${YELLOW}NO_RPIDSMON$GREEN=1                        Disables the monitoring thread of running processes
+        ${YELLOW}FORCE_UPDATE$GREEN=1                       Disables all checks when updating
+        ${YELLOW}SANDBOX_NET$GREEN=1                        Creates a network sandbox
+        ${YELLOW}SANDBOX_NET_CIDR$GREEN=11.22.33.0/24       Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
+        ${YELLOW}SANDBOX_NET_TAPNAME$GREEN=tap0             Specifies tap interface name in network sandbox (Def: eth0)
+        ${YELLOW}SANDBOX_NET_MAC$GREEN=B6:40:E0:8B:A6:D7    Specifies tap interface MAC in network sandbox (Def: random)
+        ${YELLOW}SANDBOX_NET_MTU$GREEN=65520                Specifies tap interface MTU in network sandbox (Def: 1500)
+        ${YELLOW}SANDBOX_NET_HOSTS$GREEN=\"file\"           Binds specified file to /etc/hosts in network sandbox
+        ${YELLOW}SANDBOX_NET_RESOLVCONF$GREEN=\"file\"      Binds specified file to /etc/resolv.conf in network sandbox
+        ${YELLOW}BWRAP_ARGS$GREEN+=()                       Array with Bubblewrap arguments (for config file)
+        ${YELLOW}EXEC_ARGS$GREEN+=()                        Array with Bubblewrap exec arguments (for config file)
         ${YELLOW}NO_BWRAP_WAIT$GREEN=1                      Disables the delay when closing the container too quickly
         ${YELLOW}XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
                                                 (Default: /etc/X11/xorg.conf bind from the system)
@@ -1010,6 +1027,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}SYS_UNSQFS$GREEN=1                         Using system ${BLUE}unsquashfs
         ${YELLOW}SYS_MKSQFS$GREEN=1                         Using system ${BLUE}mksquashfs
         ${YELLOW}SYS_FOVERFS$GREEN=1                        Using system ${BLUE}fuse-overlayfs
+        ${YELLOW}SYS_SLIRP$GREEN=1                          Using system ${BLUE}slirp4netns
         ${YELLOW}SYS_TOOLS$GREEN=1                          Using all these binaries from the system
                                              If they are not found in the system - auto return to the built-in
 
@@ -1068,6 +1086,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}SQFUSE${GREEN}=\"$SQFUSE\"
         ${GREEN}bwrap:
             ${YELLOW}BWRAP${GREEN}=\"$BWRAP\"
+        ${GREEN}slirp4netns:
+            ${YELLOW}SLIRP${GREEN}=\"$SLIRP\"
 
     ${RED}Custom scripts and aliases:
         ${YELLOW}/bin/cip$GREEN                          Сheck public ip
@@ -1200,10 +1220,17 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${RED}RunImage update:${GREEN}
             Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
                 not be performed. When running an update, you can also pass arguments for a new build.
-                (see RunImage build)
+                (see RunImage build) (also see ${YELLOW}FORCE_UPDATE${GREEN})
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
             $RED└──╼ \$ ${GREEN}runimage ${BLUE}--run-update ${YELLOW}{build args}${GREEN}
-            By default, update and rebuild is performed in ${YELLOW}'\$RUNIMAGEDIR'${GREEN}
+            By default, update and rebuild is performed in ${YELLOW}\$RUNIMAGEDIR${GREEN}
+
+        ${RED}RunImage network sandbox:${GREEN}
+            Allows you to create a private network namespace with slirp4netns and inside the container
+                manage routing, create/delete network interfaces, connect to a vpn (checked openvpn
+                and wireguard), configure your resolv.conf and hosts, etc. (see ${YELLOW}SANDBOX_NET${GREEN}*)
+            By default, network sandbox created in 10.0.2.0/24 subnet, with eth0 tap name, 10.0.2.100 tap ip,
+                1500 tap MTU, and random MAC.
 
         ${RED}For Nvidia users with a proprietary driver:${GREEN}
             If the nvidia driver version does not match in runimage and in the host, runimage
@@ -1272,11 +1299,14 @@ if [[ -n "$1" && ! -n "$AUTORUN" ]]
         esac
 fi
 
+[ "$RUNROOTFSTYPE" == "superlite" ] && \
+    SQFUSE_REMOUNT=1
+
 if [[ "$RUNSRCNAME" == "Run"* || \
       "$RUNSRCNAME" == "runimage"* ]]
     then
         case $1 in
-            --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1 && NO_DOUBLE_MOUNT=1 ;;
+            --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1 && SQFUSE_REMOUNT=0 ;;
             --run-pkglist|--rP|\
             --run-kill   |--rK|\
             --run-help   |--rH|\
@@ -1286,8 +1316,8 @@ if [[ "$RUNSRCNAME" == "Run"* || \
             --overfs-list|--oL|\
             --overfs-rm  |--oR|\
             --run-build  |--rB|\
-            --run-attach |--rA) NO_DOUBLE_MOUNT=1 ;;
-            --run-procmon|--rPm) NO_DOUBLE_MOUNT=1 ; NO_RPIDSMON=1 ; SANDBOX_INET=0
+            --run-attach |--rA) SQFUSE_REMOUNT=0 ;;
+            --run-procmon|--rPm) NO_RPIDSMON=1 ; SANDBOX_NET=0 ; SQFUSE_REMOUNT=0
                                  NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ;;
         esac
 fi
@@ -1376,7 +1406,8 @@ xhost +si:localuser:$RUNUSER &>/dev/null
 [ "$SYS_TOOLS" == 1 ] && \
     export SYS_MKSQFS=1 SYS_UNSQFS=1 \
            SYS_SQFUSE=1 SYS_BWRAP=1 \
-           SYS_ARIA2C=1 SYS_FOVERFS=1
+           SYS_ARIA2C=1 SYS_FOVERFS=1 \
+           SYS_SLIRP=1
 
 if [ "$SYS_MKSQFS" == 1 ] && is_sys_exe mksquashfs
     then
@@ -1410,6 +1441,13 @@ if [ "$SYS_FOVERFS" == 1 ] && is_sys_exe fuse-overlayfs
         export FOVERFS="$RUNSTATIC/fuse-overlayfs"
 fi
 
+if [ "$SYS_SLIRP" == 1 ] && is_sys_exe slirp4netns
+    then
+        info_msg "The system slirp4netns is used!"
+        export SLIRP="$(which_sys_exe slirp4netns)"
+    else
+        export SLIRP="$RUNSTATIC/slirp4netns"
+fi
 
 if [ "$SYS_SQFUSE" == 1 ] && is_sys_exe squashfuse
     then
@@ -1529,8 +1567,9 @@ if [ "$NO_RPIDSMON" != 1 ]
         try_kill $headpid) &
 fi
 
-if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$NO_DOUBLE_MOUNT" != 1 ]] # MangoHud and vkBasalt bug in DXVK mode
+if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$SQFUSE_REMOUNT" == 1 ]] # MangoHud and vkBasalt bug in DXVK mode
     then
+        info_msg "Remounting RunImage with squashfuse..."
         RO_MNT="/tmp/.mount_${RUNSRCNAME}.$RUNPID"
         try_mkdir "$RO_MNT"
         "$SQFUSE" -f "$RUNIMAGE" "$RO_MNT" -o "ro,offset=$RUNOFFSET" &>/dev/null &
@@ -1538,8 +1577,8 @@ if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$NO_DOUBLE_MOUNT" != 1 ]] # MangoHud
         export FUSE_PIDS="$FUSE_PID $FUSE_PIDS"
         if ! mount_exist "$FUSE_PID" "$RO_MNT"
             then
-                error_msg "Failed to mount RunImage in RO mode!"
-                QUIET_MODE=1 ALLOW_BG=0 cleanup
+                error_msg "Failed to remount RunImage with squashfuse!"
+                FORCE_CLEANUP=1 cleanup
                 exit 1
         fi
         export RUNROOTFS="$RO_MNT/rootfs"
@@ -1577,7 +1616,7 @@ if [[ "$OVERFS_MODE" == 1 || "$KEEP_OVERFS" == 1 || -n "$OVERFS_ID" ]]
         if ! mount_exist "$FOVERFS_PID" "$OVERFS_MNT"
             then
                 error_msg "Failed to mount RunImage in OverlayFS mode!"
-                QUIET_MODE=1 ALLOW_BG=0 cleanup
+                FORCE_CLEANUP=1 cleanup
                 exit 1
         fi
         export RUNROOTFS="$OVERFS_MNT/rootfs"
@@ -1592,7 +1631,7 @@ if [ -n "$AUTORUN" ]
         if [ ! -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ]
             then
                 error_msg "$AUTORUN0ARG not found in /usr/bin"
-                QUIET_MODE=1 ALLOW_BG=0 cleanup
+                FORCE_CLEANUP=1 cleanup
                 exit 1
         fi
 fi
@@ -1821,13 +1860,21 @@ if [ -d "$TMPDIR" ]
         unset TMPDIR
 fi
 
-if [[ "$NO_INET" == 1 || "$SANDBOX_INET" == 1 ]]
+if [[ "$NO_NET" == 1 || "$SANDBOX_NET" == 1 ]]
     then
         NETWORK_BIND+=("--unshare-net")
-        [ "$NO_INET" == 1 ] && \
+        [ "$NO_NET" == 1 ] && \
             warn_msg "Network is disabled!"
-        [ "$SANDBOX_INET" == 1 ] && \
-            info_msg "Network is sandboxed!"
+        if [ -f "$SANDBOX_NET_HOSTS" ]
+            then
+                info_msg "Binding '$SANDBOX_NET_HOSTS' -> '/etc/hosts'"
+                NETWORK_BIND+=("--bind-try" "$SANDBOX_NET_HOSTS" "/etc/hosts")
+        fi
+        if [ -f "$SANDBOX_NET_RESOLVCONF" ]
+            then
+                info_msg "Binding '$SANDBOX_NET_RESOLVCONF' -> '/etc/resolv.conf'"
+                NETWORK_BIND+=("--bind-try" "$SANDBOX_NET_RESOLVCONF" "/etc/resolv.conf")
+        fi
     else
         NETWORK_BIND+=("--share-net" \
                        "--ro-bind-try" "/etc/hosts" "/etc/hosts" \

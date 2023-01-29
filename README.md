@@ -18,21 +18,22 @@ The full list of installed packages can be found in the [**releases**](https://g
 
 * A Portable single executable file with an idea - downloaded and launched. Nothing needs to be installed in the system.
 * Works on most Linux distributions, including even very old ones or without glibc or systemd and in live boot mode.
-* OverlayFS mode (It looks like the usual means of containerization like docker) (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help)).
+* OverlayFS mode (It looks like the usual means of containerization like docker) (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help))
 * Read-Write mount in OverlayFS mode.
+* Private network sandbox.
 * Running and working without root rights, including package management in unpacked form or in OverlayFS mode.
-* The ability to work in a packed and unpacked form. Unpacked, you will get a higher work speed, but about ~2-3 more occupied disk space
+* The ability to work in a packed and unpacked form. Unpacked, you will get a higher work speed, but about ~2-3 more occupied disk space.
 * The ability to run both 32-bit and 64-bit executable files.
 * Based on Arch Linux, contains the latest software and [AUR](https://aur.archlinux.org) support.
 * Access to [BlackArch](https://github.com/BlackArch/blackarch) repositories.
 * The ability to use both separate home directories for each executable file, and completely seamless use of the system home directory.
-* The ability to use separate configuration files for each launched executable file (see [config](https://github.com/VHSgunzo/runimage/tree/main/config)).
+* The ability to use separate configuration files for each launched executable file (see [config](https://github.com/VHSgunzo/runimage/tree/main/config))
 * There is no performance drawdown. All applications and executable files run at the same speed as in the system.
 * Supports filesystem and X11 sandboxing and network isolation.
 * Temporary home directory in RAM (can be used as a real private mode for browsers and applications)
 * The ability to launching a full DE in windowed mode and on TTY.
 * Works with any versions of nvidia proprietary drivers.
-* Works in Wayland session
+* Works in Wayland session.
 * Usability and comprehensibility.
 
 ## Requirements:
@@ -101,13 +102,23 @@ Environment variables to configure:
     AUTORUN="{executable} {args}"        Run runimage with autorun options for /usr/bin executables
     ALLOW_ROOT=1                         Allows to run runimage under root user
     QUIET_MODE=1                         Disables all non-error runimage messages
-    NO_NOTIFY=1                          Disables all notification
+    DONT_NOTIFY=1                        Disables all notification
     UNSHARE_PIDS=1                       Hides all system processes in runimage
     RUNTIME_EXTRACT_AND_RUN=1            Run runimage afer extraction without using FUSE
     TMPDIR="/path/{TMPDIR}"              Used for extract and run options
     RUNIMAGE_CONFIG="/path/{config}"     runimage сonfiguration file (0 to disable)
     ENABLE_HOSTEXEC=1                    Enables the ability to execute commands at the host level
     NO_RPIDSMON=1                        Disables the monitoring thread of running processes
+    FORCE_UPDATE=1                       Disables all checks when updating
+    SANDBOX_NET=1                        Creates a network sandbox
+    SANDBOX_NET_CIDR=11.22.33.0/24       Creates a network sandbox in the specified subnet
+    SANDBOX_NET_TAPNAME=tap0             Creates a network sandbox with specified tap interface name
+    SANDBOX_NET_MAC=B6:40:E0:8B:A6:D7    Creates a network sandbox with specified tap interface MAC
+    SANDBOX_NET_MTU=65520                Creates a network sandbox with specified tap interface MTU
+    SANDBOX_NET_HOSTS="file"             Binds specified file to /etc/hosts in network sandbox
+    SANDBOX_NET_RESOLVCONF="file"        Binds specified file to /etc/resolv.conf in network sandbox
+    BWRAP_ARGS+=()                       Array with Bubblewrap arguments (for config file)
+    EXEC_ARGS+=()                        Array with Bubblewrap exec arguments (for config file)
     NO_BWRAP_WAIT=1                      Disables the delay when closing the container too quickly
     XORG_CONF="/path/xorg.conf"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
                                             (Default: /etc/X11/xorg.conf bind from the system)
@@ -122,6 +133,7 @@ Environment variables to configure:
     SYS_UNSQFS=1                         Using system unsquashfs
     SYS_MKSQFS=1                         Using system mksquashfs
     SYS_FOVERFS=1                        Using system fuse-overlayfs
+    SYS_SLIRP=1                          Using system slirp4netns
     SYS_TOOLS=1                          Using all these binaries from the system
                                          If they are not found in the system - auto return to the built-in
 
@@ -180,6 +192,8 @@ Other environment variables:
         SQFUSE=""
     bwrap:
         BWRAP=""
+    slirp4netns:
+        SLIRP=""
 
 Custom scripts and aliases:
     /bin/cip                          Сheck public ip
@@ -309,13 +323,20 @@ Additional information:
             with lz4 compression. If a new RunImage is successfully build, the old one is deleted.
             (see KEEP_OLD_BUILD and BUILD_WITH_EXTENSION)
 
-        RunImage update:
-            Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
-                not be performed. When running an update, you can also pass arguments for a new build.
-                (see RunImage build)
-            ┌─[user@host]─[~]
-            └──╼ $ runimage --run-update {build args}
-            By default, update and rebuild is performed in '$RUNIMAGEDIR'
+    RunImage update:
+        Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
+            not be performed. When running an update, you can also pass arguments for a new build.
+            (see RunImage build) (also see FORCE_UPDATE)
+        ┌─[user@host]─[~]
+        └──╼ $ runimage --run-update {build args}
+        By default, update and rebuild is performed in $RUNIMAGEDIR
+
+    RunImage network sandbox:
+        Allows you to create a private network namespace with slirp4netns and inside the container
+            manage routing, create/delete network interfaces, connect to a vpn (checked openvpn
+            and wireguard), configure your resolv.conf and hosts, etc. (see SANDBOX_NET*)
+        By default, network sandbox created in 10.0.2.0/24 subnet, with eth0 tap name, 10.0.2.100 tap ip,
+            1500 tap MTU, and random MAC.
 
     For Nvidia users with a proprietary driver:
         If the nvidia driver version does not match in runimage and in the host, runimage
@@ -411,6 +432,8 @@ exit
     killall pulseaudio && pulseaudio -D
 ```
 * If you disable bubblewrap capabilities using NO_CAP, you will not be able to use FUSE inside the container.
+* In packed form for fix bug with MangoHud and vkBasalt in DXVK mode need remount container with squashfuse (see SQFUSE_REMOUNT=1). In superlite it's enabled by default.
+* With UNSHARE_PIDS, you cannot pass additional arguments to Bubblewrap, if you need it, use the BWRAP_ARGS+=() array in the config file.
 
 ## Main used projects:
 
