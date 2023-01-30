@@ -82,7 +82,7 @@ Only for not extracted (RunImage runtime options):
     --runtime-version                    Print version of runimage runtime
 
 Environment variables to configure:
-    NO_INET=1                            Disables network access
+    NO_NET=1                             Disables network access
     TMP_HOME=1                           Creates tmpfs /home/$USER and /root in RAM and uses it as $HOME
     TMP_HOME_DL=1                        As above, but with binding $HOME/Downloads directory
     PORTABLE_HOME=1                      Creates a portable home folder and uses it as $HOME
