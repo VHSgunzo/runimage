@@ -1,4 +1,19 @@
+# v0.38.2
+
+* Update `README.md`
+* Speedup [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec)
+* Any `SANDBOX_NET`* enables network sandbox
+* Rename internal `config/sw_runtime.rcfg` -> `config/runimage_sw.rcfg`
+* Add `filesystem` package to `IgnorePkg` in `pacman.conf`
+* Enable `CheckSpace` in `pacman.conf`
+* Update `chaotic-mirrorlist`
+* Add `SANDBOX_HOME` Creates sandbox home directory and bind it to `/home/$USER` or to `/root`
+* Add `SANDBOX_HOME_DL` As above, but with binding `$HOME/Downloads` directory
+
+**=======================================================================================**
+
 # v0.38.1
+
 * Updated rootfs v0.38.1 23.01.29
 * Updated `README.md`
 * Updated `LICENCE`
@@ -52,7 +67,7 @@
 * Added export `RUNPID` PID of Run.sh script
 * Added [rpidsmon](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/rpidsmon) For monitoring of processes running in runimage containers
 * Added [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) For execute commands at the host level (see ENABLE_HOSTEXEC)
-* Added [headpid](https://github.com/VHSgunzo/runimage/blob/main/headpid.c) v0.0.1 
+* Added [headpid](https://github.com/VHSgunzo/runimage/blob/main/headpid.c) v0.0.1
 * Added [util-linux](https://github.com/VHSgunzo/util-linux-static) v2.38.1
 * Added [importenv](https://github.com/VHSgunzo/importenv) v0.0.6
 * Added [slirp4netns](https://github.com/rootless-containers/slirp4netns) v1.2.0
@@ -83,7 +98,7 @@ f47d882fc25924d2d2e9b83da8c41c185c35a7f4d2577ee91d808b906a0dd466  runimage.super
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
 
-**========================================================================================================================**
+**=======================================================================================**
 
 # v0.38
 
@@ -111,7 +126,7 @@ a41e1eb42421421dbc5f5df2606ac4f753f0487f1b2d22c19cd39072d094903e  runimage.super
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
 
-**========================================================================================================================**
+**=======================================================================================**
 
 # v0.37.9
 
@@ -131,14 +146,14 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 * [runimage base x64](https://github.com/VHSgunzo/runimage/releases/download/v0.37.9/runimage.base.x64) | [pkg_list-base.x64.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.37.9/pkg_list-base.x64.txt)
 
-**========================================================================================================================**
+**=======================================================================================**
 
 # v0.37.8
 
 *  Updated rootfs v0.37.8 2022.12.10 18:24:21
 * Updated README.md
 * Fixed detection of the real installed nvidia driver in the container
-* Changed binding option for nvidia driver libs 
+* Changed binding option for nvidia driver libs
 * Changed the compression method for nvidia driver images to zstd
 * Changed some variables name
 * Changed a condition for generating and binding the external cache ld.so.cache for nvidia driver images
@@ -168,7 +183,7 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 * [runimage base x64](https://github.com/VHSgunzo/runimage/releases/download/v0.37.8/runimage.base.x64) | [pkg_list-base.x64.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.37.8/pkg_list-base.x64.txt)
 
-**========================================================================================================================**
+**=======================================================================================**
 
 # v0.37.7
 
@@ -180,7 +195,7 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 * Added definition of the runtime version in unpacked form
 * Fixed the definition of the absence of an installed nvidia driver in the container
 * Added a condition for generating and binding the external cache ld.so.cache only in packed form
-* Added $SHELL selection in the container by RUN_SHELL="/path/shell" 
+* Added $SHELL selection in the container by RUN_SHELL="/path/shell"
 * Fixed a bug in AUTORUN
 * Fixed a bug in rundesktop
 * Changed gamemode.ini notify

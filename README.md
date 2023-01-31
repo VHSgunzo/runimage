@@ -40,7 +40,10 @@ The full list of installed packages can be found in the [**releases**](https://g
 
 * Supported architectures (should work on any Linux kernel architecture. However, it is currently only built for x86_64)
 * Minimum recommended Linux kernel version 4.18+ (tested on Centos 7 with 3.10 and on Ubuntu 12.04 with 3.11 using SUID Bubblewrap and it's works, but 5.0+ with [user namespaces](https://lwn.net/Articles/531114) support is recommended)
-* FUSE (but not necessarily, because it is possible to work in unpacked form without FUSE mounting)
+* FUSE (but not necessarily, because it is possible to work in unpacked form without FUSE mounting). Also you can create `/dev/fuse` manually (as root):
+```
+mknod /dev/fuse -m 0666 c 10 229
+```
 
 ## To get started:
 
@@ -85,8 +88,10 @@ Environment variables to configure:
     NO_NET=1                             Disables network access
     TMP_HOME=1                           Creates tmpfs /home/$USER and /root in RAM and uses it as $HOME
     TMP_HOME_DL=1                        As above, but with binding $HOME/Downloads directory
-    PORTABLE_HOME=1                      Creates a portable home folder and uses it as $HOME
-    PORTABLE_CONFIG=1                    Creates a portable config folder and uses it as $XDG_CONFIG_HOME
+    SANDBOX_HOME=1                       Creates sandbox home directory and bind it to /home/$USER or to /root
+    SANDBOX_HOME_DL=1                    As above, but with binding $HOME/Downloads directory
+    PORTABLE_HOME=1                      Creates a portable home directory and uses it as $HOME
+    PORTABLE_CONFIG=1                    Creates a portable config directory and uses it as $XDG_CONFIG_HOME
     NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
     ALLOW_BG=1                           Allows you to run processes in the background and exit the container
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
@@ -261,6 +266,7 @@ Additional information:
             '$RUNIMAGEDIR/{runimage/Run_name}.config'
         It can also be with the name of the executable file from AUTORUN environment variables,
             or with the same name as the executable being run.
+    SANDBOX_HOME* similar to PORTABLE_HOME, but the system HOME becomes isolated.
 
     RunImage uses fakeroot and fakechroot, which allows you to use root commands, including in
         unpacked form, to update the rootfs or install/remove packages.

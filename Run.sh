@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.38.1'
+export RUNIMAGE_VERSION='0.38.2'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -977,10 +977,12 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
 
     ${RED}Environment variables to configure:
         ${YELLOW}NO_NET$GREEN=1                             Disables network access
-        ${YELLOW}TMP_HOME$GREEN=1                           Creates tmpfs /home/\$USER and /root in RAM and uses it as ${YELLOW}\$HOME
+        ${YELLOW}TMP_HOME$GREEN=1                           Creates tmpfs /home/${YELLOW}\$USER${GREEN} and /root in RAM and uses it as ${YELLOW}\$HOME
         ${YELLOW}TMP_HOME_DL$GREEN=1                        As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
-        ${YELLOW}PORTABLE_HOME$GREEN=1                      Creates a portable home folder and uses it as ${YELLOW}\$HOME
-        ${YELLOW}PORTABLE_CONFIG$GREEN=1                    Creates a portable config folder and uses it as ${YELLOW}\$XDG_CONFIG_HOME
+        ${YELLOW}SANDBOX_HOME$GREEN=1                       Creates sandbox home directory and bind it to /home/${YELLOW}\$USER${GREEN} or to /root
+        ${YELLOW}SANDBOX_HOME_DL$GREEN=1                    As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
+        ${YELLOW}PORTABLE_HOME$GREEN=1                      Creates a portable home directory and uses it as ${YELLOW}\$HOME
+        ${YELLOW}PORTABLE_CONFIG$GREEN=1                    Creates a portable config directory and uses it as ${YELLOW}\$XDG_CONFIG_HOME
         ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
         ${YELLOW}ALLOW_BG$GREEN=1                           Allows you to run processes in the background and exit the container
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
@@ -1155,6 +1157,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                 ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.config'$GREEN
             It can also be with the name of the executable file from ${YELLOW}AUTORUN$GREEN environment variables,
                 or with the same name as the executable being run.
+        ${YELLOW}SANDBOX_HOME$GREEN* similar to ${YELLOW}PORTABLE_HOME$GREEN, but the system ${YELLOW}HOME$GREEN becomes isolated.
 
         RunImage uses fakeroot and fakechroot, which allows you to use root commands, including in
             unpacked form, to update the rootfs or install/remove packages.
@@ -1657,7 +1660,27 @@ SETENV_ARGS+=("--setenv" "SHELL" "$RUN_SHELL")
 [ -n "$HOME" ] && \
    SYS_HOME="$HOME"
 
-if [[ "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
+if [[ "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" == 1 ]]
+    then
+        if [ "$EUID" == 0 ]
+            then
+                NEW_HOME="/root"
+            else
+                NEW_HOME="/home/$RUNUSER"
+                HOME_BIND+=("--tmpfs" "/home" \
+                            "--dir" "$NEW_HOME")
+        fi
+        HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
+        SANDBOX_HOME_DIR="$RUNIMAGEDIR/$RUNSRCNAME.home"
+        HOME_BIND+=("--dir" "$SANDBOX_HOME_DIR" \
+                    "--dir" "$SANDBOX_HOME_DIR/.cache" \
+                    "--dir" "$SANDBOX_HOME_DIR/.config")
+        HOME_BIND+=("--bind-try" "$SANDBOX_HOME_DIR" "$NEW_HOME")
+        [ "$SANDBOX_HOME_DL" == 1 ] && \
+            HOME_BIND+=("--dir" "$NEW_HOME/Downloads" \
+                        "--bind-try" "$SYS_HOME/Downloads" "$NEW_HOME/Downloads")
+        info_msg "Setting sandbox \$HOME to: '$SANDBOX_HOME_DIR'"
+elif [[ "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
     then
         [ "$EUID" == 0 ] && \
             export HOME="/root" || \
@@ -1859,6 +1882,11 @@ if [ -d "$TMPDIR" ]
     else
         unset TMPDIR
 fi
+
+[[ -n "$SANDBOX_NET_CIDR" || -n "$SANDBOX_NET_MTU" ||\
+   -n "$SANDBOX_NET_TAPNAME" || -n "$SANDBOX_NET_MAC" ||\
+   -f "$SANDBOX_NET_RESOLVCONF" || -f "$SANDBOX_NET_HOSTS" ]] && \
+   SANDBOX_NET=1
 
 if [[ "$NO_NET" == 1 || "$SANDBOX_NET" == 1 ]]
     then

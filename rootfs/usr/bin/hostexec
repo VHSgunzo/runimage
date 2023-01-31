@@ -74,7 +74,7 @@ if [ -n "$EXECFL" ]
         execjobfl="$(ls -1t "$EXECFL."* 2>/dev/null|head -1|grep -Po "$EXECFL.\d+")"
         execjoboutfl="$execjobfl.o"
         execjobpid="$(ls "$execjobfl.p."* 2>/dev/null|cut -d '.' -f6)"
-        trap 'killjobpids' EXIT SIGINT SIGTERM
+        trap 'killjobpids' SIGINT SIGTERM
         if [[ -n "$execjobpid" && -d "/proc/$execjobpid" ]]
             then tail --pid="$execjobpid" -q -f "$execjoboutfl" 2>/dev/null
             else cat "$execjoboutfl" 2>/dev/null
