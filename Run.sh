@@ -1320,26 +1320,6 @@ fi
 [ "$RUNROOTFSTYPE" == "superlite" ] && \
     SQFUSE_REMOUNT=1
 
-if [[ "$RUNSRCNAME" == "Run"* || \
-      "$RUNSRCNAME" == "runimage"* ]]
-    then
-        case $1 in
-            --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1 && SQFUSE_REMOUNT=0 ;;
-            --run-pkglist|--rP|\
-            --run-kill   |--rK|\
-            --run-help   |--rH|\
-            --run-binlist|--rBin|\
-            --run-bwhelp |--rBwh|\
-            --run-version|--rV|\
-            --overfs-list|--oL|\
-            --overfs-rm  |--oR|\
-            --run-build  |--rB|\
-            --run-attach |--rA) SQFUSE_REMOUNT=0 ;;
-            --run-procmon|--rPm) NO_RPIDSMON=1 ; SANDBOX_NET=0 ; SQFUSE_REMOUNT=0
-                                 NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ;;
-        esac
-fi
-
 if [ "$RUNIMAGE_CONFIG" != 0 ]
     then
         if [ -f "$RUNDIR/config/$RUNSRCNAME.rcfg" ]
@@ -1391,6 +1371,27 @@ if [ "$RUNIMAGE_CONFIG" != 0 ]
         fi
     else
         warn_msg "RunImage config is disabled!"
+fi
+
+if [[ "$RUNSRCNAME" == "Run"* || \
+      "$RUNSRCNAME" == "runimage"* ]]
+    then
+        case $1 in
+            --run-pkglist|--rP|\
+            --run-kill   |--rK|\
+            --run-help   |--rH|\
+            --run-binlist|--rBin|\
+            --run-bwhelp |--rBwh|\
+            --run-version|--rV|\
+            --overfs-list|--oL|\
+            --overfs-rm  |--oR|\
+            --run-build  |--rB|\
+            --run-attach |--rA) SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ;;
+            --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1
+                                SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ;;
+            --run-procmon|--rPm) NO_RPIDSMON=1 ; SANDBOX_NET=0 ; SQFUSE_REMOUNT=0
+                                 NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ; ALLOW_BG=0 ;;
+        esac
 fi
 
 if logname &>/dev/null

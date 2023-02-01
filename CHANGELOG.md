@@ -1,6 +1,7 @@
 # v0.38.2
 
 * Update `README.md`
+* Update `CHANGELOG.md`
 * Speedup [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec)
 * Any `SANDBOX_NET`* enables network sandbox
 * Rename internal `config/sw_runtime.rcfg` -> `config/runimage_sw.rcfg`
@@ -14,7 +15,11 @@
 * Add `SANDBOXHOMEDIR` Sandbox homes directory
 * Add `PORTABLEHOMEDIR` Portable homes directory
 * Move `RUNOVERFSDIR` to `RUNIMAGEDIR`
-* Set Adwaita-dark as default theme for superlite
+* Set `Adwaita-dark` as default theme for `superlite`
+* Rename `runimage.base` -> `runimage`
+* Remove `base` rootfs type, now it's without type (empty rootfs/.type)
+* Add standard startup options for `runimage` args
+* Standard startup options for `runimage` args are applied after the rcfg config is applied
 
 **=======================================================================================**
 

@@ -387,25 +387,26 @@ Recommendations:
 
 ## Build/Rebuild your own runimage in manual mode:
 
-* [Download](https://github.com/VHSgunzo/runimage/releases) base version of the runimage (it will be called `runimage.base`)
+* [Download](https://github.com/VHSgunzo/runimage/releases) base version of the runimage (it's called `runimage`)
 * Make it executable:
 ```
-chmod +x runimage.base
+chmod +x runimage
 ```
 * Run it in OverlayFS mode (If you are using a proprietary nvidia driver, then I recommend disabling the driver check function by NO_NVIDIA_CHECK=1 for proper build/rebuild in manual mode. You do not need to do this in automatic mode):
 ```
-OVERFS_MODE=1 ./runimage.base --run-shell
+OVERFS_MODE=1 ./runimage --run-shell
 echo $OVERFS_MNT
 echo $OVERFS_ID
 ```
 * Install or remove the necessary packages, change $OVERFS_MNT/rootfs, etc. You can change $OVERFS_MNT/rootfs in the standard ways for you. But do not close the container until the moment of build.
+* You can also specify your own type of rootfs in $OVERFS_MNT/rootfs/.type file, but it's not necessary.
 * After all the manipulations with rootfs, create a new runimage using this command in the container (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help)):
 ```
 runbuild
 ```
 * Or from another terminal tab (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help)):
 ```
-OVERFS_ID=$OVERFS_ID ./runimage.base --run-build
+OVERFS_ID=$OVERFS_ID ./runimage --run-build
 ```
 * After the build is completed, you can close the container:
 ```
