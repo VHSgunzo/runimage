@@ -9,6 +9,12 @@
 * Update `chaotic-mirrorlist`
 * Add `SANDBOX_HOME` Creates sandbox home directory and bind it to `/home/$USER` or to `/root`
 * Add `SANDBOX_HOME_DL` As above, but with binding `$HOME/Downloads` directory
+* Add `try_mkhome()`
+* Add `RUNCONFIGDIR` RunImage external configs directory
+* Add `SANDBOXHOMEDIR` Sandbox homes directory
+* Add `PORTABLEHOMEDIR` Portable homes directory
+* Move `RUNOVERFSDIR` to `RUNIMAGEDIR`
+* Set Adwaita-dark as default theme for superlite
 
 **=======================================================================================**
 

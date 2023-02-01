@@ -31,6 +31,7 @@ The full list of installed packages can be found in the [**releases**](https://g
 * There is no performance drawdown. All applications and executable files run at the same speed as in the system.
 * Supports filesystem and X11 sandboxing and network isolation.
 * Temporary home directory in RAM (can be used as a real private mode for browsers and applications)
+* Sandbox and portable home directory.
 * The ability to launching a full DE in windowed mode and on TTY.
 * Works with any versions of nvidia proprietary drivers.
 * Works in Wayland session.
@@ -159,6 +160,12 @@ Other environment variables:
         RUNSTATIC=""
     RunImage or RunDir directory:
         RUNIMAGEDIR=""
+    RunImage external configs directory:
+        RUNCONFIGDIR=""
+    Sandbox homes directory:
+        SANDBOXHOMEDIR=""
+    Portable homes directory:
+        PORTABLEHOMEDIR=""
     Cache directory:
         RUNCACHEDIR=""
     RunImage name or link name or executable name:
@@ -256,13 +263,13 @@ Additional information:
         search for these directories next to itself. The same behavior will occur when
         adding a runimage or Run binary or renamed or symlink/hardlink to them in the PATH
         it can be used both extracted and compressed and for all executable files being run:
-            '$RUNIMAGEDIR/Run.home'
+            '$PORTABLEHOMEDIR/Run'
             '$RUNIMAGEDIR/Run.config'
         if a symlink/hardlink to runimage is used:
-            '$RUNIMAGEDIR/{symlink/hardlink_name}.home'
+            '$PORTABLEHOMEDIR/{symlink/hardlink_name}'
             '$RUNIMAGEDIR/{symlink/hardlink_name}.config'
         or with runimage/Run name:
-            '$RUNIMAGEDIR/{runimage/Run_name}.home'
+            '$PORTABLEHOMEDIR/{runimage/Run_name}'
             '$RUNIMAGEDIR/{runimage/Run_name}.config'
         It can also be with the name of the executable file from AUTORUN environment variables,
             or with the same name as the executable being run.
@@ -281,10 +288,10 @@ Additional information:
             '$RUNIMAGEDIR/Run.rcfg'
         if a symlink/hardlink to runimage is used:
             '$RUNIMAGEDIR/{symlink/hardlink_name}.rcfg'
-        or in $RUNIMAGEDIR/config directory:
-            '$RUNIMAGEDIR/config/Run.rcfg'
-            '$RUNIMAGEDIR/config/{runimage/Run_name}.rcfg'
-            '$RUNIMAGEDIR/config/{symlink/hardlink_name}.rcfg'
+        or in $RUNCONFIGDIR directory:
+            '$RUNCONFIGDIR/Run.rcfg'
+            '$RUNCONFIGDIR/{runimage/Run_name}.rcfg'
+            '$RUNCONFIGDIR/{symlink/hardlink_name}.rcfg'
         It can also be with the name of the executable file from AUTORUN environment variables,
             or with the same name as the executable being run.
         In $RUNDIR/config there are default configs in RunImage, they are run in priority,

@@ -74,8 +74,11 @@ fi
 
 export RUNROOTFS="$RUNDIR/rootfs"
 export RUNCACHEDIR="$RUNIMAGEDIR/cache"
-export RUNOVERFSDIR="$RUNCACHEDIR/overlayfs"
+export RUNCONFIGDIR="$RUNIMAGEDIR/config"
+export RUNOVERFSDIR="$RUNIMAGEDIR/overlayfs"
 export RUNRUNTIME="$RUNSTATIC/runtime-fuse2-all"
+export SANDBOXHOMEDIR="$RUNIMAGEDIR/sandbox-home"
+export PORTABLEHOMEDIR="$RUNIMAGEDIR/portable-home"
 export RUNSRCNAME="$(basename "$RUNSRC" 2>/dev/null)"
 OVERFSLIST="$(ls -A "$RUNOVERFSDIR" 2>/dev/null)"
 export RUNSTATIC_VERSION="$(cat "$RUNSTATIC/.version" 2>/dev/null)"
@@ -896,6 +899,12 @@ overlayfs_rm() {
     fi
 }
 
+try_mkhome() {
+    try_mkdir "$1"
+    try_mkdir "$1/.cache"
+    try_mkdir "$1/.config"
+}
+
 pkg_list() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun /usr/bin/pacman -Q 2>/dev/null ; }
 
 bwrap_help() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun --help ; }
@@ -1050,6 +1059,12 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}RUNSTATIC${GREEN}=\"$RUNSTATIC\"
         ${GREEN}RunImage or RunDir directory:
             ${YELLOW}RUNIMAGEDIR${GREEN}=\"$RUNIMAGEDIR\"
+        ${GREEN}Sandbox homes directory:
+            ${YELLOW}SANDBOXHOMEDIR${GREEN}=\"$SANDBOXHOMEDIR\"
+        ${GREEN}Portable homes directory:
+            ${YELLOW}PORTABLEHOMEDIR${GREEN}=\"$PORTABLEHOMEDIR\"
+        ${GREEN}External configs directory:
+            ${YELLOW}RUNCONFIGDIR${GREEN}=\"$RUNCONFIGDIR\"
         ${GREEN}Cache directory:
             ${YELLOW}RUNCACHEDIR${GREEN}=\"$RUNCACHEDIR\"
         ${GREEN}RunImage name or link name or executable name:
@@ -1147,13 +1162,13 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             search for these directories next to itself. The same behavior will occur when
             adding a runimage or Run binary or renamed or symlink/hardlink to them in the PATH
             it can be used both extracted and compressed and for all executable files being run:
-                ${YELLOW}'$RUNIMAGEDIR/Run.home'$GREEN
+                ${YELLOW}'$PORTABLEHOMEDIR/Run'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/Run.config'$GREEN
             if a symlink/hardlink to runimage is used:
-                ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.home'$GREEN
+                ${YELLOW}'$PORTABLEHOMEDIR/{symlink/hardlink_name}'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.config'$GREEN
             or with runimage/Run name:
-                ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.home'$GREEN
+                ${YELLOW}'$PORTABLEHOMEDIR/{runimage/Run_name}'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.config'$GREEN
             It can also be with the name of the executable file from ${YELLOW}AUTORUN$GREEN environment variables,
                 or with the same name as the executable being run.
@@ -1173,9 +1188,9 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             if a symlink/hardlink to runimage is used:
                 ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.rcfg'$GREEN
             or in ${YELLOW}\$RUNIMAGEDIR$GREEN/config directory:
-                ${YELLOW}'$RUNIMAGEDIR/config/Run.rcfg'$GREEN
-                ${YELLOW}'$RUNIMAGEDIR/config/{runimage/Run_name}.rcfg'$GREEN
-                ${YELLOW}'$RUNIMAGEDIR/config/{symlink/hardlink_name}.rcfg'$GREEN
+                ${YELLOW}'$RUNCONFIGDIR/Run.rcfg'$GREEN
+                ${YELLOW}'$RUNCONFIGDIR/{runimage/Run_name}.rcfg'$GREEN
+                ${YELLOW}'$RUNCONFIGDIR/{symlink/hardlink_name}.rcfg'$GREEN
             It can also be with the name of the executable file from ${YELLOW}AUTORUN$GREEN environment variables,
                 or with the same name as the executable being run.
             In ${YELLOW}\$RUNDIR$GREEN/config there are default configs in RunImage, they are run in priority,
@@ -1350,9 +1365,9 @@ if [ "$RUNIMAGE_CONFIG" != 0 ]
             then
                 RUNIMAGE_CONFIG="$RUNIMAGEDIR/$RUNSRCNAME.rcfg"
                 SET_RUNIMAGE_CONFIG=1
-        elif [ -f "$RUNIMAGEDIR/config/$RUNSRCNAME.rcfg" ]
+        elif [ -f "$RUNCONFIGDIR/$RUNSRCNAME.rcfg" ]
             then
-                RUNIMAGE_CONFIG="$RUNIMAGEDIR/config/$RUNSRCNAME.rcfg"
+                RUNIMAGE_CONFIG="$RUNCONFIGDIR/$RUNSRCNAME.rcfg"
                 SET_RUNIMAGE_CONFIG=1
         elif [[ -n "$RUNIMAGE" && -f "$RUNIMAGE.rcfg" ]]
             then
@@ -1362,9 +1377,9 @@ if [ "$RUNIMAGE_CONFIG" != 0 ]
             then
                 RUNIMAGE_CONFIG="$RUNIMAGEDIR/Run.rcfg"
                 SET_RUNIMAGE_CONFIG=1
-        elif [ -f "$RUNIMAGEDIR/config/Run.rcfg" ]
+        elif [ -f "$RUNCONFIGDIR/Run.rcfg" ]
             then
-                RUNIMAGE_CONFIG="$RUNIMAGEDIR/config/Run.rcfg"
+                RUNIMAGE_CONFIG="$RUNCONFIGDIR/Run.rcfg"
                 SET_RUNIMAGE_CONFIG=1
         fi
         if [ "$SET_RUNIMAGE_CONFIG" == 1 ]
@@ -1671,10 +1686,8 @@ if [[ "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" == 1 ]]
                             "--dir" "$NEW_HOME")
         fi
         HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
-        SANDBOX_HOME_DIR="$RUNIMAGEDIR/$RUNSRCNAME.home"
-        HOME_BIND+=("--dir" "$SANDBOX_HOME_DIR" \
-                    "--dir" "$SANDBOX_HOME_DIR/.cache" \
-                    "--dir" "$SANDBOX_HOME_DIR/.config")
+        SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
+        try_mkhome "$SANDBOX_HOME_DIR"
         HOME_BIND+=("--bind-try" "$SANDBOX_HOME_DIR" "$NEW_HOME")
         [ "$SANDBOX_HOME_DL" == 1 ] && \
             HOME_BIND+=("--dir" "$NEW_HOME/Downloads" \
@@ -1696,60 +1709,60 @@ elif [[ "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
                         "--symlink" "$HOME/Downloads" "$HOME/Загрузки" \
                         "--bind-try" "$HOME/Downloads" "$HOME/Downloads")
         info_msg "Setting temporary \$HOME to: '$HOME'"
-    else
-        if [[ -n "$SYS_HOME" && "$SYS_HOME" != "/root" && \
-            "$(echo "$SYS_HOME"|head -c 6)" != "/home/" ]]
-            then
-                case "$(echo "$SYS_HOME"|cut -d '/' -f2)" in
-                    tmp|mnt|media|run|dev|proc|sys) : ;;
-                    *)
-                        if [ "$EUID" == 0 ]
-                            then
-                                NEW_HOME="/root"
-                                HOME_BIND+=("--bind-try" "/home" "/home")
-                            else
-                                NEW_HOME="/home/$RUNUSER"
-                                HOME_BIND+=("--tmpfs" "/home" \
-                                            "--tmpfs" "/root" \
-                                            "--dir" "$NEW_HOME")
-                        fi
-                        HOME_BIND+=("--bind-try" "$SYS_HOME" "$NEW_HOME")
-                        export HOME="$NEW_HOME"
-                    ;;
-                esac
-            else
-                HOME_BIND+=("--bind-try" "/home" "/home")
-                if [ "$EUID" == 0 ]
-                    then
-                        if [ "$SYS_HOME" == "/home/$RUNUSER" ]
-                            then
-                                export HOME="/root"
-                                SET_HOME_DIR=1
-                        fi
-                        HOME_BIND+=("--bind-try" "/root" "/root")
-                    else
-                        HOME_BIND+=("--tmpfs" "/root")
-                fi
-        fi
-        if [ "$PORTABLE_HOME" != 0 ]
-            then
-                if [[ "$PORTABLE_HOME" == 1 || -d "$RUNIMAGEDIR/$RUNSRCNAME.home" ]]
-                    then
-                        export HOME="$RUNIMAGEDIR/$RUNSRCNAME.home"
-                        SET_HOME_DIR=1
-                        export PORTABLE_HOME=1
-                elif [ -n "$RUNIMAGE" ] && [[ "$PORTABLE_HOME" == 1 || -d "$RUNIMAGE.home" ]]
-                    then
-                        export HOME="$RUNIMAGE.home"
-                        SET_HOME_DIR=1
-                        export PORTABLE_HOME=1
-                elif [[ "$PORTABLE_HOME" == 1 || -d "$RUNIMAGEDIR/Run.home" ]]
-                    then
-                        export HOME="$RUNIMAGEDIR/Run.home"
-                        SET_HOME_DIR=1
-                        export PORTABLE_HOME=1
-                fi
-        fi
+else
+    if [[ -n "$SYS_HOME" && "$SYS_HOME" != "/root" && \
+        "$(echo "$SYS_HOME"|head -c 6)" != "/home/" ]]
+        then
+            case "$(echo "$SYS_HOME"|cut -d '/' -f2)" in
+                tmp|mnt|media|run|dev|proc|sys) : ;;
+                *)
+                    if [ "$EUID" == 0 ]
+                        then
+                            NEW_HOME="/root"
+                            HOME_BIND+=("--bind-try" "/home" "/home")
+                        else
+                            NEW_HOME="/home/$RUNUSER"
+                            HOME_BIND+=("--tmpfs" "/home" \
+                                        "--tmpfs" "/root" \
+                                        "--dir" "$NEW_HOME")
+                    fi
+                    HOME_BIND+=("--bind-try" "$SYS_HOME" "$NEW_HOME")
+                    export HOME="$NEW_HOME"
+                ;;
+            esac
+        else
+            HOME_BIND+=("--bind-try" "/home" "/home")
+            if [ "$EUID" == 0 ]
+                then
+                    if [ "$SYS_HOME" == "/home/$RUNUSER" ]
+                        then
+                            export HOME="/root"
+                            SET_HOME_DIR=1
+                    fi
+                    HOME_BIND+=("--bind-try" "/root" "/root")
+                else
+                    HOME_BIND+=("--tmpfs" "/root")
+            fi
+    fi
+    if [ "$PORTABLE_HOME" != 0 ]
+        then
+            if [[ "$PORTABLE_HOME" == 1 || -d "$PORTABLEHOMEDIR/$RUNSRCNAME" ]]
+                then
+                    export HOME="$PORTABLEHOMEDIR/$RUNSRCNAME"
+                    SET_HOME_DIR=1
+                    export PORTABLE_HOME=1
+            elif [ -n "$RUNIMAGE" ] && [[ "$PORTABLE_HOME" == 1 || -d "$PORTABLEHOMEDIR/$RUNIMAGENAME" ]]
+                then
+                    export HOME="$PORTABLEHOMEDIR/$RUNIMAGENAME"
+                    SET_HOME_DIR=1
+                    export PORTABLE_HOME=1
+            elif [[ "$PORTABLE_HOME" == 1 || -d "$PORTABLEHOMEDIR/Run" ]]
+                then
+                    export HOME="$PORTABLEHOMEDIR/Run"
+                    SET_HOME_DIR=1
+                    export PORTABLE_HOME=1
+            fi
+    fi
 fi
 if [[ -L "$HOME" && ! -n "$NEW_HOME" && "$HOME" != "/root" ]]
     then
@@ -1759,9 +1772,7 @@ if [[ -L "$HOME" && ! -n "$NEW_HOME" && "$HOME" != "/root" ]]
 fi
 if [ "$SET_HOME_DIR" == 1 ]
     then
-        try_mkdir "$HOME"
-        try_mkdir "$HOME/.cache"
-        try_mkdir "$HOME/.config"
+        try_mkhome "$HOME"
         info_msg "Setting \$HOME to: '$HOME'"
 fi
 
@@ -1791,7 +1802,8 @@ fi
     SYS_XAUTHORITY="$XAUTHORITY"
 
 if [[ ! -n "$XAUTHORITY" || "$SET_HOME_DIR" == 1 || \
-    "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
+    "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 || \
+    "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" ]]
     then
         export XAUTHORITY="$HOME/.Xauthority"
         if [ -n "$SYS_XAUTHORITY" ]
@@ -1939,9 +1951,15 @@ if [[ "${CUSTROOTFLST[@]}" =~ "$RUNROOTFSTYPE" ]]
         [[ -x "$RUNROOTFS/usr/bin/startxfce4" && "$RUNROOTFSTYPE" != "superlite" ]] && \
             SETENV_ARGS+=("--setenv" "XDG_CURRENT_DESKTOP" "XFCE" \
                           "--setenv" "DESKTOP_SESSION" "xfce")
-        [[ -f "$RUNROOTFS/usr/share/gtk-2.0/gtkrc" && ! -f "$HOME/.config/gtk-2.0/gtkrc" && \
-        ! -f "$HOME/.config/gtkrc" && ! -f "$HOME/.gtkrc-2.0" ]] && \
-            SETENV_ARGS+=("--setenv" "GTK2_RC_FILES" "/usr/share/gtk-2.0/gtkrc")
+        if [ "$RUNROOTFSTYPE" == "superlite" ]
+            then
+                SETENV_ARGS+=("--setenv" "GTK_THEME" "Adwaita:dark")
+                SETENV_ARGS+=("--setenv" "GTK2_RC_FILES" "/usr/share/gtk-2.0/gtkrc")
+            else
+                [[ -f "$RUNROOTFS/usr/share/gtk-2.0/gtkrc" && ! -f "$HOME/.config/gtk-2.0/gtkrc" && \
+                ! -f "$HOME/.config/gtkrc" && ! -f "$HOME/.gtkrc-2.0" ]] && \
+                    SETENV_ARGS+=("--setenv" "GTK2_RC_FILES" "/usr/share/gtk-2.0/gtkrc")
+        fi
         [ -d "$RUNROOTFS/etc/zsh/zshrc" ] && \
             SETENV_ARGS+=("--setenv" "ZDOTDIR" "/etc/zsh/zshrc")
 fi
