@@ -20,6 +20,17 @@
 * Remove `base` rootfs type, now it's without type (empty rootfs/.type)
 * Add standard startup options for `runimage` args
 * Standard startup options for `runimage` args are applied after the rcfg config is applied
+---------------------------------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/pkg_list.txt)
+* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/pkg_list-superlite.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+c181deec1ffbdc4ef2a74d1d636314643461a4efaa8e13756b4d88433ceda812  runimage
+9b1d9f3d21d9d0ebb22714639adf58fd9ebdc0f64b9e3f998c0d2891d8e525e7  runimage.superlite
+```
+---------------------------------------------------------------------------------------------------------------------------------------------------
+The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
 
 **=======================================================================================**
 
