@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.38.2'
+export RUNIMAGE_VERSION='0.38.3'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -1847,7 +1847,7 @@ if [[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" || "$UN
                                       "--bind-try" "$XDG_RUNTIME_DIR/pulse" "$XDG_RUNTIME_DIR/pulse" \
                                       "--bind-try" "$XDG_RUNTIME_DIR/pipewire-0" "$XDG_RUNTIME_DIR/pipewire-0")
                         [ -x "$RUNROOTFS/usr/bin/dbus-launch" ] && \
-                            EXEC_ARGS=("dbus-launch" "--exit-with-session")
+                            EXEC_ARGS=("dbus-launch")
                 fi
             else
                 XDG_RUN_BIND=("--bind-try" "/run" "/run")

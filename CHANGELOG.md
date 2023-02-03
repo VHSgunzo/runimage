@@ -1,3 +1,9 @@
+# v0.38.3
+
+* Fix bash suspending when `UNSHARE_PIDS`
+
+**=======================================================================================**
+
 # v0.38.2
 
 * Update `README.md`
@@ -5,7 +11,7 @@
 * Speedup [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec)
 * Any `SANDBOX_NET`* enables network sandbox
 * Rename internal `config/sw_runtime.rcfg` -> `config/runimage_sw.rcfg`
-* Add `filesystem` package to `IgnorePkg` in `pacman.conf`
+* Add `filesystem` package to `IgnorePkg` in `pacman.conf` (Fixes an update error)
 * Enable `CheckSpace` in `pacman.conf`
 * Update `chaotic-mirrorlist`
 * Add `SANDBOX_HOME` Creates sandbox home directory and bind it to `/home/$USER` or to `/root`
