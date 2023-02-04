@@ -1,11 +1,15 @@
 # v0.38.3
 
 * Fix bash suspending when `UNSHARE_PIDS`
+* Add checking `/dev/net/tun` when `SANDBOX_NET`
+* Fix bind `$HOME/.Xauthority` on non standard home path
+* Update [static](https://github.com/VHSgunzo/runimage-static/releases/tag/v0.38.3) v0.38.3
 
 **=======================================================================================**
 
 # v0.38.2
 
+* Update rootfs v0.38.2 23.02.02
 * Update `README.md`
 * Update `CHANGELOG.md`
 * Speedup [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec)

@@ -1806,6 +1806,8 @@ if [[ ! -n "$XAUTHORITY" || "$SET_HOME_DIR" == 1 || \
     "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 || \
     "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" ]]
     then
+        [ -n "$NEW_HOME" ] && \
+        export XAUTHORITY="$NEW_HOME/.Xauthority" || \
         export XAUTHORITY="$HOME/.Xauthority"
         if [ -n "$SYS_XAUTHORITY" ]
             then
@@ -1900,6 +1902,27 @@ fi
    -n "$SANDBOX_NET_TAPNAME" || -n "$SANDBOX_NET_MAC" ||\
    -f "$SANDBOX_NET_RESOLVCONF" || -f "$SANDBOX_NET_HOSTS" ]] && \
    SANDBOX_NET=1
+
+if [[ "$SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
+    then
+        if [ "$EUID" == 0 ]
+            then
+                warn_msg "SANDBOX_NET enabled, but /dev/net/tun not found!"
+                info_msg "Trying to create /dev/net/tun..."
+                try_mkdir /dev/net
+                mknod /dev/net/tun -m 0600 c 10 200
+            else
+                error_msg "SANDBOX_NET enabled, but /dev/net/tun not found!"
+                if ! console_info_notify
+                    then
+                        echo -e "${YELLOW}\nYou need to create /dev/net/tun:"
+                        echo -e "${RED}# ${GREEN}sudo mkdir -p /dev/net"
+                        echo -e "${RED}# ${GREEN}sudo mknod /dev/net/tun -m 0600 c 10 200'$RESETCOLOR"
+                fi
+                FORCE_CLEANUP=1 cleanup
+                exit 1
+        fi
+fi
 
 if [[ "$NO_NET" == 1 || "$SANDBOX_NET" == 1 ]]
     then
