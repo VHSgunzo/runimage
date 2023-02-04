@@ -20,7 +20,8 @@ unset RO_MNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM FOVERFS \
       LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND EXEC_ARGS \
       FUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BWRAP OVERFS_MNT \
       SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG OVERFS_DIR \
-      RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP FORCE_CLEANUP
+      RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP FORCE_CLEANUP \
+      SANDBOX_HOME_DIR
 
 [[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
     export LANG=en_US.UTF-8
@@ -935,17 +936,22 @@ run_update() {
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
         then
-            if [ -n "$RUNIMAGE" ]
+            if [ -n "$(ls -A "$RUNROOTFS/var/cache/pacman/pkg/" 2>/dev/null)" ]
                 then
-                    (cd "$RUNIMAGEDIR" && \
-                    bash "$RUNROOTFS/usr/bin/runbuild" "$@")
-                    UPDATE_STATUS="$?"
+                    if [ -n "$RUNIMAGE" ]
+                        then
+                            (cd "$RUNIMAGEDIR" && \
+                            bash "$RUNROOTFS/usr/bin/runbuild" "$@")
+                            UPDATE_STATUS="$?"
+                    fi
+                    [ "$UPDATE_STATUS" == 0 ] && \
+                        info_msg "Update completed!"
+                else
+                    info_msg "No package updates found!"
             fi
     fi
-    if [ "$UPDATE_STATUS" == 0 ]
-        then info_msg "Update completed!"
-        else error_msg "The update failed!"
-    fi
+    [ "$UPDATE_STATUS" != 0 ] && \
+        error_msg "The update failed!"
     return $UPDATE_STATUS
 }
 
@@ -1676,25 +1682,18 @@ SETENV_ARGS+=("--setenv" "SHELL" "$RUN_SHELL")
 [ -n "$HOME" ] && \
    SYS_HOME="$HOME"
 
-if [[ "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" == 1 ]]
+if [[ "$SANDBOX_HOME" != 0 && "$SANDBOX_HOME_DL" != 0 ]]
     then
-        if [ "$EUID" == 0 ]
-            then
-                NEW_HOME="/root"
-            else
-                NEW_HOME="/home/$RUNUSER"
-                HOME_BIND+=("--tmpfs" "/home" \
-                            "--dir" "$NEW_HOME")
+        if [ -d "$SANDBOXHOMEDIR/$RUNSRCNAME" ]
+            then SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
+        elif [[ -n "$RUNIMAGE" && -d "$SANDBOXHOMEDIR/$RUNIMAGENAME" ]]
+            then SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNIMAGENAME"
+        elif [ -d "$SANDBOXHOMEDIR/Run" ]
+            then SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/Run"
         fi
-        HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
-        SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
-        try_mkhome "$SANDBOX_HOME_DIR"
-        HOME_BIND+=("--bind-try" "$SANDBOX_HOME_DIR" "$NEW_HOME")
-        [ "$SANDBOX_HOME_DL" == 1 ] && \
-            HOME_BIND+=("--dir" "$NEW_HOME/Downloads" \
-                        "--bind-try" "$SYS_HOME/Downloads" "$NEW_HOME/Downloads")
-        info_msg "Setting sandbox \$HOME to: '$SANDBOX_HOME_DIR'"
-elif [[ "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
+fi
+
+if [[ "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
     then
         [ "$EUID" == 0 ] && \
             export HOME="/root" || \
@@ -1710,6 +1709,29 @@ elif [[ "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
                         "--symlink" "$HOME/Downloads" "$HOME/Загрузки" \
                         "--bind-try" "$HOME/Downloads" "$HOME/Downloads")
         info_msg "Setting temporary \$HOME to: '$HOME'"
+elif [[ "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" == 1 || -d "$SANDBOX_HOME_DIR" ]]
+    then
+        if [ "$EUID" == 0 ]
+            then
+                NEW_HOME="/root"
+            else
+                NEW_HOME="/home/$RUNUSER"
+                HOME_BIND+=("--tmpfs" "/home" \
+                            "--dir" "$NEW_HOME")
+        fi
+        HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
+        [ ! -n "$SANDBOX_HOME_DIR" ] && \
+            SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
+        if [[ "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" == 1 ]]
+            then
+                SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
+                try_mkhome "$SANDBOX_HOME_DIR"
+        fi
+        HOME_BIND+=("--bind-try" "$SANDBOX_HOME_DIR" "$NEW_HOME")
+        [ "$SANDBOX_HOME_DL" == 1 ] && \
+            HOME_BIND+=("--dir" "$NEW_HOME/Downloads" \
+                        "--bind-try" "$SYS_HOME/Downloads" "$NEW_HOME/Downloads")
+        info_msg "Setting sandbox \$HOME to: '$SANDBOX_HOME_DIR'"
 else
     if [[ -n "$SYS_HOME" && "$SYS_HOME" != "/root" && \
         "$(echo "$SYS_HOME"|head -c 6)" != "/home/" ]]

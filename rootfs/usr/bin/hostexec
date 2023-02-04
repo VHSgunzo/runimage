@@ -1,5 +1,19 @@
 #!/usr/bin/env bash
 
+RED='\033[1;91m'
+BLUE='\033[1;94m'
+GREEN='\033[1;92m'
+YELLOW='\033[1;33m'
+RESETCOLOR='\033[1;00m'
+
+error_msg() {
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    if [ "$NOT_TERM" == 1 ]
+        then
+            notify-send -a 'RunImage Error' "$@" 2>/dev/null &
+    fi
+}
+
 get_child_pids() {
     _child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
     echo -e "$1\n$(ps -o pid=,cmd= -p $_child_pids 2>/dev/null|sort -n|\
@@ -55,11 +69,73 @@ wait_pid() {
 
 killjobpids() { try_kill "$(get_child_pids "$execjobpid")" ; }
 
+set_terminal() {
+    if hostexec which konsole &>/dev/null
+        then args+=("konsole" "-e")
+    elif hostexec which gnome-terminal &>/dev/null
+        then args+=("gnome-terminal" "--wait" "--")
+    elif hostexec which xfce4-terminal &>/dev/null
+        then args+=("xfce4-terminal" "--disable-server" "-x")
+    elif hostexec which kitty &>/dev/null
+        then args+=("kitty" "-e")
+    elif hostexec which deepin-terminal &>/dev/null
+        then args+=("deepin-terminal" "-e")
+    elif hostexec which lxterminal &>/dev/null
+        then args+=("lxterminal" "-e")
+    elif hostexec which xterm &>/dev/null
+        then args+=("xterm" "-bg" "black" "-fg" "white" "-e")
+    else
+        error_msg "The terminal application cannot be detected!"
+        return 1
+    fi
+}
+
+set_supassapp() {
+    if hostexec which pkexec &>/dev/null
+        then args+=("pkexec")
+    elif hostexec which kdesu &>/dev/null
+        then args+=("kdesu" "--noignorebutton" "-t")
+    elif hostexec which gksudo &>/dev/null
+        then args+=("gksudo")
+    elif hostexec which gksu &>/dev/null
+        then args+=("gksu")
+    elif hostexec which sudo &>/dev/null
+        then
+            set_terminal && \
+                args+=("sudo") || \
+            return 1
+    else
+        error_msg "The app for requesting the superuser pass not found!"
+        return 1
+    fi
+}
+
+print_help() {
+    RUNHOSTNAME="$(uname -a|awk '{print$2}')"
+    echo -e "
+    ${RED}Usage:
+        $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command as args
+        $RED└──╼ \$$GREEN ${0}${BLUE} {args} $GREEN{executable} $YELLOW{executable args}
+
+        $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command to stdin
+        $RED└──╼ \$${GREEN} echo ${BLUE}\"$GREEN{executable} $YELLOW{executable args}${BLUE}\"${RED}|$GREEN${0}${BLUE} {args}
+
+        ${BLUE}--help        ${RED}|${BLUE}-h$GREEN             Show this usage info
+        ${BLUE}--superuser   ${RED}|${BLUE}-su$GREEN            Execute command as superuser
+        ${BLUE}--interactive ${RED}|${BLUE}-i$GREEN             Execute interactive command (with input prompt)
+        "
+}
+
 if [ -n "$EXECFL" ]
     then
+        unset args
+        case $1 in
+            -h |--help) print_help ; exit 0 ;;
+            -su|--superuser) shift ; set_supassapp || exit 1 ;;
+            -i |--interactive) shift ; set_terminal || exit 1 ;;
+        esac
         if [ -n "$1" ]
             then
-                unset args
                 for arg in "$@"
                     do
                         echo "$arg"|grep -Po '\s' &>/dev/null && \
@@ -68,7 +144,13 @@ if [ -n "$EXECFL" ]
                 done
                 flock -x "$EXECFL" echo "${args[@]}" > "$EXECFL" 2>/dev/null
             else
-                flock -x "$EXECFL" cat > "$EXECFL" 2>/dev/null
+                if [ -n "$args" ]
+                    then
+                        flock -x "$EXECFL" echo -n "${args[@]} " > "$EXECFL"
+                        flock -x "$EXECFL" tee -a "$EXECFL" &>/dev/null
+                    else
+                        flock -x "$EXECFL" cat > "$EXECFL" 2>/dev/null
+                fi
         fi
         sleep 0.1
         execjobfl="$(ls -1t "$EXECFL."* 2>/dev/null|head -1|grep -Po "$EXECFL.\d+")"
@@ -84,6 +166,6 @@ if [ -n "$EXECFL" ]
             rm -f "$execjobfl"* 2>/dev/null
         exit $execstat
     else
-        echo "EXECFL is not configured!"
+        error_msg "EXECFL is not configured!"
         exit 1
 fi

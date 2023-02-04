@@ -4,6 +4,12 @@
 * Add checking `/dev/net/tun` when `SANDBOX_NET`
 * Fix bind `$HOME/.Xauthority` on non standard home path
 * Update [static](https://github.com/VHSgunzo/runimage-static/releases/tag/v0.38.3) v0.38.3
+* Add automatic search of the `SANDBOX_HOME` directory
+* Add update skipping RunImage rebuild if there are no package updates
+* Test on [BlendOS](https://blendos.co/)
+* Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--help|-h` Show this usage info
+* Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--superuser|-su` Execute command as superuser
+* Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--interactive|-i` Execute interactive command (with input prompt)
 
 **=======================================================================================**
 

@@ -513,6 +513,7 @@ exit
 * [Astra Linux](https://astralinux.ru/)
 * [Batocera](https://batocera.org/)
 * [Bodhi Linux](https://www.bodhilinux.com/)
+* [BlendOS](https://blendos.co/)
 * [CachyOS](https://cachyos.org/)
 * [CentOS](https://www.centos.org/)
 * [ChromeOS Flex](https://chromeenterprise.google/intl/en_us/os/chromeosflex/)
