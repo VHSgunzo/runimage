@@ -26,6 +26,8 @@ The full list of installed packages can be found in the [**releases**](https://g
 * The ability to run both 32-bit and 64-bit executable files.
 * Based on Arch Linux, contains the latest software and [AUR](https://aur.archlinux.org) support.
 * Access to [BlackArch](https://github.com/BlackArch/blackarch) repositories.
+* Updating packages without extracting runimage
+* Ability to run commands at the host level (see ENABLE_HOSTEXEC and [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec))
 * The ability to use both separate home directories for each executable file, and completely seamless use of the system home directory.
 * The ability to use separate configuration files for each launched executable file (see [config](https://github.com/VHSgunzo/runimage/tree/main/config))
 * There is no performance drawdown. All applications and executable files run at the same speed as in the system.
@@ -350,6 +352,18 @@ Additional information:
             and wireguard), configure your resolv.conf and hosts, etc. (see SANDBOX_NET*)
         By default, network sandbox created in 10.0.2.0/24 subnet, with eth0 tap name, 10.0.2.100 tap ip,
             1500 tap MTU, and random MAC.
+
+    RunImage hostexec:
+        Allows you to run commands at the host level (see ENABLE_HOSTEXEC and /usr/bin/hostexec)
+        ┌─[user@host]─[~]
+        └──╼ $ ENABLE_HOSTEXEC=1 runimage --run-shell
+        ┌─[user@host]─[~] - pass command as args
+        └──╼ $ hostexec {hostexec args} {executable} {executable args}
+        ┌─[user@host]─[~] - pass command to stdin
+        └──╼ $ echo "{executable} {executable args}"|hostexec {hostexec args}
+            --help        |-h             Show this usage info
+            --superuser   |-su            Execute command as superuser
+            --interactive |-i             Execute interactive command (with input prompt)
 
     For Nvidia users with a proprietary driver:
         If the nvidia driver version does not match in runimage and in the host, runimage

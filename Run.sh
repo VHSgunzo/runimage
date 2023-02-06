@@ -808,6 +808,7 @@ bwrun() {
         --bind-try /var/log/lastlog /var/log/lastlog \
         --ro-bind-try /etc/machine-id /etc/machine-id \
         --ro-bind-try /etc/nsswitch.conf /etc/nsswitch.conf \
+        --bind-try /var/lib/dbus/machine-id /var/lib/dbus/machine-id \
         "${NVIDIA_DRIVER_BIND[@]}" "${TMP_BIND[@]}" \
         "${NETWORK_BIND[@]}" "${XDG_RUN_BIND[@]}" \
         "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}" \
@@ -1255,6 +1256,18 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                 and wireguard), configure your resolv.conf and hosts, etc. (see ${YELLOW}SANDBOX_NET${GREEN}*)
             By default, network sandbox created in 10.0.2.0/24 subnet, with eth0 tap name, 10.0.2.100 tap ip,
                 1500 tap MTU, and random MAC.
+
+        ${RED}RunImage hostexec:${GREEN}
+            Allows you to run commands at the host level (see ${YELLOW}ENABLE_HOSTEXEC${GREEN} and /usr/bin/hostexec)
+            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
+            $RED└──╼ \$ ${YELLOW}ENABLE_HOSTEXEC${GREEN}=1 runimage ${BLUE}--run-shell ${GREEN}
+            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command as args
+            $RED└──╼ \$ ${GREEN}hostexec ${BLUE}{hostexec args}${GREEN} {executable} ${YELLOW}{executable args}${GREEN}
+            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command to stdin
+            $RED└──╼ \$ ${GREEN}echo ${BLUE}\"${GREEN}{executable}${YELLOW} {executable args}${BLUE}\"$RED|${GREEN}hostexec ${BLUE}{hostexec args}${GREEN}
+                ${BLUE}--help        |-h${GREEN}             Show this usage info
+                ${BLUE}--superuser   |-su${GREEN}            Execute command as superuser
+                ${BLUE}--interactive |-i${GREEN}             Execute interactive command (with input prompt)
 
         ${RED}For Nvidia users with a proprietary driver:${GREEN}
             If the nvidia driver version does not match in runimage and in the host, runimage

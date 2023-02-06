@@ -1,5 +1,7 @@
 # v0.38.3
 
+* Update `README.md`
+* Update `CHANGELOG.md`
 * Fix bash suspending when `UNSHARE_PIDS`
 * Add checking `/dev/net/tun` when `SANDBOX_NET`
 * Fix bind `$HOME/.Xauthority` on non standard home path
@@ -10,6 +12,8 @@
 * Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--help|-h` Show this usage info
 * Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--superuser|-su` Execute command as superuser
 * Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--interactive|-i` Execute interactive command (with input prompt)
+* Update `print_help()`
+* Add bind `/var/lib/dbus/machine-id`
 
 **=======================================================================================**
 
