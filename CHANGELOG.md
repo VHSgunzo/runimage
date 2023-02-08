@@ -6,6 +6,9 @@
 * Add checking `/dev/net/tun` when `SANDBOX_NET`
 * Fix bind `$HOME/.Xauthority` on non standard home path
 * Update [static](https://github.com/VHSgunzo/runimage-static/releases/tag/v0.38.3) v0.38.3
+* Add `mknod` from [coreutils](https://github.com/VHSgunzo/coreutils-static)
+* Replace [notify-send-static](https://github.com/VHSgunzo/notify-send-static) with [notify-send-rs](https://github.com/VHSgunzo/notify-send-rs) v0.0.1
+* Remove `aria2c` from `static`
 * Add automatic search of the `SANDBOX_HOME` directory
 * Add update skipping RunImage rebuild if there are no package updates
 * Test on [BlendOS](https://blendos.co/)
@@ -14,6 +17,10 @@
 * Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--interactive|-i` Execute interactive command (with input prompt)
 * Update `print_help()`
 * Add bind `/var/lib/dbus/machine-id`
+* Remove `SYS_ARIA2C` `ARIA2C`
+* Add `aria2c` `wget` `curl` to `try_dl()`
+* Remove `MEGAcmd` repository
+* Add `get_dbus_session_bus_address()`
 
 **=======================================================================================**
 

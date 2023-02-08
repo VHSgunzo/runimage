@@ -137,7 +137,6 @@ Environment variables to configure:
 
     SYS_BWRAP=1                          Using system bwrap
     SYS_SQFUSE=1                         Using system squashfuse
-    SYS_ARIA2C=1                         Using system aria2c
     SYS_UNSQFS=1                         Using system unsquashfs
     SYS_MKSQFS=1                         Using system mksquashfs
     SYS_FOVERFS=1                        Using system fuse-overlayfs
@@ -198,8 +197,6 @@ Other environment variables:
         MKSQFS=""
     unsquashfs:
         UNSQFS=""
-    aria2c:
-        ARIA2C=""
     fuse-overlayfs:
         FOVERFS=""
     squashfuse:
@@ -481,7 +478,7 @@ exit
 * [grep-static](https://github.com/VHSgunzo/grep-static)
 * [gzip-static](https://github.com/VHSgunzo/gzip-static)
 * [kmod-static](https://github.com/VHSgunzo/kmod-static)
-* [notify-send-static](https://github.com/VHSgunzo/notify-send-static)
+* [notify-send-rs](https://github.com/VHSgunzo/notify-send-rs)
 * [procps-static](https://github.com/VHSgunzo/procps-static)
 * [sed-static](https://github.com/VHSgunzo/sed-static)
 * [squashfs-tools-static](https://github.com/VHSgunzo/squashfs-tools-static)
@@ -492,11 +489,9 @@ exit
 * [xorg-xhost-static](https://github.com/VHSgunzo/xorg-xhost-static)
 * [xz-static](https://github.com/VHSgunzo/xz-static)
 * [minos-static](https://github.com/minos-org/minos-static)
-* [aria2-static-build](https://github.com/abcfy2/aria2-static-build)
 * [fakeroot](https://github.com/mackyle/fakeroot)
 * [fakechroot](https://github.com/dex4er/fakechroot)
 * [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
-* [MEGAcmd](https://github.com/meganz/MEGAcmd)
 * [fuse-overlayfs](https://github.com/containers/fuse-overlayfs)
 * [importenv](https://github.com/VHSgunzo/importenv/releases)
 * [slirp4netns](https://github.com/rootless-containers/slirp4netns/releases)

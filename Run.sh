@@ -13,7 +13,7 @@ SYS_PATH="$PATH"
 export RUNPID="$BASHPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
 BWINFFL="/tmp/.bwinf.$RUNPID"
-unset RO_MNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM FOVERFS \
+unset RO_MNT RUNROOTFS SQFUSE BWRAP NOT_TERM FOVERFS \
       MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNPIDS_BIND  \
       NETWORK_BIND SET_HOME_DIR SET_CONF_DIR HOME_BIND BWRAP_ARGS \
@@ -21,7 +21,7 @@ unset RO_MNT RUNROOTFS SQFUSE BWRAP ARIA2C NOT_TERM FOVERFS \
       FUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BWRAP OVERFS_MNT \
       SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG OVERFS_DIR \
       RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP FORCE_CLEANUP \
-      SANDBOX_HOME_DIR
+      SANDBOX_HOME_DIR MACHINEID_BIND
 
 [[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
     export LANG=en_US.UTF-8
@@ -165,7 +165,27 @@ is_sys_exe() {
 
 which_sys_exe() { which -a "$1" 2>/dev/null|grep -v "$RUNSTATIC"|head -1 ; }
 
-try_dl() { "$ARIA2C" -x 13 -s 13 --allow-overwrite -d "$1" "$2" ; return $? ; }
+try_dl() {
+    [ -n "$2" ] && \
+      FILEDIR="$2"||\
+      FILEDIR="."
+    FILENAME="$(basename "$1")"
+    if which aria2c &>/dev/null
+        then
+            aria2c -x 13 -s 13 --allow-overwrite -d "$FILEDIR" "$1"
+    elif which wget &>/dev/null
+        then
+            wget -q --show-progress --no-check-certificate --content-disposition \
+                -t 3 -T 5 -w 0.5 "$1" -O "$FILEDIR/$FILENAME"
+    elif which curl &>/dev/null
+        then
+            curl --insecure --fail -L "$1" -o "$FILEDIR/$FILENAME"
+    else
+        error_msg "Downloader not found!"
+        return 1
+    fi
+    return $?
+}
 
 get_nvidia_driver_image() {
     (if [[ -n "$1" || -n "$nvidia_version" ]]
@@ -183,10 +203,10 @@ get_nvidia_driver_image() {
             nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
             driver_url_list=("https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image" \
                              "https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run")
-            if try_dl "$nvidia_drivers_dir" "${driver_url_list[0]}"
+            if try_dl "${driver_url_list[0]}" "$nvidia_drivers_dir"
                 then
                     return 0
-            elif try_dl "$nvidia_drivers_dir" "${driver_url_list[1]}"
+            elif try_dl "${driver_url_list[1]}" "$nvidia_drivers_dir"
                 then
                     trash_libs="libEGL.so.1.1.0 libGLdispatch.so.0 \
                         libGLESv1_CM.so.1.2.0 libGLESv2.so.2.1.0 libGL.so.1.7.0 \
@@ -227,6 +247,10 @@ get_nvidia_driver_image() {
                     echo -en "$RESETCOLOR"
                 else
                     error_msg "Failed to download nvidia driver!"
+                    [ -f "$nvidia_drivers_dir/$nvidia_driver_image" ] && \
+                        rm -f "$nvidia_drivers_dir/$nvidia_driver_image"* 2>/dev/null
+                    [ -f "$nvidia_drivers_dir/$nvidia_driver_run" ] && \
+                        rm -f "$nvidia_drivers_dir/$nvidia_driver_run"* 2>/dev/null
                     return 1
             fi
         else
@@ -252,6 +276,7 @@ mount_nvidia_driver_image() {
                     nvidia_driver_dir="$NVDRVMNT"
                 else
                     error_msg "Failed to mount the nvidia driver image!"
+                    rm -f "$1" 2>/dev/null
                     return 1
             fi
         else
@@ -806,9 +831,8 @@ bwrun() {
         --ro-bind-try /etc/hostname /etc/hostname \
         --ro-bind-try /etc/localtime /etc/localtime \
         --bind-try /var/log/lastlog /var/log/lastlog \
-        --ro-bind-try /etc/machine-id /etc/machine-id \
         --ro-bind-try /etc/nsswitch.conf /etc/nsswitch.conf \
-        --bind-try /var/lib/dbus/machine-id /var/lib/dbus/machine-id \
+        "${MACHINEID_BIND[@]}" \
         "${NVIDIA_DRIVER_BIND[@]}" "${TMP_BIND[@]}" \
         "${NETWORK_BIND[@]}" "${XDG_RUN_BIND[@]}" \
         "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}" \
@@ -899,6 +923,18 @@ overlayfs_rm() {
             error_msg "OverlayFS not found!"
             return 1
     fi
+}
+
+get_dbus_session_bus_address() {
+    set -o pipefail
+    unset MACHINE_ID
+    if [ -f "/var/lib/dbus/machine-id" ]
+        then MACHINE_ID="$(cat /var/lib/dbus/machine-id 2>/dev/null)"
+    elif [ -f "/etc/machine-id" ]
+        then MACHINE_ID="$(cat /etc/machine-id 2>/dev/null)"
+    fi
+    dbus-launch --autolaunch "$MACHINE_ID" 2>/dev/null|sed 's|,guid=.*$||g'
+    return $?
 }
 
 try_mkhome() {
@@ -1041,7 +1077,6 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
 
         ${YELLOW}SYS_BWRAP$GREEN=1                          Using system ${BLUE}bwrap
         ${YELLOW}SYS_SQFUSE$GREEN=1                         Using system ${BLUE}squashfuse
-        ${YELLOW}SYS_ARIA2C$GREEN=1                         Using system ${BLUE}aria2c
         ${YELLOW}SYS_UNSQFS$GREEN=1                         Using system ${BLUE}unsquashfs
         ${YELLOW}SYS_MKSQFS$GREEN=1                         Using system ${BLUE}mksquashfs
         ${YELLOW}SYS_FOVERFS$GREEN=1                        Using system ${BLUE}fuse-overlayfs
@@ -1102,8 +1137,6 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}MKSQFS${GREEN}=\"$MKSQFS\"
         ${GREEN}unsquashfs:
             ${YELLOW}UNSQFS${GREEN}=\"$UNSQFS\"
-        ${GREEN}aria2c:
-            ${YELLOW}ARIA2C${GREEN}=\"$ARIA2C\"
         ${GREEN}fuse-overlayfs:
             ${YELLOW}FOVERFS${GREEN}=\"$FOVERFS\"
         ${GREEN}squashfuse:
@@ -1441,11 +1474,42 @@ xhost +si:localuser:$RUNUSER &>/dev/null
 [[ "$EUID" == 0 && "$RUNUSER" != "root" ]] && \
     xhost +si:localuser:root &>/dev/null
 
+if [[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" || "$UNSHARE_PIDS" == 1 ]]
+    then
+        export XDG_RUNTIME_DIR="/run/user/$EUID"
+        if [[ "$UNSHARE_PIDS" == 1 || ! -d "$XDG_RUNTIME_DIR" ]]
+            then
+                XDG_RUN_BIND+=("--tmpfs" "/run" \
+                               "--dir" "$XDG_RUNTIME_DIR" \
+                               "--chmod" "0700" "$XDG_RUNTIME_DIR")
+                if [ ! -d "$XDG_RUNTIME_DIR" ]
+                    then
+                        for i_run in /run/* /run/.[a-zA-Z0-9]*
+                            do
+                                [ "$i_run" != "/run/user" ] && \
+                                    XDG_RUN_BIND+=("--bind-try" "$i_run" "$i_run")
+                        done
+                fi
+            else
+                XDG_RUN_BIND=("--bind-try" "/run" "/run")
+        fi
+    else
+        XDG_RUN_BIND=("--bind-try" "/run" "/run")
+fi
+
+if [ ! -n "$DBUS_SESSION_BUS_ADDRESS" ]
+    then
+        if [ -S "$XDG_RUNTIME_DIR/bus" ]
+            then export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+        elif get_dbus_session_bus_address &>/dev/null
+            then export $(get_dbus_session_bus_address)
+        fi
+fi
+
 [ "$SYS_TOOLS" == 1 ] && \
     export SYS_MKSQFS=1 SYS_UNSQFS=1 \
            SYS_SQFUSE=1 SYS_BWRAP=1 \
-           SYS_ARIA2C=1 SYS_FOVERFS=1 \
-           SYS_SLIRP=1
+           SYS_FOVERFS=1 SYS_SLIRP=1
 
 if [ "$SYS_MKSQFS" == 1 ] && is_sys_exe mksquashfs
     then
@@ -1461,14 +1525,6 @@ if [ "$SYS_UNSQFS" == 1 ] && is_sys_exe unsquashfs
         export UNSQFS="$(which_sys_exe unsquashfs)"
     else
         export UNSQFS="$RUNSTATIC/unsquashfs"
-fi
-
-if [ "$SYS_ARIA2C" == 1 ] && is_sys_exe aria2c
-    then
-        info_msg "The system aria2c is used!"
-        export ARIA2C="$(which_sys_exe aria2c)"
-    else
-        export ARIA2C="$RUNSTATIC/aria2c"
 fi
 
 if [ "$SYS_FOVERFS" == 1 ] && is_sys_exe fuse-overlayfs
@@ -1860,41 +1916,16 @@ if [[ ! -n "$XAUTHORITY" || "$SET_HOME_DIR" == 1 || \
         fi
 fi
 
-if [[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" || "$UNSHARE_PIDS" == 1 ]]
+if [ "$UNSHARE_PIDS" == 1 ]
     then
-        export XDG_RUNTIME_DIR="/run/user/$EUID"
-        if [[ "$UNSHARE_PIDS" == 1 || ! -d "$XDG_RUNTIME_DIR" ]]
-            then
-                XDG_RUN_BIND+=("--tmpfs" "/run" \
-                               "--dir" "$XDG_RUNTIME_DIR" \
-                               "--chmod" "0700" "$XDG_RUNTIME_DIR")
-                if [ ! -d "$XDG_RUNTIME_DIR" ]
-                    then
-                        for i_run in /run/* /run/.[a-zA-Z0-9]*
-                            do
-                                [ "$i_run" != "/run/user" ] && \
-                                    XDG_RUN_BIND+=("--bind-try" "$i_run" "$i_run")
-                        done
-                fi
-                if [ "$UNSHARE_PIDS" == 1 ]
-                    then
-                        warn_msg "System PIDs hiding enabled!"
-                        UNPIDS_BIND+=("--as-pid-1" \
-                                      "--unshare-pid" \
-                                      "--bind-try" "$XDG_RUNTIME_DIR/pulse" "$XDG_RUNTIME_DIR/pulse" \
-                                      "--bind-try" "$XDG_RUNTIME_DIR/pipewire-0" "$XDG_RUNTIME_DIR/pipewire-0")
-                        [ -x "$RUNROOTFS/usr/bin/dbus-launch" ] && \
-                            EXEC_ARGS=("dbus-launch")
-                fi
-            else
-                XDG_RUN_BIND=("--bind-try" "/run" "/run")
-        fi
-    else
-        XDG_RUN_BIND=("--bind-try" "/run" "/run")
+        warn_msg "System PIDs hiding enabled!"
+        UNPIDS_BIND+=("--as-pid-1" \
+                        "--unshare-pid" \
+                        "--bind-try" "$XDG_RUNTIME_DIR/pulse" "$XDG_RUNTIME_DIR/pulse" \
+                        "--bind-try" "$XDG_RUNTIME_DIR/pipewire-0" "$XDG_RUNTIME_DIR/pipewire-0")
+        [ -x "$RUNROOTFS/usr/bin/dbus-launch" ] && \
+            EXEC_ARGS=("dbus-launch")
 fi
-
-[[ ! -n "$DBUS_SESSION_BUS_ADDRESS" && -S "$XDG_RUNTIME_DIR/bus" ]] && \
-    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 
 if [ -d "/tmp/.X11-unix" ] # Gamecope X11 sockets bug
     then
@@ -2048,6 +2079,17 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                 fi
                 sleep 0.05
         done; [ -n "$EXECFL" ] && rm -f "$EXECFL"* 2>/dev/null) &
+fi
+
+if [[ -f "/var/lib/dbus/machine-id" && -f "/etc/machine-id" ]]
+    then MACHINEID_BIND=("--ro-bind-try" "/etc/machine-id" "/etc/machine-id" \
+                         "--ro-bind-try" "/var/lib/dbus/machine-id" "/var/lib/dbus/machine-id")
+elif [[ -f "/var/lib/dbus/machine-id" && ! -f "/etc/machine-id" ]]
+    then MACHINEID_BIND=("--ro-bind-try" "/var/lib/dbus/machine-id" "/etc/machine-id" \
+                         "--ro-bind-try" "/var/lib/dbus/machine-id" "/var/lib/dbus/machine-id")
+elif [[ -f "/etc/machine-id" && ! -f "/var/lib/dbus/machine-id" ]]
+    then MACHINEID_BIND=("--ro-bind-try" "/etc/machine-id" "/etc/machine-id" \
+                         "--ro-bind-try" "/etc/machine-id" "/var/lib/dbus/machine-id")
 fi
 
 ##############################################################################
