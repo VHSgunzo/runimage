@@ -21,6 +21,10 @@
 * Add `aria2c` `wget` `curl` to `try_dl()`
 * Remove `MEGAcmd` repository
 * Add `get_dbus_session_bus_address()`
+* Add launching `dbus-daemon` if `SANDBOX_NET` and `DBUS_SESSION_BUS_ADDRESS` =~ `unix:abstract`
+* Remove `try_upd_rpids()`
+* Add `RUNPPID` Parent PID of Run.sh script
+* Fix sometime killing parent PID on container exit if `kernel.pid_max` is too small
 
 **=======================================================================================**
 

@@ -10,6 +10,7 @@ YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 
 SYS_PATH="$PATH"
+export RUNPPID="$PPID"
 export RUNPID="$BASHPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
 BWINFFL="/tmp/.bwinf.$RUNPID"
@@ -710,19 +711,6 @@ try_kill() {
     return $ret
 }
 
-try_upd_rpids() {
-    if [ -n "$newrpids" ]
-        then
-            if [[ -n "$(echo -e "$newrpids\n$oldrpids"|\
-                sort|uniq -u)" || ! -f "$RPIDSFL" ]]
-                then
-                    echo "$newrpids" > "$RPIDSFL"
-                    return 0
-            fi
-    fi
-    return 1
-}
-
 cleanup() {
     if [[ "$NO_CLEANUP" != 1 || "$FORCE_CLEANUP" == 1 ]]
         then
@@ -737,7 +725,15 @@ cleanup() {
             fi
             if [ "$ALLOW_BG" != 1 ]
                 then
-                    kill $FUSE_PIDS 2>/dev/null
+                    [ -n "$FUSE_PIDS" ] && \
+                        kill $FUSE_PIDS 2>/dev/null
+                    if [ -n "$DBUSD_PID" ]
+                        then
+                            kill $DBUSD_PID 2>/dev/null
+                            DBUSD_SOCKET="${DBUSD_ADDRSS#unix:path=}"
+                            [ -S "$DBUSD_SOCKET" ] && \
+                                rm -f "$DBUSD_SOCKET" 2>/dev/null
+                    fi
                     try_kill "$(cat "$RPIDSFL" 2>/dev/null|grep -v "$RUNPID")"
                     [ -f "$RPIDSFL" ] && \
                         rm -f "$RPIDSFL" 2>/dev/null
@@ -755,7 +751,8 @@ cleanup() {
 get_child_pids() {
     _child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
     echo -e "$1\n$(ps -o pid=,cmd= -p $_child_pids 2>/dev/null|sort -n|sed "0,/$1/d"|\
-    grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|awk '{print$1}')"|sort -nu
+    grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|grep -wv "$RUNPPID"|\
+    awk '{print$1}')"|sort -nu
 }
 
 bwrun() {
@@ -929,9 +926,9 @@ get_dbus_session_bus_address() {
     set -o pipefail
     unset MACHINE_ID
     if [ -f "/var/lib/dbus/machine-id" ]
-        then MACHINE_ID="$(cat /var/lib/dbus/machine-id 2>/dev/null)"
+        then local MACHINE_ID="$(cat /var/lib/dbus/machine-id 2>/dev/null)"
     elif [ -f "/etc/machine-id" ]
-        then MACHINE_ID="$(cat /etc/machine-id 2>/dev/null)"
+        then local MACHINE_ID="$(cat /etc/machine-id 2>/dev/null)"
     fi
     dbus-launch --autolaunch "$MACHINE_ID" 2>/dev/null|sed 's|,guid=.*$||g'
     return $?
@@ -1050,7 +1047,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run runimage with autorun options for /usr/bin executables
         ${YELLOW}ALLOW_ROOT$GREEN=1                         Allows to run runimage under root user
         ${YELLOW}QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
-        ${YELLOW}DONT_NOTIFY$GREEN=1                        Disables all notification
+        ${YELLOW}DONT_NOTIFY$GREEN=1                        Disables all non-error runimage notification
         ${YELLOW}UNSHARE_PIDS$GREEN=1                       Hides all system processes in runimage
         ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run runimage afer extraction without using FUSE
         ${YELLOW}TMPDIR$GREEN=\"/path/{TMPDIR}\"              Used for extract and run options
@@ -1093,6 +1090,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}ARGV0${GREEN}=\"$ARGV0\"
         ${GREEN}PID of Run.sh script:
             ${YELLOW}RUNPID${GREEN}=\"$RUNPID\"
+        ${GREEN}Parent PID of Run.sh script:
+            ${YELLOW}RUNPPID${GREEN}=\"$RUNPPID\"
         ${GREEN}Run binary directory:
             ${YELLOW}RUNDIR${GREEN}=\"$RUNDIR\"
         ${GREEN}RootFS directory:
@@ -1497,12 +1496,68 @@ if [[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" || "$UN
         XDG_RUN_BIND=("--bind-try" "/run" "/run")
 fi
 
+if [ "$NO_RPIDSMON" != 1 ]
+    then
+        "$RUNSTATIC/headpid" $RUNPID &
+        headpid=$!
+        (wait_rpids=15
+        oldrpids="$(get_child_pids "$headpid")"
+        while ps -o pid= -p $oldrpids &>/dev/null
+            do
+                newrpids="$(get_child_pids "$headpid")"
+                if [ ! -n "$(echo "$newrpids"|grep -v "$headpid")" ]
+                    then
+                        if [ "$wait_rpids" -gt 0 ]
+                            then
+                                wait_rpids="$(( $wait_rpids - 1 ))"
+                                sleep 0.01
+                                continue
+                        fi
+                        break
+                    else
+                        if [ -n "$newrpids" ]
+                            then
+                                if [[ -n "$(echo -e "$newrpids\n$oldrpids"|\
+                                    sort -n|uniq -u)" || ! -f "$RPIDSFL" ]]
+                                    then
+                                        echo "$newrpids" > "$RPIDSFL"
+                                        oldrpids="$newrpids"
+                                fi
+                        fi
+                fi
+                sleep 0.5
+        done
+        rm -f "$RPIDSFL" 2>/dev/null
+        try_kill $headpid) &
+fi
+
 if [ ! -n "$DBUS_SESSION_BUS_ADDRESS" ]
     then
         if [ -S "$XDG_RUNTIME_DIR/bus" ]
             then export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
         elif get_dbus_session_bus_address &>/dev/null
             then export $(get_dbus_session_bus_address)
+        fi
+fi
+
+if [[ "$SANDBOX_NET" == 1 || "$NO_NET" == 1 ]] && [ "$UNSHARE_PIDS" != 1 ] && \
+    [[ ! -n "$DBUS_SESSION_BUS_ADDRESS" || "$DBUS_SESSION_BUS_ADDRESS" =~ "unix:abstract" ]]
+    then
+        DBUSD_ADDRSS="unix:path=/tmp/.rdbus.$RUNPID"
+        info_msg "Launching dbus-daemon..."
+        dbus-daemon --session --address="$DBUSD_ADDRSS" &>/dev/null &
+        DBUSD_PID=$!
+        sleep 0.05
+        if [[ -n "$DBUSD_PID" && -d "/proc/$DBUSD_PID" ]]
+            then
+                export DBUS_SESSION_BUS_ADDRESS="$DBUSD_ADDRSS"
+            else
+                if which dbus-daemon &>/dev/null
+                    then
+                        error_msg "Failed to start dbus-daemon!"
+                    else
+                        error_msg "dbus-daemon not found!"
+                fi
         fi
 fi
 
@@ -1633,33 +1688,6 @@ fi
 
 [ "$(getenforce 2>/dev/null)" == "Enforcing" ] && \
     warn_msg "SELinux in enforcing mode!"
-
-if [ "$NO_RPIDSMON" != 1 ]
-    then
-        "$RUNSTATIC/headpid" $RUNPID &
-        headpid=$!
-        (wait_rpids=15
-        oldrpids="$(get_child_pids "$headpid")"
-        while ps -o pid= -p $oldrpids &>/dev/null
-            do
-                newrpids="$(get_child_pids "$headpid")"
-                if [ ! -n "$(echo "$newrpids"|grep -v "$headpid")" ]
-                    then
-                        if [ "$wait_rpids" -gt 0 ]
-                            then
-                                wait_rpids="$(( $wait_rpids - 1 ))"
-                                sleep 0.01
-                                continue
-                        fi
-                        break
-                    else
-                        try_upd_rpids && oldrpids="$newrpids"
-                fi
-                sleep 0.5
-        done
-        rm -f "$RPIDSFL" 2>/dev/null
-        try_kill $headpid) &
-fi
 
 if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$SQFUSE_REMOUNT" == 1 ]] # MangoHud and vkBasalt bug in DXVK mode
     then

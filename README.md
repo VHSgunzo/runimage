@@ -110,7 +110,7 @@ Environment variables to configure:
     AUTORUN="{executable} {args}"        Run runimage with autorun options for /usr/bin executables
     ALLOW_ROOT=1                         Allows to run runimage under root user
     QUIET_MODE=1                         Disables all non-error runimage messages
-    DONT_NOTIFY=1                        Disables all notification
+    DONT_NOTIFY=1                        Disables all non-error runimage notification
     UNSHARE_PIDS=1                       Hides all system processes in runimage
     RUNTIME_EXTRACT_AND_RUN=1            Run runimage afer extraction without using FUSE
     TMPDIR="/path/{TMPDIR}"              Used for extract and run options
@@ -153,6 +153,8 @@ Other environment variables:
         ARGV0=""
     PID of Run.sh script:
         RUNPID=""
+    Parent PID of Run.sh script:
+        RUNPPID=""
     Run binary directory:
         RUNDIR=""
     RootFS directory:
