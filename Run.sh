@@ -1540,27 +1540,6 @@ if [ ! -n "$DBUS_SESSION_BUS_ADDRESS" ]
         fi
 fi
 
-if [[ "$SANDBOX_NET" == 1 || "$NO_NET" == 1 ]] && [ "$UNSHARE_PIDS" != 1 ] && \
-    [[ ! -n "$DBUS_SESSION_BUS_ADDRESS" || "$DBUS_SESSION_BUS_ADDRESS" =~ "unix:abstract" ]]
-    then
-        DBUSD_ADDRSS="unix:path=/tmp/.rdbus.$RUNPID"
-        info_msg "Launching dbus-daemon..."
-        dbus-daemon --session --address="$DBUSD_ADDRSS" &>/dev/null &
-        DBUSD_PID=$!
-        sleep 0.05
-        if [[ -n "$DBUSD_PID" && -d "/proc/$DBUSD_PID" ]]
-            then
-                export DBUS_SESSION_BUS_ADDRESS="$DBUSD_ADDRSS"
-            else
-                if which dbus-daemon &>/dev/null
-                    then
-                        error_msg "Failed to start dbus-daemon!"
-                    else
-                        error_msg "dbus-daemon not found!"
-                fi
-        fi
-fi
-
 [ "$SYS_TOOLS" == 1 ] && \
     export SYS_MKSQFS=1 SYS_UNSQFS=1 \
            SYS_SQFUSE=1 SYS_BWRAP=1 \
@@ -2015,6 +1994,27 @@ if [[ "$SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
                 fi
                 FORCE_CLEANUP=1 cleanup
                 exit 1
+        fi
+fi
+
+if [[ "$SANDBOX_NET" == 1 || "$NO_NET" == 1 ]] && [ "$UNSHARE_PIDS" != 1 ] && \
+    [[ ! -n "$DBUS_SESSION_BUS_ADDRESS" || "$DBUS_SESSION_BUS_ADDRESS" =~ "unix:abstract" ]]
+    then
+        DBUSD_ADDRSS="unix:path=/tmp/.rdbus.$RUNPID"
+        info_msg "Launching dbus-daemon..."
+        dbus-daemon --session --address="$DBUSD_ADDRSS" &>/dev/null &
+        DBUSD_PID=$!
+        sleep 0.05
+        if [[ -n "$DBUSD_PID" && -d "/proc/$DBUSD_PID" ]]
+            then
+                export DBUS_SESSION_BUS_ADDRESS="$DBUSD_ADDRSS"
+            else
+                if which dbus-daemon &>/dev/null
+                    then
+                        error_msg "Failed to start dbus-daemon!"
+                    else
+                        error_msg "dbus-daemon not found!"
+                fi
         fi
 fi
 
