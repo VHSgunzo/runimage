@@ -7,6 +7,7 @@
 * Fix bind `$HOME/.Xauthority` on non standard home path
 * Update [static](https://github.com/VHSgunzo/runimage-static/releases/tag/v0.38.3) v0.38.3
 * Add `mknod` from [coreutils](https://github.com/VHSgunzo/coreutils-static)
+* Add [socat](https://github.com/VHSgunzo/socat-static)
 * Replace [notify-send-static](https://github.com/VHSgunzo/notify-send-static) with [notify-send-rs](https://github.com/VHSgunzo/notify-send-rs) v0.0.1
 * Remove `aria2c` from `static`
 * Add automatic search of the `SANDBOX_HOME` directory
@@ -14,17 +15,24 @@
 * Test on [BlendOS](https://blendos.co/)
 * Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--help|-h` Show this usage info
 * Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--superuser|-su` Execute command as superuser
-* Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--interactive|-i` Execute interactive command (with input prompt)
+* Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--terminal|-t` Execute command in host terminal
+* Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--shell|-s` Launch host shell (socat)
 * Update `print_help()`
 * Add bind `/var/lib/dbus/machine-id`
 * Remove `SYS_ARIA2C` `ARIA2C`
 * Add `aria2c` `wget` `curl` to `try_dl()`
 * Remove `MEGAcmd` repository
 * Add `get_dbus_session_bus_address()`
-* Add launching `dbus-daemon` if `SANDBOX_NET` and `DBUS_SESSION_BUS_ADDRESS` =~ `unix:abstract`
+* Add launching `socat` `dbus` proxy if `*_NET*` and `DBUS_SESSION_BUS_ADDRESS` =~ `unix:abstract`
 * Remove `try_upd_rpids()`
-* Add `RUNPPID` Parent PID of Run.sh script
-* Fix sometime killing parent PID on container exit if `kernel.pid_max` is too small
+* Add `RUNPPID` Parent PID of `Run.sh` script
+* Fix sometime killing parent PID on container exit if `PID_MAX` is too small
+* Add filtering `headpid` process to `rpidsmon`
+* Add warning and recomendation if `PID_MAX` is less than 4194304
+* Install [proot-bin](https://aur.archlinux.org/packages/proot-bin)
+* Remove `fakechroot` `lib32-fakechroot`
+* Replace `fakeroot` and `fakechroot` with `proot` in `pacman` `fake-sudo` and `fake-pkexec` hooks
+* Fix `pacman` extraction warnings
 
 **=======================================================================================**
 

@@ -212,7 +212,7 @@ Custom scripts and aliases:
     /bin/cip                          Сheck public ip
     /bin/dbus-flmgr                   Launch the system file manager via dbus
     /bin/nocap                        Disables container capabilities
-    /bin/sudo                         Fake sudo (fakechroot fakeroot)
+    /bin/sudo                         Fake sudo (proot -0)
     /bin/pac                          sudo pacman (fake sudo)
     /bin/packey                       sudo pacman-key (fake sudo)
     /bin/panelipmon                   Shows information about an active network connection
@@ -276,7 +276,7 @@ Additional information:
             or with the same name as the executable being run.
     SANDBOX_HOME* similar to PORTABLE_HOME, but the system HOME becomes isolated.
 
-    RunImage uses fakeroot and fakechroot, which allows you to use root commands, including in
+    RunImage uses proot, which allows you to use root commands, including in
         unpacked form, to update the rootfs or install/remove packages.
         sudo and pkexec have also been replaced with fake ones. (see /usr/bin/sudo /usr/bin/pkexec)
 
@@ -360,9 +360,10 @@ Additional information:
         └──╼ $ hostexec {hostexec args} {executable} {executable args}
         ┌─[user@host]─[~] - pass command to stdin
         └──╼ $ echo "{executable} {executable args}"|hostexec {hostexec args}
-            --help        |-h             Show this usage info
-            --superuser   |-su            Execute command as superuser
-            --interactive |-i             Execute interactive command (with input prompt)
+            --help      |-h             Show this usage info
+            --shell     |-s  {args}     Launch host shell (socat)
+            --superuser |-su {args}     Execute command as superuser
+            --terminal  |-t  {args}     Execute command in host terminal
 
     For Nvidia users with a proprietary driver:
         If the nvidia driver version does not match in runimage and in the host, runimage
@@ -456,11 +457,16 @@ exit
 * Xephyr does not support GL acceleration and Vulkan has performance issues (But this is not related to RunImage)
 * If you have problems with sound when running RunImage desktop on TTY, just restart pulseaudio.
 ```
-    killall pulseaudio && pulseaudio -D
+    killall pulseaudio ; pulseaudio -D
 ```
 * If you disable bubblewrap capabilities using NO_CAP, you will not be able to use FUSE inside the container.
 * In packed form for fix bug with MangoHud and vkBasalt in DXVK mode need remount container with squashfuse (see SQFUSE_REMOUNT=1). In superlite it's enabled by default.
 * With UNSHARE_PIDS, you cannot pass additional arguments to Bubblewrap, if you need it, use the BWRAP_ARGS+=() array in the config file.
+* If `PID_MAX` is less then 4194304, recommended to increase [PID_MAX](https://www.cyberciti.biz/tips/howto-linux-increase-pid-limits.html) to 4194304 for better stability:
+```
+sudo sh -c 'echo kernel.pid_max=4194304 >> /etc/sysctl.d/98-pid_max.conf'
+sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
+```
 
 ## Main used projects:
 
@@ -491,8 +497,6 @@ exit
 * [xorg-xhost-static](https://github.com/VHSgunzo/xorg-xhost-static)
 * [xz-static](https://github.com/VHSgunzo/xz-static)
 * [minos-static](https://github.com/minos-org/minos-static)
-* [fakeroot](https://github.com/mackyle/fakeroot)
-* [fakechroot](https://github.com/dex4er/fakechroot)
 * [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
 * [fuse-overlayfs](https://github.com/containers/fuse-overlayfs)
 * [importenv](https://github.com/VHSgunzo/importenv/releases)
@@ -500,6 +504,7 @@ exit
 * [util-linux-static](https://github.com/VHSgunzo/util-linux-static/releases)
 * [hosts](https://github.com/StevenBlack/hosts)
 * [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper)
+* [proot](https://proot-me.github.io/)
 
 ## Projects based on RunImage:
 

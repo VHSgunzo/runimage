@@ -585,7 +585,7 @@ try_mkdir() {
 run_attach() {
     ns_attach() {
         target="$(ps -o pid=,cmd= -p $(cat "/tmp/.rpids.$1" 2>/dev/null) 2>/dev/null|\
-                  grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|\
+                  grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|grep -v "socat .*/tmp/.rdbus.*"|\
                   grep -v "RunDir.*/static/"|grep -v "squashfuse.*$RUNIMAGEDIR.*offset="|\
                   grep -v "\.nv\.drv /tmp/\.mount_nv.*drv\."|grep -v "fuse-overlayfs .*/cache/overlayfs/"|\
                   grep -v "bwrap .*/cache/overlayfs/"|grep -v "bwrap .*/tmp/\.mount.*"|head -1|awk '{print$1}')"
@@ -727,12 +727,11 @@ cleanup() {
                 then
                     [ -n "$FUSE_PIDS" ] && \
                         kill $FUSE_PIDS 2>/dev/null
-                    if [ -n "$DBUSD_PID" ]
+                    if [ -n "$DBUSP_PID" ]
                         then
-                            kill $DBUSD_PID 2>/dev/null
-                            DBUSD_SOCKET="${DBUSD_ADDRSS#unix:path=}"
-                            [ -S "$DBUSD_SOCKET" ] && \
-                                rm -f "$DBUSD_SOCKET" 2>/dev/null
+                            kill $DBUSP_PID 2>/dev/null
+                            [ -S "$DBUSP_SOCKET" ] && \
+                                rm -f "$DBUSP_SOCKET" 2>/dev/null
                     fi
                     try_kill "$(cat "$RPIDSFL" 2>/dev/null|grep -v "$RUNPID")"
                     [ -f "$RPIDSFL" ] && \
@@ -749,8 +748,8 @@ cleanup() {
 }
 
 get_child_pids() {
-    _child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
-    echo -e "$1\n$(ps -o pid=,cmd= -p $_child_pids 2>/dev/null|sort -n|sed "0,/$1/d"|\
+    local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
+    echo -e "$1\n$(ps -o pid=,cmd= -p $child_pids 2>/dev/null|sort -n|sed "0,/$1/d"|\
     grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|grep -wv "$RUNPPID"|\
     awk '{print$1}')"|sort -nu
 }
@@ -1149,7 +1148,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}/bin/cip$GREEN                          Сheck public ip
         ${YELLOW}/bin/dbus-flmgr$GREEN                   Launch the system file manager via dbus
         ${YELLOW}/bin/nocap$GREEN                        Disables container capabilities
-        ${YELLOW}/bin/sudo$GREEN                         Fake sudo (fakechroot fakeroot)
+        ${YELLOW}/bin/sudo$GREEN                         Fake sudo (proot -0)
         ${YELLOW}/bin/pac$GREEN                          sudo pacman (fake sudo)
         ${YELLOW}/bin/packey$GREEN                       sudo pacman-key (fake sudo)
         ${YELLOW}/bin/panelipmon$GREEN                   Shows information about an active network connection
@@ -1213,7 +1212,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                 or with the same name as the executable being run.
         ${YELLOW}SANDBOX_HOME$GREEN* similar to ${YELLOW}PORTABLE_HOME$GREEN, but the system ${YELLOW}HOME$GREEN becomes isolated.
 
-        RunImage uses fakeroot and fakechroot, which allows you to use root commands, including in
+        RunImage uses proot, which allows you to use root commands, including in
             unpacked form, to update the rootfs or install/remove packages.
             sudo and pkexec have also been replaced with fake ones. (see /usr/bin/sudo /usr/bin/pkexec)
 
@@ -1297,9 +1296,10 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             $RED└──╼ \$ ${GREEN}hostexec ${BLUE}{hostexec args}${GREEN} {executable} ${YELLOW}{executable args}${GREEN}
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command to stdin
             $RED└──╼ \$ ${GREEN}echo ${BLUE}\"${GREEN}{executable}${YELLOW} {executable args}${BLUE}\"$RED|${GREEN}hostexec ${BLUE}{hostexec args}${GREEN}
-                ${BLUE}--help        |-h${GREEN}             Show this usage info
-                ${BLUE}--superuser   |-su${GREEN}            Execute command as superuser
-                ${BLUE}--interactive |-i${GREEN}             Execute interactive command (with input prompt)
+                ${BLUE}--help      ${RED}|${BLUE}-h${GREEN}             Show this usage info
+                ${BLUE}--shell     ${RED}|${BLUE}-s$GREEN  $YELLOW{args}$GREEN     Launch host shell (socat)
+                ${BLUE}--superuser ${RED}|${BLUE}-su${GREEN} $YELLOW{args}$GREEN     Execute command as superuser
+                ${BLUE}--terminal  ${RED}|${BLUE}-t${GREEN}  $YELLOW{args}$GREEN     Execute command in host terminal
 
         ${RED}For Nvidia users with a proprietary driver:${GREEN}
             If the nvidia driver version does not match in runimage and in the host, runimage
@@ -1345,6 +1345,24 @@ if [[ "$EUID" == 0 && "$ALLOW_ROOT" != 1 ]]
                 echo -e "${RED}\t\t\tDo not run RunImage as root!"
                 echo -e "If you really need to run it as root set the ${YELLOW}ALLOW_ROOT${GREEN}=1 ${RED}environment variable.$RESETCOLOR"
                 exit 1
+        fi
+fi
+
+if [ $(cat /proc/sys/kernel/pid_max 2>/dev/null) -lt 4194304 ]
+    then
+        warn_msg "PID_MAX is less than 4194304!"
+        if [ "$EUID" == 0 ]
+            then
+                info_msg "Increasing PID_MAX to 4194304..."
+                echo kernel.pid_max=4194304 >> /etc/sysctl.d/98-pid_max.conf
+                echo 4194304 > /proc/sys/kernel/pid_max
+            else
+                if ! console_info_notify
+                    then
+                        echo -e "${YELLOW}\nFor better stability, recommended to increase PID_MAX to 4194304:"
+                        echo -e "${RED}# ${GREEN}sudo sh -c 'echo kernel.pid_max=4194304 >> /etc/sysctl.d/98-pid_max.conf'"
+                        echo -e "${RED}# ${GREEN}sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'$RESETCOLOR"
+                fi
         fi
 fi
 
@@ -1616,8 +1634,8 @@ if [ "$EUID" != 0 ]
                 if ! console_info_notify
                     then
                         echo -e "${YELLOW}\nYou need to enable unprivileged_userns_clone:"
-                        echo -e "${RED}# ${GREEN}sudo bash -c 'echo kernel.unprivileged_userns_clone=1 >> /etc/sysctl.d/98-userns.conf'"
-                        echo -e "${RED}# ${GREEN}sudo bash -c 'echo 1 > /proc/sys/kernel/unprivileged_userns_clone'$RESETCOLOR"
+                        echo -e "${RED}# ${GREEN}sudo sh -c 'echo kernel.unprivileged_userns_clone=1 >> /etc/sysctl.d/98-userns.conf'"
+                        echo -e "${RED}# ${GREEN}sudo sh -c 'echo 1 > /proc/sys/kernel/unprivileged_userns_clone'$RESETCOLOR"
                 fi
                 exit 1
         elif [ "$(cat '/proc/sys/user/max_user_namespaces' 2>/dev/null)" == 0 ]
@@ -1626,8 +1644,8 @@ if [ "$EUID" != 0 ]
                 if ! console_info_notify
                     then
                         echo -e "${YELLOW}\nYou need to enable max_user_namespaces:"
-                        echo -e "${RED}# ${GREEN}sudo bash -c 'echo user.max_user_namespaces=10000 >> /etc/sysctl.d/98-userns.conf'"
-                        echo -e "${RED}# ${GREEN}sudo bash -c 'echo 10000 > /proc/sys/user/max_user_namespaces'$RESETCOLOR"
+                        echo -e "${RED}# ${GREEN}sudo sh -c 'echo user.max_user_namespaces=10000 >> /etc/sysctl.d/98-userns.conf'"
+                        echo -e "${RED}# ${GREEN}sudo sh -c 'echo 10000 > /proc/sys/user/max_user_namespaces'$RESETCOLOR"
                 fi
                 exit 1
         elif [ "$(cat '/proc/sys/kernel/userns_restrict' 2>/dev/null)" == 1 ]
@@ -1636,8 +1654,8 @@ if [ "$EUID" != 0 ]
                 if ! console_info_notify
                     then
                         echo -e "${YELLOW}\nYou need to disabled userns_restrict:"
-                        echo -e "${RED}# ${GREEN}sudo bash -c 'echo kernel.userns_restrict=0 >> /etc/sysctl.d/98-userns.conf'"
-                        echo -e "${RED}# ${GREEN}sudo bash -c 'echo 0 > /proc/sys/kernel/userns_restrict'$RESETCOLOR"
+                        echo -e "${RED}# ${GREEN}sudo sh -c 'echo kernel.userns_restrict=0 >> /etc/sysctl.d/98-userns.conf'"
+                        echo -e "${RED}# ${GREEN}sudo sh -c 'echo 0 > /proc/sys/kernel/userns_restrict'$RESETCOLOR"
                 fi
                 exit 1
         fi
@@ -1998,23 +2016,20 @@ if [[ "$SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
 fi
 
 if [[ "$SANDBOX_NET" == 1 || "$NO_NET" == 1 ]] && [ "$UNSHARE_PIDS" != 1 ] && \
-    [[ ! -n "$DBUS_SESSION_BUS_ADDRESS" || "$DBUS_SESSION_BUS_ADDRESS" =~ "unix:abstract" ]]
+    [[ "$DBUS_SESSION_BUS_ADDRESS" =~ "unix:abstract" ]]
     then
-        DBUSD_ADDRSS="unix:path=/tmp/.rdbus.$RUNPID"
-        info_msg "Launching dbus-daemon..."
-        dbus-daemon --session --address="$DBUSD_ADDRSS" &>/dev/null &
-        DBUSD_PID=$!
+        DBUSP_SOCKET="/tmp/.rdbus.$RUNPID"
+        info_msg "Launching socat dbus proxy..."
+        socat UNIX-LISTEN:"$DBUSP_SOCKET",reuseaddr,fork \
+            ABSTRACT-CONNECT:"$(echo "$DBUS_SESSION_BUS_ADDRESS"|\
+                                sed 's|unix:abstract=||g;s|,guid=.*$||g')" &
+        DBUSP_PID=$!
         sleep 0.05
-        if [[ -n "$DBUSD_PID" && -d "/proc/$DBUSD_PID" ]]
+        if [[ -n "$DBUSP_PID" && -d "/proc/$DBUSP_PID" && -S "$DBUSP_SOCKET" ]]
             then
-                export DBUS_SESSION_BUS_ADDRESS="$DBUSD_ADDRSS"
+                SETENV_ARGS+=("--setenv" "DBUS_SESSION_BUS_ADDRESS" "unix:path=$DBUSP_SOCKET")
             else
-                if which dbus-daemon &>/dev/null
-                    then
-                        error_msg "Failed to start dbus-daemon!"
-                    else
-                        error_msg "dbus-daemon not found!"
-                fi
+                error_msg "Failed to start socat dbus proxy!"
         fi
 fi
 
