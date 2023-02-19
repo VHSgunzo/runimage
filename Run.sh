@@ -21,7 +21,7 @@ unset RO_MNT RUNROOTFS SQFUSE BWRAP NOT_TERM FOVERFS \
       LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND EXEC_ARGS \
       FUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BWRAP OVERFS_MNT \
       SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG OVERFS_DIR \
-      RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP FORCE_CLEANUP \
+      RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP \
       SANDBOX_HOME_DIR MACHINEID_BIND
 
 [[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
@@ -74,6 +74,23 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
         fi
 fi
 
+[ ! -n "$RUNTTY" ] && \
+    export RUNTTY="$(tty|grep -v 'not a')"
+[ ! -n "$(echo "$RUNTTY"|grep -Eo 'tty|pts')" ] && \
+    NOT_TERM=1
+
+[ "$NOT_TERM" != 1 ] && \
+    SETSID_RUN=("ptyspawn")||\
+    SETSID_RUN=("setsid" "--wait")
+
+if [[ "$RUNSETSID" != 1 && ! "$RUNTTY" =~ "tty" ]]
+    then
+        RUNSETSID=1 "${SETSID_RUN[@]}" "$RUNSTATIC/bash" \
+            "$(realpath -s "$0" 2>/dev/null)" "$@"
+        exit $?
+fi
+unset RUNSETSID
+
 export RUNROOTFS="$RUNDIR/rootfs"
 export RUNCACHEDIR="$RUNIMAGEDIR/cache"
 export RUNCONFIGDIR="$RUNIMAGEDIR/config"
@@ -90,11 +107,6 @@ export RUNROOTFS_VERSION="$(cat "$RUNROOTFS/.version" \
                          sed ':a;/$/N;s/\n/./;ta')"
 export RUNROOTFSTYPE="$(cat "$RUNROOTFS/.type" 2>/dev/null)"
 export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version|& awk '{print$2}')"
-
-[ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
-    NOT_TERM=1
-
-bash() { "$RUNSTATIC/bash" "$@" ; }
 
 error_msg() {
     echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
@@ -269,7 +281,7 @@ mount_nvidia_driver_image() {
                 NVDRVMNT="/tmp/.mount_nv${nvidia_version}drv.$RUNPID"
             info_msg "Mounting the nvidia driver image: $(basename "$1")"
             try_mkdir "$NVDRVMNT"
-            "$SQFUSE" -f "$1" "$NVDRVMNT" -o ro &
+            "$SQFUSE" -f "$1" "$NVDRVMNT" -o ro &>/dev/null &
             FUSE_PID="$!"
             export FUSE_PIDS="$FUSE_PID $FUSE_PIDS"
             if mount_exist "$FUSE_PID" "$NVDRVMNT"
@@ -293,7 +305,7 @@ check_nvidia_driver() {
         if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
             then
                 info_msg "Updating the nvidia library cache..."
-                if (NO_BWRAP_WAIT=1 SANDBOX_NET=0 bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null)
+                if (ALLOW_BG=0 SANDBOX_NET=0 bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null)
                     then
                         try_mkdir "$RUNCACHEDIR"
                         if mv -f "/tmp/ld.so.cache" \
@@ -550,24 +562,35 @@ add_bin_pth() {
 }
 
 try_unmount() {
-    if [[ -n "$1" && -n "$(grep -o "$1" /proc/self/mounts 2>/dev/null)" ]]
+    if [ -n "$1" ]
         then
             unset DORM
-            if fusermount -uz "$1" 2>/dev/null
+            if [ -n "$(grep -o "$1" /proc/self/mounts 2>/dev/null)" ]
+                then
+                    if fusermount -uz "$1" 2>/dev/null
+                        then DORM=1
+                    elif umount -l "$1" 2>/dev/null
+                        then DORM=1
+                    elif kill $FUSE_PIDS 2>/dev/null
+                        then DORM=1
+                    else
+                        error_msg "Failed to unmount: '$1'"
+                        return 1
+                    fi
+            elif [ -d "$1" ]
                 then DORM=1
-            elif umount -l "$1" 2>/dev/null
-                then DORM=1
-            elif [ "$ALLOW_BG" != 1 ] && \
-                kill $FUSE_PIDS 2>/dev/null
-                then DORM=1
-            else
-                error_msg "Failed to unmount: '$1'"
-                return 1
             fi
-            [[ -d "$1" && "$DORM" == 1 ]] && \
-                rm -rf "$1" 2>/dev/null
+            if [ "$DORM" == 1 ]
+                then
+                    if ! rm -rf "$1" 2>/dev/null
+                        then
+                            error_msg "Failed to remove: '$1'"
+                            return 1
+                    fi
+            fi
             return 0
     fi
+    return 1
 }
 
 try_mkdir() {
@@ -576,7 +599,7 @@ try_mkdir() {
             if ! mkdir -p "$1"
                 then
                     error_msg "Failed to create directory: '$1'"
-                    FORCE_CLEANUP=1 cleanup
+                    cleanup force
                     exit 1
             fi
     fi
@@ -584,17 +607,27 @@ try_mkdir() {
 
 run_attach() {
     ns_attach() {
-        target="$(ps -o pid=,cmd= -p $(cat "/tmp/.rpids.$1" 2>/dev/null) 2>/dev/null|\
-                  grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|grep -v "socat .*/tmp/.rdbus.*"|\
-                  grep -v "RunDir.*/static/"|grep -v "squashfuse.*$RUNIMAGEDIR.*offset="|\
-                  grep -v "\.nv\.drv /tmp/\.mount_nv.*drv\."|grep -v "fuse-overlayfs .*/cache/overlayfs/"|\
-                  grep -v "bwrap .*/cache/overlayfs/"|grep -v "bwrap .*/tmp/\.mount.*"|head -1|awk '{print$1}')"
+        unset WAITRPIDS
+        target="$(get_bwpids "/tmp/.rpids.$1"|head -1)"
         if [ -n "$target" ]
             then
                 info_msg "Attaching to RunImage RUNPID: $1"
-                (while [[ -d "/proc/$target" && -d "/proc/$RUNPID" ]]; do sleep 0.5; done
-                FORCE_CLEANUP=1 cleanup) &
+                (while [[ -d "/proc/$target" && -d "/proc/$RUNPID" ]]
+                    do sleep 0.5
+                done
+                cleanup force) &
                 shift
+                if [[ "$ALLOW_BG" == 1 || "$RUNTTY" =~ "tty" ]]
+                    then
+                        (wait_rpids=100
+                        while [[ "$wait_rpids" -gt 0 && ! -n "$(ps -o pid= -p \
+                            $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null)" ]]
+                            do
+                                wait_rpids="$(( $wait_rpids - 1 ))"
+                                sleep 0.01
+                        done; sleep 1) &
+                        WAITRPIDS=$!
+                fi
                 for args in "-n -p" "-n" "-p" " "
                     do
                         if nsenter --preserve-credentials -U -m $args \
@@ -602,7 +635,10 @@ run_attach() {
                             then
                                 importenv $target nsenter --preserve-credentials \
                                     --wd=/proc/$target/cwd -U -m $args -t $target "$@"
-                                return $?
+                                EXEC_STATUS=$?
+                                [ -n "$WAITRPIDS" ] && \
+                                    wait "$WAITRPIDS"
+                                return $EXEC_STATUS
                         fi
                 done
         fi
@@ -669,7 +705,9 @@ wait_pid() {
         then
             if [ "$UNLIM_WAIT" == 1 ]
                 then
-                    while [ -d "/proc/$1" ]; do sleep 0.1; done
+                    while [ -d "/proc/$1" ]
+                        do sleep 0.1
+                    done
                 else
                     [ -n "$2" ] && \
                         timeout="$2"||
@@ -690,19 +728,23 @@ try_kill() {
         then
             for pid in $1
                 do
-                    trykillnum=1
+                    trykillnum=0
                     while [[ -n "$pid" && -d "/proc/$pid" ]]
                         do
-                            if [[ "$trykillnum" -le 3 ]]
+                            if [[ "$trykillnum" -lt 1 ]]
                                 then
                                     kill -2 $pid 2>/dev/null
                                     ret=$?
                                     sleep 0.05
-                                else
-                                    kill -9 $pid 2>/dev/null
+                            elif [[ "$trykillnum" -lt 2 ]]
+                                then
+                                    kill -15 $pid 2>/dev/null
                                     ret=$?
-                                    wait $pid &>/dev/null
-                                    wait_pid "$pid"
+                                    sleep 0.05
+                            else
+                                kill -9 $pid 2>/dev/null
+                                ret=$?
+                                wait_pid "$pid"
                             fi
                             trykillnum="$(( $trykillnum + 1 ))"
                     done
@@ -712,32 +754,33 @@ try_kill() {
 }
 
 cleanup() {
-    if [[ "$NO_CLEANUP" != 1 || "$FORCE_CLEANUP" == 1 ]]
+    if [[ "$NO_CLEANUP" != 1 || "$1" == "force" ]]
         then
-            [ "$FORCE_CLEANUP" == 1 ] && \
-                ALLOW_BG=0 && QUIET_MODE=1
+            [ "$1" == "force" ] && \
+                QUIET_MODE=1
             if [ -n "$FUSE_PIDS" ]
                 then
                     try_unmount "$RO_MNT"
                     try_unmount "$NVDRVMNT"
-                    [[ "$KEEP_OVERFS" != 1 && "$ALLOW_BG" != 1 ]] && \
+                    [ "$KEEP_OVERFS" != 1 ] && \
                         try_unmount "$OVERFS_MNT"
             fi
-            if [ "$ALLOW_BG" != 1 ]
+            [ -n "$FUSE_PIDS" ] && \
+                kill $FUSE_PIDS 2>/dev/null
+            if [ -n "$DBUSP_PID" ]
                 then
-                    [ -n "$FUSE_PIDS" ] && \
-                        kill $FUSE_PIDS 2>/dev/null
-                    if [ -n "$DBUSP_PID" ]
-                        then
-                            kill $DBUSP_PID 2>/dev/null
-                            [ -S "$DBUSP_SOCKET" ] && \
-                                rm -f "$DBUSP_SOCKET" 2>/dev/null
-                    fi
-                    try_kill "$(cat "$RPIDSFL" 2>/dev/null|grep -v "$RUNPID")"
-                    [ -f "$RPIDSFL" ] && \
-                        rm -f "$RPIDSFL" 2>/dev/null
+                    kill $DBUSP_PID 2>/dev/null
+                    [ -S "$DBUSP_SOCKET" ] && \
+                        rm -f "$DBUSP_SOCKET" 2>/dev/null
             fi
-            if [[ -d "$OVERFS_DIR" && "$KEEP_OVERFS" != 1 && "$ALLOW_BG" != 1 ]]
+            try_kill "$(cat "$RPIDSFL" 2>/dev/null)"
+            [ -f "$RPIDSFL" ] && \
+                rm -f "$RPIDSFL" 2>/dev/null
+            [ -f "$EXECFL" ] && \
+                rm -f "$EXECFL"* 2>/dev/null
+            [ -f "$BWINFFL" ] && \
+                rm -f "$BWINFFL" 2>/dev/null
+            if [[ -d "$OVERFS_DIR" && "$KEEP_OVERFS" != 1 ]]
                 then
                     info_msg "Removing OverlayFS..."
                     rm -rf "$OVERFS_DIR" 2>/dev/null
@@ -747,11 +790,32 @@ cleanup() {
     fi
 }
 
+get_bwpids() {
+    set -o pipefail
+    [ -n "$1" ] && \
+        rpidsfl="$1"||\
+        rpidsfl="$RPIDSFL"
+    if [ -f "$rpidsfl" ]
+        then
+            ps -o pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|\
+            grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|grep -v "socat .*/tmp/.rdbus.*"|\
+            grep -v "socat .*/tmp/.shell.*"|grep -v "RunDir.*/static/"|grep -v "squashfuse.*$RUNIMAGEDIR.*offset="|\
+            grep -v "\.nv\.drv /tmp/\.mount_nv.*drv\."|grep -v "fuse-overlayfs .*/cache/overlayfs/"|\
+            grep -v "bwrap .*/cache/overlayfs/"|grep -v "bwrap .*/tmp/\.mount.*"|awk '{print$1}'
+        else
+            return 1
+    fi
+}
+
 get_child_pids() {
-    local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
-    echo -e "$1\n$(ps -o pid=,cmd= -p $child_pids 2>/dev/null|sort -n|sed "0,/$1/d"|\
-    grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|grep -wv "$RUNPPID"|\
-    awk '{print$1}')"|sort -nu
+    if [[ -n "$1" && -d "/proc/$1" ]]
+        then
+            local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
+            ps -o pid=,cmd= -p $child_pids 2>/dev/null|grep -v "bash $RUNDIR/Run.sh"|\
+            grep -Pv '\d+ sleep \d+'|grep -wv "$RUNPPID"|awk '{print$1}'|sort -nu
+        else
+            return 1
+    fi
 }
 
 bwrun() {
@@ -765,11 +829,13 @@ bwrun() {
     fi
     [ "$ADD_LD_CACHE" == 1 ] && \
         LD_CACHE_BIND=("--bind-try" \
-                    "$RUNCACHEDIR/ld.so.cache" "/etc/ld.so.cache") || \
+            "$RUNCACHEDIR/ld.so.cache" "/etc/ld.so.cache") || \
         unset LD_CACHE_BIND
     if [[ "$SANDBOX_NET" == 1 && "$NO_NET" != 1 ]]
         then
-            (while [[ -d "/proc/$RUNPID" && ! -f "$BWINFFL" ]]; do sleep 0.01; done
+            (while [[ -d "/proc/$RUNPID" && ! -f "$BWINFFL" ]]
+                do sleep 0.01
+            done
             info_msg "Creating a network sandbox..."
             "$SLIRP" --configure --disable-host-loopback \
                 $([ -n "$SANDBOX_NET_CIDR" ] && echo "--cidr=$SANDBOX_NET_CIDR") \
@@ -781,16 +847,18 @@ bwrun() {
             sleep 0.1
             if [[ -n "$SLIRP_PID" && -d "/proc/$SLIRP_PID" ]]
                 then
-                    while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" ]]; do sleep 0.01; done
+                    while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" ]]
+                        do sleep 0.01
+                    done
                     try_kill "$SLIRP_PID"
                 else
                     error_msg "Failed to create a network sandbox!"
                     sleep 1
-                    FORCE_CLEANUP=1 cleanup
+                    cleanup force
                     exit 1
             fi) &
     fi
-    if [ "$NO_BWRAP_WAIT" != 1 ]
+    if [[ "$ALLOW_BG" == 1 || "$RUNTTY" =~ "tty" ]]
         then
             (wait_bwrap=100
             while [[ "$wait_bwrap" -gt 0 && ! -f "$BWINFFL" ]]
@@ -804,7 +872,6 @@ bwrun() {
         --info-fd 8 \
         --proc /proc \
         --tmpfs /var/log \
-        --die-with-parent \
         --bind-try /sys /sys \
         --bind-try /mnt /mnt \
         --bind-try /srv /srv \
@@ -974,7 +1041,7 @@ run_update() {
                     if [ -n "$RUNIMAGE" ]
                         then
                             (cd "$RUNIMAGEDIR" && \
-                            bash "$RUNROOTFS/usr/bin/runbuild" "$@")
+                            "$RUNSTATIC/bash" "$RUNROOTFS/usr/bin/runbuild" "$@")
                             UPDATE_STATUS="$?"
                     fi
                     [ "$UPDATE_STATUS" == 0 ] && \
@@ -1032,7 +1099,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}PORTABLE_HOME$GREEN=1                      Creates a portable home directory and uses it as ${YELLOW}\$HOME
         ${YELLOW}PORTABLE_CONFIG$GREEN=1                    Creates a portable config directory and uses it as ${YELLOW}\$XDG_CONFIG_HOME
         ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
-        ${YELLOW}ALLOW_BG$GREEN=1                           Allows you to run processes in the background and exit the container
+        ${YELLOW}ALLOW_BG$GREEN=1                           Allows you to run processes in the background
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
         ${YELLOW}SQFUSE_REMOUNT$GREEN=1                     Remounts the container using squashfuse (fix MangoHud and VkBasalt bug)
         ${YELLOW}OVERFS_MODE$GREEN=1                        Enables OverlayFS mode
@@ -1063,7 +1130,6 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}SANDBOX_NET_RESOLVCONF$GREEN=\"file\"        Binds specified file to /etc/resolv.conf in network sandbox
         ${YELLOW}BWRAP_ARGS$GREEN+=()                       Array with Bubblewrap arguments (for config file)
         ${YELLOW}EXEC_ARGS$GREEN+=()                        Array with Bubblewrap exec arguments (for config file)
-        ${YELLOW}NO_BWRAP_WAIT$GREEN=1                      Disables the delay when closing the container too quickly
         ${YELLOW}XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
                                                 (Default: /etc/X11/xorg.conf bind from the system)
         ${YELLOW}XEPHYR_SIZE$GREEN=\"HEIGHTxWIDTH\"           Sets runimage desktop resolution (Default: 1600x900)
@@ -1148,7 +1214,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}/bin/cip$GREEN                          Сheck public ip
         ${YELLOW}/bin/dbus-flmgr$GREEN                   Launch the system file manager via dbus
         ${YELLOW}/bin/nocap$GREEN                        Disables container capabilities
-        ${YELLOW}/bin/sudo$GREEN                         Fake sudo (proot -0)
+        ${YELLOW}/bin/sudo$GREEN                         Fake sudo (fakechroot fakeroot)
         ${YELLOW}/bin/pac$GREEN                          sudo pacman (fake sudo)
         ${YELLOW}/bin/packey$GREEN                       sudo pacman-key (fake sudo)
         ${YELLOW}/bin/panelipmon$GREEN                   Shows information about an active network connection
@@ -1212,7 +1278,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                 or with the same name as the executable being run.
         ${YELLOW}SANDBOX_HOME$GREEN* similar to ${YELLOW}PORTABLE_HOME$GREEN, but the system ${YELLOW}HOME$GREEN becomes isolated.
 
-        RunImage uses proot, which allows you to use root commands, including in
+        RunImage uses fakechroot and fakeroot, which allows you to use root commands, including in
             unpacked form, to update the rootfs or install/remove packages.
             sudo and pkexec have also been replaced with fake ones. (see /usr/bin/sudo /usr/bin/pkexec)
 
@@ -1297,7 +1363,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command to stdin
             $RED└──╼ \$ ${GREEN}echo ${BLUE}\"${GREEN}{executable}${YELLOW} {executable args}${BLUE}\"$RED|${GREEN}hostexec ${BLUE}{hostexec args}${GREEN}
                 ${BLUE}--help      ${RED}|${BLUE}-h${GREEN}             Show this usage info
-                ${BLUE}--shell     ${RED}|${BLUE}-s$GREEN  $YELLOW{args}$GREEN     Launch host shell (socat)
+                ${BLUE}--shell     ${RED}|${BLUE}-s$GREEN  $YELLOW{args}$GREEN     Launch host shell (socat + ptyspawn)
                 ${BLUE}--superuser ${RED}|${BLUE}-su${GREEN} $YELLOW{args}$GREEN     Execute command as superuser
                 ${BLUE}--terminal  ${RED}|${BLUE}-t${GREEN}  $YELLOW{args}$GREEN     Execute command in host terminal
 
@@ -1359,7 +1425,7 @@ if [ $(cat /proc/sys/kernel/pid_max 2>/dev/null) -lt 4194304 ]
             else
                 if ! console_info_notify
                     then
-                        echo -e "${YELLOW}\nFor better stability, recommended to increase PID_MAX to 4194304:"
+                        echo -e "${YELLOW}For better stability, recommended to increase PID_MAX to 4194304:"
                         echo -e "${RED}# ${GREEN}sudo sh -c 'echo kernel.pid_max=4194304 >> /etc/sysctl.d/98-pid_max.conf'"
                         echo -e "${RED}# ${GREEN}sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'$RESETCOLOR"
                 fi
@@ -1455,7 +1521,7 @@ if [[ "$RUNSRCNAME" == "Run"* || \
             --overfs-list|--oL|\
             --overfs-rm  |--oR|\
             --run-build  |--rB|\
-            --run-attach |--rA) SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ;;
+            --run-attach |--rA) SQFUSE_REMOUNT=0 ;;
             --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1
                                 SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ;;
             --run-procmon|--rPm) NO_RPIDSMON=1 ; SANDBOX_NET=0 ; SQFUSE_REMOUNT=0
@@ -1516,14 +1582,17 @@ fi
 
 if [ "$NO_RPIDSMON" != 1 ]
     then
-        "$RUNSTATIC/headpid" $RUNPID &
-        headpid=$!
         (wait_rpids=15
-        oldrpids="$(get_child_pids "$headpid")"
+        while [[ ! -n "$oldrpids" && "$wait_rpids" -gt 0 ]]
+            do
+                oldrpids="$(get_child_pids "$RUNPID")"
+                wait_rpids="$(( $wait_rpids - 1 ))"
+                sleep 0.01
+        done
         while ps -o pid= -p $oldrpids &>/dev/null
             do
-                newrpids="$(get_child_pids "$headpid")"
-                if [ ! -n "$(echo "$newrpids"|grep -v "$headpid")" ]
+                newrpids="$(get_child_pids "$RUNPID")"
+                if [ ! -n "$newrpids" ]
                     then
                         if [ "$wait_rpids" -gt 0 ]
                             then
@@ -1544,9 +1613,7 @@ if [ "$NO_RPIDSMON" != 1 ]
                         fi
                 fi
                 sleep 0.5
-        done
-        rm -f "$RPIDSFL" 2>/dev/null
-        try_kill $headpid) &
+        done) &
 fi
 
 if [ ! -n "$DBUS_SESSION_BUS_ADDRESS" ]
@@ -1620,7 +1687,7 @@ if [ "$EUID" != 0 ]
                         error_msg 'The kernel does not support user namespaces!'
                         if ! console_info_notify
                             then
-                                echo -e "${YELLOW}\nYou need to install SUID Bubblewrap into the system:"
+                                echo -e "${YELLOW}You need to install SUID Bubblewrap into the system:"
                                 echo -e "${RED}# ${GREEN}sudo cp -f /tmp/bwrap /usr/bin/ && sudo chmod u+s /usr/bin/bwrap"
                                 echo -e "${RED}\n[NOT RECOMMENDED]: ${YELLOW}Or run as the root user."
                                 echo -e "${YELLOW}\nOr install a kernel with user namespaces support."
@@ -1633,7 +1700,7 @@ if [ "$EUID" != 0 ]
                 error_msg "unprivileged_userns_clone is disabled!"
                 if ! console_info_notify
                     then
-                        echo -e "${YELLOW}\nYou need to enable unprivileged_userns_clone:"
+                        echo -e "${YELLOW}You need to enable unprivileged_userns_clone:"
                         echo -e "${RED}# ${GREEN}sudo sh -c 'echo kernel.unprivileged_userns_clone=1 >> /etc/sysctl.d/98-userns.conf'"
                         echo -e "${RED}# ${GREEN}sudo sh -c 'echo 1 > /proc/sys/kernel/unprivileged_userns_clone'$RESETCOLOR"
                 fi
@@ -1643,7 +1710,7 @@ if [ "$EUID" != 0 ]
                 error_msg "max_user_namespaces is disabled!"
                 if ! console_info_notify
                     then
-                        echo -e "${YELLOW}\nYou need to enable max_user_namespaces:"
+                        echo -e "${YELLOW}You need to enable max_user_namespaces:"
                         echo -e "${RED}# ${GREEN}sudo sh -c 'echo user.max_user_namespaces=10000 >> /etc/sysctl.d/98-userns.conf'"
                         echo -e "${RED}# ${GREEN}sudo sh -c 'echo 10000 > /proc/sys/user/max_user_namespaces'$RESETCOLOR"
                 fi
@@ -1653,7 +1720,7 @@ if [ "$EUID" != 0 ]
                 error_msg "userns_restrict is enabled!"
                 if ! console_info_notify
                     then
-                        echo -e "${YELLOW}\nYou need to disabled userns_restrict:"
+                        echo -e "${YELLOW}You need to disabled userns_restrict:"
                         echo -e "${RED}# ${GREEN}sudo sh -c 'echo kernel.userns_restrict=0 >> /etc/sysctl.d/98-userns.conf'"
                         echo -e "${RED}# ${GREEN}sudo sh -c 'echo 0 > /proc/sys/kernel/userns_restrict'$RESETCOLOR"
                 fi
@@ -1697,7 +1764,7 @@ if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$SQFUSE_REMOUNT" == 1 ]] # MangoHud 
         if ! mount_exist "$FUSE_PID" "$RO_MNT"
             then
                 error_msg "Failed to remount RunImage with squashfuse!"
-                FORCE_CLEANUP=1 cleanup
+                cleanup force
                 exit 1
         fi
         export RUNROOTFS="$RO_MNT/rootfs"
@@ -1729,13 +1796,13 @@ if [[ "$OVERFS_MODE" == 1 || "$KEEP_OVERFS" == 1 || -n "$OVERFS_ID" ]]
         export OVERFS_MNT="$OVERFS_DIR/mnt"
         "$FOVERFS" -f -o squash_to_uid="$EUID" -o squash_to_gid="$(id -g)" -o \
             lowerdir="$([ -n "$RO_MNT" ] && echo "$RO_MNT"||echo "$RUNDIR"\
-            )",upperdir="$OVERFS_DIR/layers",workdir="$OVERFS_DIR/tmp" "$OVERFS_MNT" &
+            )",upperdir="$OVERFS_DIR/layers",workdir="$OVERFS_DIR/tmp" "$OVERFS_MNT" &>/dev/null &
         FOVERFS_PID="$!"
         export FUSE_PIDS="$FOVERFS_PID $FUSE_PIDS"
         if ! mount_exist "$FOVERFS_PID" "$OVERFS_MNT"
             then
                 error_msg "Failed to mount RunImage in OverlayFS mode!"
-                FORCE_CLEANUP=1 cleanup
+                cleanup force
                 exit 1
         fi
         export RUNROOTFS="$OVERFS_MNT/rootfs"
@@ -1750,7 +1817,7 @@ if [ -n "$AUTORUN" ]
         if [ ! -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ]
             then
                 error_msg "$AUTORUN0ARG not found in /usr/bin"
-                FORCE_CLEANUP=1 cleanup
+                cleanup force
                 exit 1
         fi
 fi
@@ -1944,12 +2011,10 @@ fi
 if [ "$UNSHARE_PIDS" == 1 ]
     then
         warn_msg "System PIDs hiding enabled!"
-        UNPIDS_BIND+=("--as-pid-1" \
-                        "--unshare-pid" \
-                        "--bind-try" "$XDG_RUNTIME_DIR/pulse" "$XDG_RUNTIME_DIR/pulse" \
-                        "--bind-try" "$XDG_RUNTIME_DIR/pipewire-0" "$XDG_RUNTIME_DIR/pipewire-0")
-        [ -x "$RUNROOTFS/usr/bin/dbus-launch" ] && \
-            EXEC_ARGS=("dbus-launch")
+        UNPIDS_BIND+=("--unshare-pid" \
+                      "--unsetenv" "DBUS_SESSION_BUS_ADDRESS" \
+                      "--bind-try" "$XDG_RUNTIME_DIR/pulse" "$XDG_RUNTIME_DIR/pulse" \
+                      "--bind-try" "$XDG_RUNTIME_DIR/pipewire-0" "$XDG_RUNTIME_DIR/pipewire-0")
 fi
 
 if [ -d "/tmp/.X11-unix" ] # Gamecope X11 sockets bug
@@ -2006,11 +2071,11 @@ if [[ "$SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
                 error_msg "SANDBOX_NET enabled, but /dev/net/tun not found!"
                 if ! console_info_notify
                     then
-                        echo -e "${YELLOW}\nYou need to create /dev/net/tun:"
+                        echo -e "${YELLOW}You need to create /dev/net/tun:"
                         echo -e "${RED}# ${GREEN}sudo mkdir -p /dev/net"
                         echo -e "${RED}# ${GREEN}sudo mknod /dev/net/tun -m 0600 c 10 200'$RESETCOLOR"
                 fi
-                FORCE_CLEANUP=1 cleanup
+                cleanup force
                 exit 1
         fi
 fi
@@ -2113,7 +2178,7 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                         execjoboutfl="$EXECFL.$jobnum.o"
                         jobnum=$(( $jobnum + 1 ))
                         flock -x "$EXECFL" mv -f "$EXECFL" "$execjobfl" 2>/dev/null
-                        (bash "$execjobfl" &>$execjoboutfl &
+                        ("$RUNSTATIC/bash" "$execjobfl" &>$execjoboutfl &
                         execjobpid=$!
                         touch "$execjobfl.p.$execjobpid"
                         wait $execjobpid 2>/dev/null
@@ -2121,7 +2186,7 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                         mv -f "$execjobfl" "$execjobfl.s.$execstat" 2>/dev/null) &
                 fi
                 sleep 0.05
-        done; [ -n "$EXECFL" ] && rm -f "$EXECFL"* 2>/dev/null) &
+        done) &
 fi
 
 if [[ -f "/var/lib/dbus/machine-id" && -f "/etc/machine-id" ]]
@@ -2168,10 +2233,17 @@ if [ -n "$AUTORUN" ]
                     --run-desktop|--rD) bwrun /usr/bin/rundesktop ;;
                     --run-shell  |--rS) shift ; bwrun "${RUN_SHELL[@]}" "$@" ;;
                     --run-procmon|--rPm) shift ; bwrun "/usr/bin/rpidsmon" "$@" ;;
-                    --run-build  |--rB) shift ; bash "$RUNROOTFS/usr/bin/runbuild" "$@" ;;
+                    --run-build  |--rB) shift ; "$RUNSTATIC/bash" "$RUNROOTFS/usr/bin/runbuild" "$@" ;;
                     *) bwrun "$@" ;;
                 esac
         fi
 fi
-exit $?
+EXEC_STATUS=$?
+if [[ "$ALLOW_BG" == 1 && -f "$RPIDSFL" ]]
+    then
+        while [ -n "$(get_bwpids)" ]
+            do sleep 0.5
+        done
+fi
+exit $EXEC_STATUS
 ##############################################################################

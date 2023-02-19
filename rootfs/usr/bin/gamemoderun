@@ -1,5 +1,11 @@
 #!/usr/bin/bash
+[[ "$DBUS_SESSION_BUS_ADDRESS" =~ "unix:path=/tmp/.rdbus" ]] && \
+    GAMEMODEDBUS="dbus-launch"||\
+    unset GAMEMODEDBUS
 GAMEMODEAUTO_NAME="libgamemodeauto.so.0"
-pidof gamemoded &>/dev/null||/usr/bin/gamemoded &>/dev/null &
-sleep 0.1
-LD_PRELOAD="${GAMEMODEAUTO_NAME}${LD_PRELOAD:+:$LD_PRELOAD}" $GAMEMODERUNEXEC "$@"
+if ! pidof gamemoded &>/dev/null
+    then
+        /usr/bin/gamemoded &>/dev/null &
+        sleep 0.1
+fi
+$GAMEMODEDBUS env LD_PRELOAD="${GAMEMODEAUTO_NAME}${LD_PRELOAD:+:$LD_PRELOAD}" $GAMEMODERUNEXEC "$@"

@@ -16,23 +16,31 @@
 * Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--help|-h` Show this usage info
 * Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--superuser|-su` Execute command as superuser
 * Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--terminal|-t` Execute command in host terminal
-* Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--shell|-s` Launch host shell (socat)
+* Add [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec) arg `--shell|-s` Launch host shell (socat + ptyspawn)
 * Update `print_help()`
 * Add bind `/var/lib/dbus/machine-id`
 * Remove `SYS_ARIA2C` `ARIA2C`
 * Add `aria2c` `wget` `curl` to `try_dl()`
 * Remove `MEGAcmd` repository
-* Add `get_dbus_session_bus_address()`
 * Add launching `socat` `dbus` proxy if `*_NET*` and `DBUS_SESSION_BUS_ADDRESS` =~ `unix:abstract`
-* Remove `try_upd_rpids()`
 * Add `RUNPPID` Parent PID of `Run.sh` script
 * Fix sometime killing parent PID on container exit if `PID_MAX` is too small
-* Add filtering `headpid` process to `rpidsmon`
-* Add warning and recomendation if `PID_MAX` is less than 4194304
-* Install [proot-bin](https://aur.archlinux.org/packages/proot-bin)
-* Remove `fakechroot` `lib32-fakechroot`
-* Replace `fakeroot` and `fakechroot` with `proot` in `pacman` `fake-sudo` and `fake-pkexec` hooks
-* Fix `pacman` extraction warnings
+* Add warning and recomendation if `PID_MAX` is less than `4194304`
+* Remove `headpid`
+* Add [ptyspawn](https://github.com/VHSgunzo/ptyspawn)
+* Update [bubblewrap](https://github.com/VHSgunzo/bubblewrap-static/releases/tag/v0.7.0.r8) v0.7.0.r8
+* Remove `NO_BWRAP_WAIT`
+* Speedup container closing when exec too quickly
+* Update [gamemoderun](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/gamemoderun) in `superlite` version
+* Fix `sudo` installing error in `base` version
+* Fix monitoring of running processes
+* Update [Run-wrapper v0.0.5](https://github.com/VHSgunzo/Run-wrapper/releases/tag/v0.0.5)
+* Add a mechanism for creating a new processes session
+* Fix exec background processes with attaching to container and `ALLOW_BG`
+* Fix exec background processes with `UNSHARE_PIDS` and `ALLOW_BG`
+* Reduce the number of locales in `/etc/locale.gen`
+* Reduce the size of the `base` version
+* Rename and update internal `config/runimage_sw.rcfg` -> `config/sw_runtime.rcfg`
 
 **=======================================================================================**
 

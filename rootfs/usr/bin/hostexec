@@ -122,32 +122,39 @@ print_help() {
         $RED└──╼ \$${GREEN} echo ${BLUE}\"$GREEN{executable} $YELLOW{executable args}${BLUE}\"${RED}|$GREEN${0}${BLUE} {args}
 
         ${BLUE}--help      ${RED}|${BLUE}-h$GREEN             Show this usage info
-        ${BLUE}--shell     ${RED}|${BLUE}-s$GREEN  $YELLOW{args}$GREEN     Launch host shell (socat)
+        ${BLUE}--shell     ${RED}|${BLUE}-s$GREEN  $YELLOW{args}$GREEN     Launch host shell (socat + ptyspawn)
         ${BLUE}--superuser ${RED}|${BLUE}-su$GREEN $YELLOW{args}$GREEN     Execute command as superuser
         ${BLUE}--terminal  ${RED}|${BLUE}-t$GREEN  $YELLOW{args}$GREEN     Execute command in host terminal
         "
 }
 
 host_shell() {
+    wait_shell() {
+        wait_time=100
+        while [[ ! -S "$SHELL_SOCKET" && "$wait_time" -gt 0 ]]; \
+            do
+                sleep 0.01
+                wait_time=$(( $wait_time - 1 ))
+        done
+    }
     HOST_SHELL="$(hostexec echo '$SHELL')"
     if [ -n "$HOST_SHELL" ]
         then
             SHELL_SOCKET="/tmp/.shell.$RUNPID"
-            hostexec socat UNIX-LISTEN:"$SHELL_SOCKET" EXEC:"$HOST_SHELL",pty,stderr,setsid,sigint,sane &>/dev/null &
-            wait_time=100
-            while [[ ! -S "$SHELL_SOCKET" && "$wait_time" -gt 0 ]]; \
-                do sleep 0.01; wait_time=$(( $wait_time - 1 )); done
             if [ -n "$1" ]
                 then
+                    hostexec socat UNIX-LISTEN:"$SHELL_SOCKET" EXEC:"$HOST_SHELL",pty,stderr,setsid,sigint,sane &>/dev/null &
+                    wait_shell
                     check_args_spaces "$@"
-                    echo "${args[@]}"|socat STDIO,ignoreeof UNIX-CONNECT:"$SHELL_SOCKET"
+                    echo "${args[@]}"|socat STDIO UNIX-CONNECT:"$SHELL_SOCKET"
                     EXEC_STATUS=$?
                 else
+                    hostexec socat UNIX-LISTEN:"$SHELL_SOCKET" SYSTEM:"ptyspawn '$HOST_SHELL'" &>/dev/null &
+                    wait_shell
                     socat $(tty),raw,echo=0 UNIX-CONNECT:"$SHELL_SOCKET"
                     EXEC_STATUS=$?
                     [ "$EXEC_STATUS" != 0 ] && \
                         kill $(pgrep -fa socat|grep "$SHELL_SOCKET"|awk '{print$1}')
-
             fi
         else
             error_msg "Could not determine host shell!"

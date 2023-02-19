@@ -21,8 +21,8 @@ rpids_ps() {
                     red_msg "\n==========================================================="
                     green_msg "Monitoring of processes from: ${BLUE}'$rpids'"
                     red_msg "-----------------------------------------------------------"
-                    echo "$(ps -fp $(cat "$rpids" 2>/dev/null) 2>/dev/null|\
-                            grep -Pv "headpid \d+$"||rm -f "$rpids" 2>/dev/null)"
+                    echo "$(ps -fp $(cat "$rpids" 2>/dev/null) 2>/dev/null||\
+                                rm -f "$rpids" 2>/dev/null)"
                     red_msg "==========================================================="
                 else
                     norpids="$(( norpids + 1 ))"

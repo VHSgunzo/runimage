@@ -54,7 +54,7 @@ while true
         DESKTOP_DISPLAY="$(( $DESKTOP_DISPLAY + 1 ))"
 done
 
-if [ -n "$(tty|grep -v 'not a'|grep -o tty)" ]
+if [[ "$RUNTTY" =~ "tty" ]]
     then
         export DISPLAY=:$DESKTOP_DISPLAY
         info_msg "Xorg DISPLAY=$DISPLAY"

@@ -1,0 +1,7 @@
+ALLOW_BG=1
+DONT_NOTIFY=1
+unset AUTORUN
+SQFUSE_REMOUNT=1
+RUNSRCNAME=runimage
+[ ! -L "$RUNIMAGEDIR/runimage" ] && \
+ln -srf "$RUNSRC" "$RUNIMAGEDIR/runimage"
