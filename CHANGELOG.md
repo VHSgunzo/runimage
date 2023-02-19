@@ -1,5 +1,6 @@
 # v0.38.3
 
+* Update rootfs v0.38.3 23.02.19
 * Update `README.md`
 * Update `CHANGELOG.md`
 * Fix bash suspending when `UNSHARE_PIDS`
@@ -41,6 +42,17 @@
 * Reduce the number of locales in `/etc/locale.gen`
 * Reduce the size of the `base` version
 * Rename and update internal `config/runimage_sw.rcfg` -> `config/sw_runtime.rcfg`
+---------------------------------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/pkg_list.txt)
+* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/pkg_list-superlite.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+c57e8c3263b4cb911c6f40766901c8682207298aa840bdae3bf713818d90ae29  runimage
+724f291f940645ddfa6e5f54152d35691e1041c3e54d16c75d3084a12620c2b8  runimage.superlite
+```
+---------------------------------------------------------------------------------------------------------------------------------------------------
+The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
 
 **=======================================================================================**
 
