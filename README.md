@@ -534,6 +534,7 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [Bodhi Linux](https://www.bodhilinux.com/)
 * [BlendOS](https://blendos.co/)
 * [CachyOS](https://cachyos.org/)
+* [Calculate](https://www.calculate-linux.org/)
 * [CentOS](https://www.centos.org/)
 * [ChromeOS Flex](https://chromeenterprise.google/intl/en_us/os/chromeosflex/)
 * [Clear Linux](https://clearlinux.org/)

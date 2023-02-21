@@ -1,3 +1,10 @@
+# v0.38.4
+
+* Update `EAC` [patched](https://github.com/DissCent/glibc-eac-rc) `glibc` and `lib32-glibc` (2.37-2) in `superlite` version
+* Test on [Calculate](https://www.calculate-linux.org/)
+
+**=======================================================================================**
+
 # v0.38.3
 
 * Update rootfs v0.38.3 23.02.19
