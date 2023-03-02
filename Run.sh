@@ -204,9 +204,9 @@ get_nvidia_driver_image() {
             [ ! -n "$nvidia_version" ] && \
                 nvidia_version="$1"
             [[ -d "$2" && ! -n "$NVIDIA_DRIVERS_DIR" ]] && \
-                NVIDIA_DRIVERS_DIR="$2"
+                export NVIDIA_DRIVERS_DIR="$2"
             [[ ! -d "$2" && ! -n "$NVIDIA_DRIVERS_DIR" ]] && \
-                NVIDIA_DRIVERS_DIR="."
+                export NVIDIA_DRIVERS_DIR="."
             [ ! -n "$nvidia_driver_image" ] && \
                 nvidia_driver_image="$nvidia_version.nv.drv"
             try_mkdir "$NVIDIA_DRIVERS_DIR"
