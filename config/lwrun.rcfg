@@ -1,1 +1,9 @@
-lutris-wine.rcfg
+AUTORUN=lwrap
+SANDBOX_NET=1
+DONT_NOTIFY=1
+SQFUSE_REMOUNT=1
+ENABLE_HOSTEXEC=1
+LW_DIR="$HOME/.local/share/LutrisWine"
+RUNCACHEDIR="$LW_DIR/bin/cache"
+BWRAP_CAP+=("--cap-add" "CAP_SYS_ADMIN")
+NVIDIA_DRIVERS_DIR="$LW_DIR/bin/nvidia-drivers"

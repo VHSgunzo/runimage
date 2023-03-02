@@ -101,6 +101,8 @@ Environment variables to configure:
     NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
     ALLOW_BG=1                           Allows you to run processes in the background
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
+    NVIDIA_DRIVERS_DIR="/path/dir"       Specifies custom Nvidia driver images directory
+    RUNCACHEDIR="/path/dir"              Specifies custom runimage cache directory
     SQFUSE_REMOUNT=1                     Remounts the container using squashfuse (fix MangoHud and VkBasalt bug)
     OVERFS_MODE=1                        Enables OverlayFS mode
     KEEP_OVERFS=1                        Enables OverlayFS mode with saving after closing runimage
@@ -173,6 +175,8 @@ Other environment variables:
         PORTABLEHOMEDIR=""
     Cache directory:
         RUNCACHEDIR=""
+    Nvidia driver images directory:
+        NVIDIA_DRIVERS_DIR=""
     RunImage name or link name or executable name:
         RUNSRCNAME=""
     RunImage version:

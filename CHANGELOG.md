@@ -1,7 +1,18 @@
-# v0.38.4
+# v0.38.4 - [Unreleased]
 
-* Update `EAC` [patched](https://github.com/DissCent/glibc-eac-rc) `glibc` and `lib32-glibc` (2.37-2) in `superlite` version
+* Update `EAC` [patched](https://github.com/DissCent/glibc-eac-rc) `glibc` and `lib32-glibc` (2.37-2) to `superlite` version
 * Test on [Calculate](https://www.calculate-linux.org/)
+* Install `gstreamer-vaapi` `libvdpau-va-gl` `vdpauinfo` `lib32-mesa-vdpau` `lib32-lzo` `nvidia-vaapi-driver` to `superlite` version
+* Remove `lutris-wine-git` from `superlite` version
+* Install [lwrap](https://github.com/VHSgunzo/lutris-wine/lwrap) [Lutris Wine](https://github.com/VHSgunzo/lutris-wine) wrapper to `superlite` version
+* Install [GE-Proton](https://github.com/VHSgunzo/lutris-wine/tree/main/ge-proton) [Lutris Wine](https://github.com/VHSgunzo/lutris-wine) v7-49 to `superlite` version
+* Add default `wine` prefix backup for [Lutris Wine](https://github.com/VHSgunzo/lutris-wine) to `superlite` version `/rootfs/opt/lwrap/prefix_backups/defprefix.xz.lwpfx`
+* Add [Lutris Wine](https://github.com/VHSgunzo/lutris-wine) runtime libs to `superlite` version `/rootfs/opt/lwrap/runtime`
+* Add ability to specify `NVIDIA_DRIVERS_DIR` Nvidia driver images directory
+* Add ability to specify `RUNCACHEDIR` Cache directory
+* Replace `which` to `which_exe()`
+* Add `curl` progress bar to `try_dl()`
+* Add `config/lutris.rcfg` `runimage` configuration for `lutris`
 
 **=======================================================================================**
 

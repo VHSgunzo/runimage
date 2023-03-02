@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.38.3'
+export RUNIMAGE_VERSION='0.38.4'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -24,6 +24,8 @@ unset RO_MNT RUNROOTFS SQFUSE BWRAP NOT_TERM FOVERFS \
       RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP \
       SANDBOX_HOME_DIR MACHINEID_BIND
 
+which_exe() { command -v "$@" ; }
+
 [[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
     export LANG=en_US.UTF-8
 
@@ -36,9 +38,9 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
                 if [ -x "$(realpath "$ARGV0" 2>/dev/null)" ]
                     then
                         export RUNIMAGE="$(realpath "$ARGV0" 2>/dev/null)"
-                elif [ -x "$(realpath "$(which "$ARGV0" 2>/dev/null)" 2>/dev/null)" ]
+                elif [ -x "$(realpath "$(which_exe "$ARGV0")" 2>/dev/null)" ]
                     then
-                        export RUNIMAGE="$(realpath "$(which "$ARGV0" 2>/dev/null)" 2>/dev/null)"
+                        export RUNIMAGE="$(realpath "$(which_exe "$ARGV0")" 2>/dev/null)"
                 else
                     export RUNIMAGE="$ARGV0"
                 fi
@@ -46,9 +48,9 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
         if [ -x "$(realpath -s "$ARGV0" 2>/dev/null)" ]
             then
                 RUNSRC="$(realpath -s "$ARGV0" 2>/dev/null)"
-        elif [ -x "$(realpath -s "$(which "$ARGV0" 2>/dev/null)" 2>/dev/null)" ]
+        elif [ -x "$(realpath -s "$(which_exe "$ARGV0")" 2>/dev/null)" ]
             then
-                RUNSRC="$(realpath -s "$(which "$ARGV0" 2>/dev/null)" 2>/dev/null)"
+                RUNSRC="$(realpath -s "$(which_exe "$ARGV0")" 2>/dev/null)"
         else
             RUNSRC="$RUNIMAGE"
         fi
@@ -65,9 +67,9 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
                 if [ -x "$(realpath -s "$0" 2>/dev/null)" ]
                     then
                         RUNSRC="$(realpath -s "$0" 2>/dev/null)"
-                elif [ -x "$(realpath -s "$(which "$0" 2>/dev/null)" 2>/dev/null)" ]
+                elif [ -x "$(realpath -s "$(which_exe "$0")" 2>/dev/null)" ]
                     then
-                        RUNSRC="$(realpath -s "$(which "$0" 2>/dev/null)" 2>/dev/null)"
+                        RUNSRC="$(realpath -s "$(which_exe "$0")" 2>/dev/null)"
                 else
                     RUNSRC="$RUNDIR/Run"
                 fi
@@ -168,12 +170,8 @@ mount_exist() {
 }
 
 is_sys_exe() {
-    if [[ -x "$(which -a "$1" 2>/dev/null|grep -v "$RUNSTATIC"|head -1)" ]]
-        then
-            return 0
-        else
-            return 1
-    fi
+    [[ -x "$(which -a "$1" 2>/dev/null|grep -v "$RUNSTATIC"|head -1)" ]] && \
+        return 0||return 1
 }
 
 which_sys_exe() { which -a "$1" 2>/dev/null|grep -v "$RUNSTATIC"|head -1 ; }
@@ -183,16 +181,16 @@ try_dl() {
       FILEDIR="$2"||\
       FILEDIR="."
     FILENAME="$(basename "$1")"
-    if which aria2c &>/dev/null
+    if which_exe aria2c
         then
             aria2c -x 13 -s 13 --allow-overwrite -d "$FILEDIR" "$1"
-    elif which wget &>/dev/null
+    elif which_exe wget
         then
             wget -q --show-progress --no-check-certificate --content-disposition \
                 -t 3 -T 5 -w 0.5 "$1" -O "$FILEDIR/$FILENAME"
-    elif which curl &>/dev/null
+    elif which_exe curl
         then
-            curl --insecure --fail -L "$1" -o "$FILEDIR/$FILENAME"
+            curl --progress-bar --insecure --fail -L "$1" -o "$FILEDIR/$FILENAME"
     else
         error_msg "Downloader not found!"
         return 1
@@ -205,34 +203,34 @@ get_nvidia_driver_image() {
         then
             [ ! -n "$nvidia_version" ] && \
                 nvidia_version="$1"
-            [[ -d "$2" && ! -n "$nvidia_drivers_dir" ]] && \
-                nvidia_drivers_dir="$2"
-            [[ ! -d "$2" && ! -n "$nvidia_drivers_dir" ]] && \
-                nvidia_drivers_dir="."
+            [[ -d "$2" && ! -n "$NVIDIA_DRIVERS_DIR" ]] && \
+                NVIDIA_DRIVERS_DIR="$2"
+            [[ ! -d "$2" && ! -n "$NVIDIA_DRIVERS_DIR" ]] && \
+                NVIDIA_DRIVERS_DIR="."
             [ ! -n "$nvidia_driver_image" ] && \
                 nvidia_driver_image="$nvidia_version.nv.drv"
-            try_mkdir "$nvidia_drivers_dir"
+            try_mkdir "$NVIDIA_DRIVERS_DIR"
             info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
             nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
             driver_url_list=("https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image" \
                              "https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run")
-            if try_dl "${driver_url_list[0]}" "$nvidia_drivers_dir"
+            if try_dl "${driver_url_list[0]}" "$NVIDIA_DRIVERS_DIR"
                 then
                     return 0
-            elif try_dl "${driver_url_list[1]}" "$nvidia_drivers_dir"
+            elif try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"
                 then
                     trash_libs="libEGL.so.1.1.0 libGLdispatch.so.0 \
                         libGLESv1_CM.so.1.2.0 libGLESv2.so.2.1.0 libGL.so.1.7.0 \
                         libGLX.so.0 libOpenCL.so.1.0.0 libOpenGL.so.0 \
                         libnvidia-opencl* libnvidia-compiler* libcudadebugger*"
-                    chmod u+x "$nvidia_drivers_dir/$nvidia_driver_run"
+                    chmod u+x "$NVIDIA_DRIVERS_DIR/$nvidia_driver_run"
                     info_msg "Unpacking $nvidia_driver_run..."
-                    (cd "$nvidia_drivers_dir" && \
+                    (cd "$NVIDIA_DRIVERS_DIR" && \
                         "./$nvidia_driver_run" -x &>/dev/null
                         rm -f "$nvidia_driver_run"
                         mv -f "NVIDIA-Linux-x86_64-${nvidia_version}" "$nvidia_version")
                     info_msg "Creating a driver directory structure..."
-                    (cd "$nvidia_drivers_dir/$nvidia_version" && \
+                    (cd "$NVIDIA_DRIVERS_DIR/$nvidia_version" && \
                         rm -rf html kernel* libglvnd_install_checker 32/libglvnd_install_checker \
                             supported-gpus systemd *.gz *.bz2 *.txt *Changelog LICENSE \
                             .manifest *.desktop *.png firmware 2>/dev/null
@@ -246,13 +244,13 @@ get_nvidia_driver_image() {
                             nvidia-persistenced nvidia-powerd nvidia-settings nvidia-smi nvidia-xconfig bin
                         try_mkdir 64 && mv *.so* 64)
                     info_msg "Creating a squashfs driver image..."
-                    info_msg "$nvidia_drivers_dir/$nvidia_driver_image"
+                    info_msg "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image"
                     echo -en "$BLUE"
-                    if "$MKSQFS" "$nvidia_drivers_dir/$nvidia_version" "$nvidia_drivers_dir/$nvidia_driver_image" \
+                    if "$MKSQFS" "$NVIDIA_DRIVERS_DIR/$nvidia_version" "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image" \
                         -root-owned -no-xattrs -noappend -b 1M -comp zstd -Xcompression-level 19 -quiet
                         then
                             info_msg "Deleting the source directory of the driver..."
-                            rm -rf "$nvidia_drivers_dir/$nvidia_version"
+                            rm -rf "$NVIDIA_DRIVERS_DIR/$nvidia_version"
                             return 0
                         else
                             return 1
@@ -260,10 +258,10 @@ get_nvidia_driver_image() {
                     echo -en "$RESETCOLOR"
                 else
                     error_msg "Failed to download nvidia driver!"
-                    [ -f "$nvidia_drivers_dir/$nvidia_driver_image" ] && \
-                        rm -f "$nvidia_drivers_dir/$nvidia_driver_image"* 2>/dev/null
-                    [ -f "$nvidia_drivers_dir/$nvidia_driver_run" ] && \
-                        rm -f "$nvidia_drivers_dir/$nvidia_driver_run"* 2>/dev/null
+                    [ -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image" ] && \
+                        rm -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image"* 2>/dev/null
+                    [ -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_run" ] && \
+                        rm -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_run"* 2>/dev/null
                     return 1
             fi
         else
@@ -348,7 +346,8 @@ check_nvidia_driver() {
     if lsmod|grep nvidia &>/dev/null || nvidia-smi &>/dev/null
         then
             unset nvidia_driver_dir
-            nvidia_drivers_dir="$RUNIMAGEDIR/nvidia-drivers"
+            [ ! -n "$NVIDIA_DRIVERS_DIR" ] && \
+                export NVIDIA_DRIVERS_DIR="$RUNIMAGEDIR/nvidia-drivers"
             if modinfo nvidia &>/dev/null
                 then
                     nvidia_version="$(modinfo -F version nvidia 2>/dev/null)"
@@ -374,34 +373,34 @@ check_nvidia_driver() {
                                     NVDRVMNT="/tmp/.mount_nv${nvidia_version}drv.$RUNPID"
                                     [ "$nvidia_version_inside" != "000.00.00" ] && \
                                         warn_msg "Nvidia driver version mismatch detected, trying to fix it"
-                                    if [ ! -f "$nvidia_drivers_dir/$nvidia_version/64/nvidia_drv.so" ] && \
+                                    if [ ! -f "$NVIDIA_DRIVERS_DIR/$nvidia_version/64/nvidia_drv.so" ] && \
                                         [ ! -f "$RUNIMAGEDIR/$nvidia_driver_image" ] && \
-                                        [ ! -f "$nvidia_drivers_dir/$nvidia_driver_image" ] && \
+                                        [ ! -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image" ] && \
                                         [ ! -f "$NVDRVMNT/64/nvidia_drv.so" ] && \
                                         [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/nvidia_drv.so" ] && \
                                         [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_driver_image" ]
                                         then
-                                            if get_nvidia_driver_image
+                                            if DONT_NOTIFY=0 QUIET_MODE=0 get_nvidia_driver_image
                                                 then
-                                                    mount_nvidia_driver_image "$nvidia_drivers_dir/$nvidia_driver_image"
+                                                    mount_nvidia_driver_image "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image"
                                                 else
-                                                    nvidia_driver_dir="$nvidia_drivers_dir/$nvidia_version"
+                                                    nvidia_driver_dir="$NVIDIA_DRIVERS_DIR/$nvidia_version"
                                             fi
                                         else
                                             if [ -f "$NVDRVMNT/64/nvidia_drv.so" ]
                                                 then
                                                     nvidia_driver_dir="$NVDRVMNT"
                                                     print_nv_drv_dir
-                                            elif [ -f "$nvidia_drivers_dir/$nvidia_version/64/nvidia_drv.so" ]
+                                            elif [ -f "$NVIDIA_DRIVERS_DIR/$nvidia_version/64/nvidia_drv.so" ]
                                                 then
-                                                    nvidia_driver_dir="$nvidia_drivers_dir/$nvidia_version"
+                                                    nvidia_driver_dir="$NVIDIA_DRIVERS_DIR/$nvidia_version"
                                                     print_nv_drv_dir
                                             elif [ -f "$RUNIMAGEDIR/$nvidia_driver_image" ]
                                                 then
                                                     mount_nvidia_driver_image "$RUNIMAGEDIR/$nvidia_driver_image"
-                                            elif [ -f "$nvidia_drivers_dir/$nvidia_driver_image" ]
+                                            elif [ -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image" ]
                                                 then
-                                                    mount_nvidia_driver_image "$nvidia_drivers_dir/$nvidia_driver_image"
+                                                    mount_nvidia_driver_image "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image"
                                             elif [ -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/nvidia_drv.so" ]
                                                 then
                                                     nvidia_driver_dir="$RUNDIR/nvidia-drivers/$nvidia_version"
@@ -1101,6 +1100,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
         ${YELLOW}ALLOW_BG$GREEN=1                           Allows you to run processes in the background
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
+        ${YELLOW}NVIDIA_DRIVERS_DIR$GREEN=\"/path/dir\"       Specifies custom Nvidia driver images directory
+        ${YELLOW}RUNCACHEDIR$GREEN=\"/path/dir\"              Specifies custom runimage cache directory
         ${YELLOW}SQFUSE_REMOUNT$GREEN=1                     Remounts the container using squashfuse (fix MangoHud and VkBasalt bug)
         ${YELLOW}OVERFS_MODE$GREEN=1                        Enables OverlayFS mode
         ${YELLOW}KEEP_OVERFS$GREEN=1                        Enables OverlayFS mode with saving after closing runimage
@@ -1173,6 +1174,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}RUNCONFIGDIR${GREEN}=\"$RUNCONFIGDIR\"
         ${GREEN}Cache directory:
             ${YELLOW}RUNCACHEDIR${GREEN}=\"$RUNCACHEDIR\"
+        ${GREEN}Nvidia driver images directory:
+            ${YELLOW}NVIDIA_DRIVERS_DIR${GREEN}=\"$NVIDIA_DRIVERS_DIR\"
         ${GREEN}RunImage name or link name or executable name:
             ${YELLOW}RUNSRCNAME${GREEN}=\"$RUNCACHEDIR\"
         ${GREEN}RunImage version:
@@ -1679,7 +1682,7 @@ if [ "$EUID" != 0 ]
                 SYS_BWRAP=1
                 [ ! -n "$(echo "$PATH"|grep -wo '^/usr/bin:')" ] && \
                     export PATH="/usr/bin:$PATH"
-                if [ ! -x "$(find "$(which bwrap 2>/dev/null)" -perm -u=s 2>/dev/null)" ]
+                if [ ! -x "$(find "$(which_exe bwrap)" -perm -u=s 2>/dev/null)" ]
                     then
                         [ ! -x '/tmp/bwrap' ] && \
                             rm -rf '/tmp/bwrap' && \
