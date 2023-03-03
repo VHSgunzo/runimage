@@ -746,6 +746,7 @@ try_kill() {
                                 kill -9 $pid 2>/dev/null
                                 ret=$?
                                 wait_pid "$pid"
+                                break
                             fi
                             trykillnum="$(( $trykillnum + 1 ))"
                     done

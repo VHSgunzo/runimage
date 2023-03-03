@@ -13,6 +13,7 @@
 * Replace `which` to `which_exe()`
 * Add `curl` progress bar to `try_dl()`
 * Add `config/lutris.rcfg` `runimage` configuration for `lutris`
+* Fix `try_kill()`
 
 **=======================================================================================**
 
