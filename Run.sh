@@ -176,19 +176,21 @@ is_sys_exe() {
 
 which_sys_exe() { which -a "$1" 2>/dev/null|grep -v "$RUNSTATIC"|head -1 ; }
 
+is_exe_exist() { command -v "$@" &>/dev/null ; }
+
 try_dl() {
     [ -n "$2" ] && \
       FILEDIR="$2"||\
       FILEDIR="."
     FILENAME="$(basename "$1")"
-    if which_exe aria2c
+    if is_exe_exist aria2c
         then
             aria2c -x 13 -s 13 --allow-overwrite -d "$FILEDIR" "$1"
-    elif which_exe wget
+    elif is_exe_exist wget
         then
             wget -q --show-progress --no-check-certificate --content-disposition \
                 -t 3 -T 5 -w 0.5 "$1" -O "$FILEDIR/$FILENAME"
-    elif which_exe curl
+    elif is_exe_exist curl
         then
             curl --progress-bar --insecure --fail -L "$1" -o "$FILEDIR/$FILENAME"
     else
