@@ -4,4 +4,4 @@ unset AUTORUN
 SQFUSE_REMOUNT=1
 RUNSRCNAME=runimage
 [ ! -L "$RUNIMAGEDIR/runimage" ] && \
-ln -srf "$RUNSRC" "$RUNIMAGEDIR/runimage"
+ln -srf "$RUNIMAGE" "$RUNIMAGEDIR/runimage"

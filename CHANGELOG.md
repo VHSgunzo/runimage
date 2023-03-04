@@ -13,7 +13,11 @@
 * Replace `which` to `which_exe()`
 * Add `curl` progress bar to `try_dl()`
 * Add `config/lutris.rcfg` `runimage` configuration for `lutris`
-* Fix `try_kill()`
+* Remove `wait_pid()` and Fix `try_kill()`
+* Fix `get_bwpids()`
+* Fix sometimes failed creating `SANDBOX_NET` on slow system
+* Change `config/sw_runtime.rcfg`
+* Install `wmctrl` to `superlite` version
 
 **=======================================================================================**
 
@@ -44,7 +48,7 @@
 * Remove `MEGAcmd` repository
 * Add launching `socat` `dbus` proxy if `*_NET*` and `DBUS_SESSION_BUS_ADDRESS` =~ `unix:abstract`
 * Add `RUNPPID` Parent PID of `Run.sh` script
-* Fix sometime killing parent PID on container exit if `PID_MAX` is too small
+* Fix sometimes killing parent PID on container exit if `PID_MAX` is too small
 * Add warning and recomendation if `PID_MAX` is less than `4194304`
 * Remove `headpid`
 * Add [ptyspawn](https://github.com/VHSgunzo/ptyspawn)

@@ -701,28 +701,6 @@ force_kill() {
         info_msg "RunImage successfully killed!"
 }
 
-wait_pid() {
-    if [ -n "$1" ]
-        then
-            if [ "$UNLIM_WAIT" == 1 ]
-                then
-                    while [ -d "/proc/$1" ]
-                        do sleep 0.1
-                    done
-                else
-                    [ -n "$2" ] && \
-                        timeout="$2"||
-                        timeout="100"
-                    waittime=1
-                    while [[ -d "/proc/$1" && "$waittime" -le "$timeout" ]]
-                        do
-                            sleep 0.01
-                            waittime="$(( $waittime + 1 ))"
-                    done
-            fi
-    fi
-}
-
 try_kill() {
     ret=1
     if [ -n "$1" ]
@@ -745,7 +723,6 @@ try_kill() {
                             else
                                 kill -9 $pid 2>/dev/null
                                 ret=$?
-                                wait_pid "$pid"
                                 break
                             fi
                             trykillnum="$(( $trykillnum + 1 ))"
@@ -799,11 +776,11 @@ get_bwpids() {
         rpidsfl="$RPIDSFL"
     if [ -f "$rpidsfl" ]
         then
-            ps -o pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|\
+            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|\
             grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|grep -v "socat .*/tmp/.rdbus.*"|\
             grep -v "socat .*/tmp/.shell.*"|grep -v "RunDir.*/static/"|grep -v "squashfuse.*$RUNIMAGEDIR.*offset="|\
             grep -v "\.nv\.drv /tmp/\.mount_nv.*drv\."|grep -v "fuse-overlayfs .*/cache/overlayfs/"|\
-            grep -v "bwrap .*/cache/overlayfs/"|grep -v "bwrap .*/tmp/\.mount.*"|awk '{print$1}'
+            grep -v "bwrap .*/cache/overlayfs/"|grep -v "bwrap .*/tmp/\.mount.*"|awk '{print$2}'
         else
             return 1
     fi
@@ -813,8 +790,9 @@ get_child_pids() {
     if [[ -n "$1" && -d "/proc/$1" ]]
         then
             local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
-            ps -o pid=,cmd= -p $child_pids 2>/dev/null|grep -v "bash $RUNDIR/Run.sh"|\
-            grep -Pv '\d+ sleep \d+'|grep -wv "$RUNPPID"|awk '{print$1}'|sort -nu
+            ps -o user=,pid=,cmd= -p $child_pids 2>/dev/null|grep "^$RUNUSER"|\
+            grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|\
+            grep -wv "$RUNPPID"|awk '{print$2}'|sort -nu
         else
             return 1
     fi
@@ -838,12 +816,19 @@ bwrun() {
             (while [[ -d "/proc/$RUNPID" && ! -f "$BWINFFL" ]]
                 do sleep 0.01
             done
+            unset bwchildpid
+            while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" && \
+                ! -n "$bwchildpid" ]] && ! kill -0 "$bwchildpid" 2>/dev/null
+                do
+                    bwchildpid="$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')"
+                    sleep 0.01
+            done
             info_msg "Creating a network sandbox..."
             "$SLIRP" --configure --disable-host-loopback \
                 $([ -n "$SANDBOX_NET_CIDR" ] && echo "--cidr=$SANDBOX_NET_CIDR") \
                 $([ -n "$SANDBOX_NET_MTU" ] && echo "--mtu=$SANDBOX_NET_MTU") \
                 $([ -n "$SANDBOX_NET_MAC" ] && echo "--macaddress=$SANDBOX_NET_MAC") \
-                "$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')" \
+                "$bwchildpid" \
                 $([ -n "$SANDBOX_NET_TAPNAME" ] && echo "$SANDBOX_NET_TAPNAME"||echo 'eth0') &
             SLIRP_PID=$!
             sleep 0.1
