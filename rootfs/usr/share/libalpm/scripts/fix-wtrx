@@ -1,0 +1,7 @@
+#!/usr/bin/bash
+
+if [ -n "$(grep -o 'a3f1bf98-18f3-4036-9b68-8e6de530ce0a' '/usr/bin/winetricks')" ]
+    then
+        sed -i 's@https://download.microsoft.com/download/a/3/f/a3f1bf98-18f3-4036-9b68-8e6de530ce0a/NetFx64.exe@https://github.com/VHSgunzo/dotnet20/releases/download/dotnet20/NetFx64.exe@' \
+            "/usr/bin/winetricks" 2>/dev/null
+fi

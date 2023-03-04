@@ -18,6 +18,7 @@
 * Fix sometimes failed creating `SANDBOX_NET` on slow system
 * Change `config/sw_runtime.rcfg`
 * Install `wmctrl` to `superlite` version
+* Add `fix-wtrx` pacman hook to `superlite` version
 
 **=======================================================================================**
 
