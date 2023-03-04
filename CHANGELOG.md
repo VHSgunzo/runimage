@@ -1,5 +1,6 @@
-# v0.38.4 - [Unreleased]
+# v0.38.4
 
+* Update rootfs v0.38.4 23.03.04
 * Update `EAC` [patched](https://github.com/DissCent/glibc-eac-rc) `glibc` and `lib32-glibc` (2.37-2) to `superlite` version
 * Test on [Calculate](https://www.calculate-linux.org/)
 * Install `gstreamer-vaapi` `libvdpau-va-gl` `vdpauinfo` `lib32-mesa-vdpau` `lib32-lzo` `nvidia-vaapi-driver` to `superlite` version
@@ -19,6 +20,17 @@
 * Change `config/sw_runtime.rcfg`
 * Install `wmctrl` to `superlite` version
 * Add `fix-wtrx` pacman hook to `superlite` version
+---------------------------------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/pkg_list.txt)
+* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/pkg_list-superlite.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+47f8d5987d68860bfa334e6e5502220c5dae5c14eeb2b2e26dcd92c84aa0c84f  runimage
+61ac5c7719a15eed02a16a7ccfe738f953776718f5de2b1369dc4b2505da5b59  runimage.superlite
+```
+---------------------------------------------------------------------------------------------------------------------------------------------------
+The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
 
 **=======================================================================================**
 
