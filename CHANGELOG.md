@@ -1,9 +1,21 @@
-# v0.38.5 - [Unreleased]
+# v0.38.5
 
+* Update rootfs v0.38.5 23.03.09
 * Update `lwrap` v0.76.5 in superlite version
 * Update `GE-Proton` v7-50 in superlite version
 * Test on [EasyOS](https://easyos.org)
 * Change `chaotic-mirrorlist`
+---------------------------------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/pkg_list.txt)
+* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/pkg_list-superlite.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+73c7ea7128ddddae782f110abc0b04d8199dd7d853a0bfb0303e55e401fc4a72  runimage
+7f223d5c77c19ffb1e23de1131e26a685350297cbb0fee60da4a3ba22e70ba7d  runimage.superlite
+```
+---------------------------------------------------------------------------------------------------------------------------------------------------
+The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `GE-Proton`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
 
 **=======================================================================================**
 
@@ -39,7 +51,7 @@
 61ac5c7719a15eed02a16a7ccfe738f953776718f5de2b1369dc4b2505da5b59  runimage.superlite
 ```
 ---------------------------------------------------------------------------------------------------------------------------------------------------
-The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
+The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `GE-Proton`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
 
 **=======================================================================================**
 
