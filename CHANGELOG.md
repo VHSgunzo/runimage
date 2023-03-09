@@ -1,3 +1,12 @@
+# v0.38.5 - [Unreleased]
+
+* Update `lwrap` v0.76.5
+* Update `GE-Proton` v7-50
+* Test on [EasyOS](https://easyos.org)
+* Change `chaotic-mirrorlist`
+
+**=======================================================================================**
+
 # v0.38.4
 
 * Update rootfs v0.38.4 23.03.04

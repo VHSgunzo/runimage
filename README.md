@@ -544,6 +544,7 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [Clear Linux](https://clearlinux.org/)
 * [Debian](https://www.debian.org/)
 * [Deepin](https://www.deepin.org/)
+* [EasyOS](https://easyos.org)
 * [ElementaryOS](https://elementary.io/)
 * [EndeavourOS](https://endeavouros.com/)
 * [EuroLinux](https://en.euro-linux.com/)

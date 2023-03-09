@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.38.4'
+export RUNIMAGE_VERSION='0.38.5'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
