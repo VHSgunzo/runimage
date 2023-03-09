@@ -1,7 +1,7 @@
 # v0.38.5 - [Unreleased]
 
-* Update `lwrap` v0.76.5
-* Update `GE-Proton` v7-50
+* Update `lwrap` v0.76.5 in superlite version
+* Update `GE-Proton` v7-50 in superlite version
 * Test on [EasyOS](https://easyos.org)
 * Change `chaotic-mirrorlist`
 
