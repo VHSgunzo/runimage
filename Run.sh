@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.38.5'
+export RUNIMAGE_VERSION='0.38.6'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -2052,22 +2052,33 @@ fi
 
 if [[ "$SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
     then
+        tun_err_text="SANDBOX_NET enabled, but /dev/net/tun not found!"
+        disable_sandbox_net() {
+            unset SANDBOX_NET SANDBOX_NET_CIDR SANDBOX_NET_HOSTS SANDBOX_NET_MAC \
+                    SANDBOX_NET_MTU SANDBOX_NET_RESOLVCONF SANDBOX_NET_TAPNAME
+            warn_msg "SANDBOX_NET is disabled for now!"
+        }
         if [ "$EUID" == 0 ]
             then
-                warn_msg "SANDBOX_NET enabled, but /dev/net/tun not found!"
-                info_msg "Trying to create /dev/net/tun..."
-                try_mkdir /dev/net
-                mknod /dev/net/tun -m 0600 c 10 200
+                warn_msg "$tun_err_text"
+                if ! (modinfo tun|grep -wo builtin &>/dev/null) && \
+                   ! (lsmod|grep -wo tun &>/dev/null)
+                    then
+                        info_msg "Trying to load tun/tap module..."
+                        if ! modprobe tun
+                            then
+                                error_msg "Failed to load tun/tap module!"
+                                disable_sandbox_net
+                        fi
+                fi
             else
-                error_msg "SANDBOX_NET enabled, but /dev/net/tun not found!"
+                error_msg "$tun_err_text"
                 if ! console_info_notify
                     then
-                        echo -e "${YELLOW}You need to create /dev/net/tun:"
-                        echo -e "${RED}# ${GREEN}sudo mkdir -p /dev/net"
-                        echo -e "${RED}# ${GREEN}sudo mknod /dev/net/tun -m 0600 c 10 200'$RESETCOLOR"
+                        echo -e "${YELLOW}You need to load tun/tap module and add it to autostart:"
+                        echo -e "${RED}# ${GREEN}sudo modprobe tun"
                 fi
-                cleanup force
-                exit 1
+                disable_sandbox_net
         fi
 fi
 
