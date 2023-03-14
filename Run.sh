@@ -1016,9 +1016,12 @@ run_update() {
             warn_msg "Forced update enabled!"
             PACARGS="-dd"
     fi
+    [[ "$RUNROOTFSTYPE" == "superlite" ]] && \
+        unset blackarch_keyring||\
+        blackarch_keyring="blackarch-keyring"
     QUIET_MODE=1 NO_NVIDIA_CHECK=1 bwrun /usr/bin/bash -c \
         "/usr/bin/pac -Sy archlinux-keyring chaotic-keyring \
-        blackarch-keyring --needed --noconfirm && \
+        $blackarch_keyring --needed --noconfirm && \
         /usr/bin/pac -Su $PACARGS --noconfirm --overwrite '*'"
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]

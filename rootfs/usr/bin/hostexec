@@ -77,14 +77,34 @@ set_terminal() {
         then args+=("gnome-terminal" "--wait" "--")
     elif hostexec which xfce4-terminal &>/dev/null
         then args+=("xfce4-terminal" "--disable-server" "-x")
+    elif hostexec which qterminal &>/dev/null
+        then args+=("qterminal" "-e")
     elif hostexec which kitty &>/dev/null
         then args+=("kitty" "-e")
     elif hostexec which deepin-terminal &>/dev/null
         then args+=("deepin-terminal" "-e")
     elif hostexec which lxterminal &>/dev/null
         then args+=("lxterminal" "-e")
+    elif hostexec which roxterm &>/dev/null
+        then args+=("roxterm" "-e")
+    elif hostexec which alacritty &>/dev/null
+        then args+=("alacritty" "-e")
+    elif hostexec which tilix &>/dev/null
+        then args+=("tilix" "-e")
+    elif hostexec which st &>/dev/null
+        then args+=("st" "-e")
+    elif hostexec which cool-retro-term &>/dev/null
+        then args+=("cool-retro-term" "-e")
     elif hostexec which xterm &>/dev/null
         then args+=("xterm" "-bg" "black" "-fg" "white" "-e")
+    elif hostexec which sakura &>/dev/null # next terminals don't recognize spaces
+        then args+=("sakura" "-e")
+    elif hostexec which terminology &>/dev/null
+        then args+=("terminology" "-e")
+    elif hostexec which terminator &>/dev/null
+        then args+=("terminator" "-e") # need
+    elif hostexec which tilda &>/dev/null
+        then args+=("tilda" "-c")
     else
         error_msg "The terminal application cannot be detected!"
         return 1

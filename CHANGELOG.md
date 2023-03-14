@@ -1,6 +1,9 @@
 # v0.38.6 - [Unreleased]
 
 * Change the method of checking `/dev/net/tun`
+* Remove `blackarch` repository form `superlite` version
+* Freeze `reshade-shaders-git` in `superlite` version
+* Add `qterminal` `roxterm` `alacritty` `tilix` `st` `cool-retro-term` `sakura` `terminology` `terminator` `tilda` to `hostexec` terminal detector
 
 **=======================================================================================**
 
