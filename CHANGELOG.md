@@ -1,11 +1,14 @@
-# v0.38.6 - [Unreleased]
+# v0.38.6
 
 * Change the method of checking `/dev/net/tun`
 * Remove `blackarch` repository form `superlite` version
 * Freeze `reshade-shaders-git` in `superlite` version
 * Add `qterminal` `roxterm` `alacritty` `tilix` `st` `cool-retro-term` `sakura` `terminology` `terminator` `tilda` to `hostexec` terminal detector
 * Update `GE-Proton` v7-51 in `superlite` version
-* Update `lwrap` v0.76.6 in `superlite` version
+* Update `lwrap` v0.76.7 in `superlite` version
+* Improved file download function `try_dl()`
+* Improved `get_nvidia_driver_image()` function
+* Update `config/lwrun.rcfg`
 
 **=======================================================================================**
 

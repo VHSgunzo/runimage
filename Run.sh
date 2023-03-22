@@ -178,26 +178,157 @@ which_sys_exe() { which -a "$1" 2>/dev/null|grep -v "$RUNSTATIC"|head -1 ; }
 
 is_exe_exist() { command -v "$@" &>/dev/null ; }
 
-try_dl() {
-    [ -n "$2" ] && \
-      FILEDIR="$2"||\
-      FILEDIR="."
-    FILENAME="$(basename "$1")"
-    if is_exe_exist aria2c
-        then
-            aria2c -x 13 -s 13 --allow-overwrite -d "$FILEDIR" "$1"
-    elif is_exe_exist wget
-        then
-            wget -q --show-progress --no-check-certificate --content-disposition \
-                -t 3 -T 5 -w 0.5 "$1" -O "$FILEDIR/$FILENAME"
-    elif is_exe_exist curl
-        then
-            curl --progress-bar --insecure --fail -L "$1" -o "$FILEDIR/$FILENAME"
-    else
-        error_msg "Downloader not found!"
+yn_case() {
+    while true
+        do
+            read -p "$(echo -e "${RED}$1 ${GREEN}(y/n) ${BLUE}> $RESETCOLOR")" yn
+            case $yn in
+                [Yy] ) return 0 ;;
+                [Nn] ) return 1 ;;
+            esac
+    done
+}
+
+check_url_stat_code() { curl -sL -o /dev/null -I -w "%{http_code}" "$@" 2>/dev/null ; }
+
+is_url() {
+    [ ! -n "$1" ] && \
         return 1
+    if [ -n "$2" ]
+        then [ "$(check_url_stat_code "$1")" == "$2" ]
+        else [ "$(check_url_stat_code "$1")" == "200" ]
     fi
-    return $?
+}
+
+try_dl() {
+    err_no_downloader() {
+        error_msg "Downloader not found!"
+        cleanup force
+        exit 1
+    }
+    rm_fail_dl() {
+        [ -f "$FILEDIR/$FILENAME" ] && \
+            rm -rf "$FILEDIR/$FILENAME" \
+            "$FILEDIR/$FILENAME"*.aria2
+    }
+    dl_ret() {
+        if [ "$1" != 0 ]
+            then
+                rm_fail_dl
+                dl_repeat && \
+                try_dl "$URL" "$FILEDIR/$FILENAME"||\
+                return 1
+            else return 0
+        fi
+    }
+    dl_repeat() {
+        [ "$NO_DL_REPEAT" == 1 ] && \
+            return 1
+        DL_REP_TITLE="Download interrupted!"
+        DL_REP_TEXT="Failed to download: $FILENAME \nWould you like to repeat it?"
+        if [[ "$NOT_TERM" != 1 || "$NO_DL_GUI" == 1 ]]
+            then
+                yn_case "$DL_REP_TEXT"||return 1
+        elif is_exe_exist yad
+            then
+                yad --image="dialog-error" --button="CANCEL:1" --center \
+                    --button="REPEAT:0" --title="$DL_REP_TITLE" \
+                    --text="$DL_REP_TEXT" --on-top --fixed
+        elif is_exe_exist zenity
+            then
+                zenity --question --title="$DL_REP_TITLE" --no-wrap \
+                    --text="$DL_REP_TEXT"
+        else return 1
+        fi
+    }
+    if [ -n "$1" ]
+        then
+            URL="$1"
+            if [ -n "$2" ]
+                then
+                    if [ -d "$2" ]
+                        then
+                            FILEDIR="$2"
+                            FILENAME="$(basename "$1")"
+                        else
+                            FILEDIR="$(dirname "$2")"
+                            FILENAME="$(basename "$2")"
+                    fi
+                else
+                    FILEDIR="."
+                    FILENAME="$(basename "$1")"
+            fi
+            if is_url "$URL"
+                then
+                    [ ! -d "$FILEDIR" ] && \
+                        try_mkdir "$FILEDIR"
+                    if [[ "$NOT_TERM" == 1 && "$NO_DL_GUI" != 1 ]] && \
+                        (is_exe_exist yad||is_exe_exist zenity)
+                        then
+                            set -o pipefail
+                            dl_progress() {
+                                [[ "$URL" =~ '&key=' ]] && \
+                                    local URL="$(echo "$URL"|sed "s|\&key=.*||g")"
+                                [[ "$URL" =~ '&' && ! "$URL" =~ '&amp;' ]] && \
+                                    local URL="$(echo "$URL"|sed "s|\&|\&amp;|g")"
+                                if is_exe_exist yad
+                                    then
+                                        yad --progress --percentage=0 --text="Download:\t$FILENAME\n$URL" \
+                                            --auto-close --no-escape --selectable-labels --auto-kill \
+                                            --center --on-top --fixed --no-buttons --undecorated --skip-taskbar
+                                elif is_exe_exist zenity
+                                    then
+                                        zenity --progress --text="Connecting to $URL" --width=650 --height=40 \
+                                            --auto-close --no-cancel --title="Download: $FILENAME"
+                                else return 1
+                                fi
+                            }
+                            if [ "$NO_ARIA2C" != 1 ] && is_exe_exist aria2c
+                                then
+                                    aria2c -x 13 -s 13 --allow-overwrite --summary-interval=1 -o \
+                                        "$FILENAME" -d "$FILEDIR" "$URL"|stdbuf -o0 grep 'ETA'|\
+                                        sed -u 's/(.*)/ &/;s/(//;s/)//;s/\[//;s/\]//;s/%//'|\
+                                        stdbuf -o0 awk '{print$3"\n#Downloading at "$2,$5,$6}'|\
+                                    dl_progress
+                            elif is_exe_exist wget
+                                then
+                                    wget --no-check-certificate --content-disposition -t 3 -T 5 \
+                                        -w 0.5 "$URL" -O "$FILEDIR/$FILENAME"|& tr '\r' '\n'|\
+                                        sed -u 's/.* \([0-9]\+%\)\ \+\([0-9,.]\+.\) \(.*\)/\1\n#Downloading at \1\, \2\/s, ETA \3/; s/^20[0-9][0-9].*/#Done./'|\
+                                    dl_progress
+                            elif is_exe_exist curl
+                                then
+                                    curl --progress-bar --insecure --fail -L "$1" -o \
+                                        "$FILEDIR/$FILENAME" |& tr '\r' '\n'|sed -ur 's/[# ]+/#/g;'|\
+                                    dl_progress
+                            else
+                                err_no_downloader
+                            fi
+                            dl_ret "${PIPESTATUS[0]}"||return 1
+                        else
+                            if [ "$NO_ARIA2C" != 1 ] && is_exe_exist aria2c
+                                then
+                                    aria2c -x 13 -s 13 --allow-overwrite -d "$FILEDIR" -o "$FILENAME" "$URL"
+                            elif is_exe_exist wget
+                                then
+                                    wget -q --show-progress --no-check-certificate --content-disposition \
+                                        -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME"
+                            elif is_exe_exist curl
+                                then
+                                    curl --progress-bar --insecure --fail -L "$URL" -o "$FILEDIR/$FILENAME"
+                            else
+                                err_no_downloader
+                            fi
+                            dl_ret "$?"||return 1
+                    fi
+                else
+                    error_msg "No download file found: $FILENAME"
+                    return 1
+            fi
+        else
+            error_msg "Specify download URL!"
+            return 1
+    fi
 }
 
 get_nvidia_driver_image() {
@@ -260,10 +391,6 @@ get_nvidia_driver_image() {
                     echo -en "$RESETCOLOR"
                 else
                     error_msg "Failed to download nvidia driver!"
-                    [ -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image" ] && \
-                        rm -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image"* 2>/dev/null
-                    [ -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_run" ] && \
-                        rm -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_run"* 2>/dev/null
                     return 1
             fi
         else
