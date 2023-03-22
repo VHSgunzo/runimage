@@ -1,5 +1,6 @@
 # v0.38.6
 
+* Update rootfs v0.38.6 23.03.22
 * Change the method of checking `/dev/net/tun`
 * Remove `blackarch` repository form `superlite` version
 * Freeze `reshade-shaders-git` in `superlite` version
@@ -9,6 +10,17 @@
 * Improved file download function `try_dl()`
 * Improved `get_nvidia_driver_image()` function
 * Update `config/lwrun.rcfg`
+---------------------------------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/pkg_list.txt)
+* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/pkg_list-superlite.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+d11478a3bdc2c672d6eb02bf8d604e56162d12d7faf3b0ffe8daa4f8321ab16c  runimage
+d87c8876b0bba848b0cf74407153e0cfb9f7ba8d1cf768a733f4774ee0b45766  runimage.superlite
+```
+---------------------------------------------------------------------------------------------------------------------------------------------------
+The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `GE-Proton`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
 
 **=======================================================================================**
 
