@@ -586,6 +586,7 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [Slax Linux](https://www.slax.org/)
 * [Solus](https://getsol.us/home/)
 * [SparkyLinux](https://sparkylinux.org/)
+* [SpiralLinux](https://spirallinux.github.io/)
 * [SteamOS (HoloISO)](https://github.com/theVakhovskeIsTaken/holoiso)
 * [Tails](https://tails.boum.org/)
 * [Ubuntu](https://ubuntu.com/)

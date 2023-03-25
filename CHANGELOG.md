@@ -12,7 +12,7 @@
 * Update `config/lwrun.rcfg`
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 * [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/pkg_list.txt)
-* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/pkg_list-superlite.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.6/pkg_list-superlite.txt)
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 ## sha256sum:
 ```
@@ -33,7 +33,7 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 * Change `chaotic-mirrorlist`
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 * [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/pkg_list.txt)
-* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/pkg_list-superlite.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.5/pkg_list-superlite.txt)
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 ## sha256sum:
 ```
@@ -69,7 +69,7 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 * Add `fix-wtrx` pacman hook to `superlite` version
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 * [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/pkg_list.txt)
-* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/pkg_list-superlite.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.4/pkg_list-superlite.txt)
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 ## sha256sum:
 ```
@@ -127,7 +127,7 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 * Rename and update internal `config/runimage_sw.rcfg` -> `config/sw_runtime.rcfg`
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 * [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/pkg_list.txt)
-* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/pkg_list-superlite.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.3/pkg_list-superlite.txt)
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 ## sha256sum:
 ```
@@ -164,7 +164,7 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 * Standard startup options for `runimage` args are applied after the rcfg config is applied
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 * [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/pkg_list.txt)
-* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/pkg_list-superlite.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.2/pkg_list-superlite.txt)
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 ## sha256sum:
 ```
@@ -252,7 +252,7 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 * Changed some `*_msg` in `Run.sh` `rundesktop`
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 * [runimage base](https://github.com/VHSgunzo/runimage/releases/download/v0.38.1/runimage.base) | [pkg_list-base.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.1/pkg_list-base.txt)
-* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.1/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.1/pkg_list-superlite.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.1/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.1/pkg_list-superlite.txt)
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 ## sha256sum:
 ```
@@ -280,7 +280,7 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 * Changed `bash-rc` hook
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 * [runimage base](https://github.com/VHSgunzo/runimage/releases/download/v0.38/runimage.base) | [pkg_list-base.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38/pkg_list-base.txt)
-* [runimage superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38/pkg_list-superlite.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38/pkg_list-superlite.txt)
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 ## sha256sum:
 ```
