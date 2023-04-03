@@ -1,3 +1,23 @@
+# v0.38.7
+
+* Update rootfs v0.38.7 23.04.03
+* Update `lwrap` v0.76.9 in `superlite` version
+* Update `GE-Proton` v7-53 in `superlite` version
+* Install [lsvkdev](https://github.com/VHSgunzo/lsvkdev) to `superlite` version
+---------------------------------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.7/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.7/pkg_list.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.7/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.7/pkg_list-superlite.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+5bbedebe98ef758153dbb1874b4aa214df6932427552e80497383c274d3aae0d  runimage
+01168377b0c86e18c46cd902e5f62d7ae25b341a86376259268ef2835432584b  runimage.superlite
+```
+---------------------------------------------------------------------------------------------------------------------------------------------------
+The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `GE-Proton`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
+
+**=======================================================================================**
+
 # v0.38.6
 
 * Update rootfs v0.38.6 23.03.22
