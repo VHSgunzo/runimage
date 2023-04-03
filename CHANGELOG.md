@@ -11,7 +11,7 @@
 ## sha256sum:
 ```
 5bbedebe98ef758153dbb1874b4aa214df6932427552e80497383c274d3aae0d  runimage
-01168377b0c86e18c46cd902e5f62d7ae25b341a86376259268ef2835432584b  runimage.superlite
+786fd5aaa557fbfc567695152afaa7750c05ecf36ac6b1a2e30e54d083f67a93  runimage.superlite
 ```
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `GE-Proton`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
