@@ -591,6 +591,7 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [Tails](https://tails.boum.org/)
 * [Ubuntu](https://ubuntu.com/)
 * [Ubuntu MATE](https://ubuntu-mate.org/)
+* [UBLinux](https://ublinux.ru/)
 * [Venom Linux](https://venomlinux.org/)
 * [Void Linux](https://voidlinux.org/)
 * [Whonix](https://www.whonix.org/)
