@@ -1,3 +1,23 @@
+# v0.38.8
+
+* Update rootfs v0.38.8 23.04.11
+* Update `lwrap` v0.77.1 in `superlite` version
+* Update [GE-Proton v7-55](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v7.55) in `superlite` version
+* Replace `lib32-mangohud` `mangohud` `mangohud-common` with [mangohud-lw-git](https://github.com/VHSgunzo/mangohud-lw) in `superlite` version
+---------------------------------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.8/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.8/pkg_list.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.8/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.8/pkg_list-superlite.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+05770343552faacc1c9c302bbd67c97adef1ba109203358b765f6c745acb44d1  runimage
+780fdbdd7540fe276239557d4954ff35db173711ddb1d2c79d1557951d09c54a  runimage.superlite
+```
+---------------------------------------------------------------------------------------------------------------------------------------------------
+The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `GE-Proton`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
+
+**=======================================================================================**
+
 # v0.38.7
 
 * Update rootfs v0.38.7 23.04.03
