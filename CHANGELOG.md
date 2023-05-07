@@ -1,3 +1,27 @@
+# v0.38.9
+
+* Update rootfs v0.38.9 23.05.07
+* Update `lwrap` v0.77.6 in `superlite` version
+* Disable `SANDBOX_NET` for `Lutris Wine` because `MangoHud` bug under `Wayland`
+* Update `mangohud-lw` v0.6.9.1.r44.g7b5c0a4 in `superlite` version
+* Add installing dependencies for `RunImage` desktop mode `rundesktop`
+* Update `Lutris Wine` runtime in `superlite` version
+* Test on [VanillaOS](https://vanillaos.org/)
+* Minor fixes
+---------------------------------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.38.9/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.9/pkg_list.txt)
+* [runimage.superlite](https://github.com/VHSgunzo/runimage/releases/download/v0.38.9/runimage.superlite) | [pkg_list-superlite.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.38.9/pkg_list-superlite.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+800740214ebe60d9a682f8f0e15e5d53ed30960ed3ccc88f99eb0570d073755e  runimage
+c60237ce1678313b81e81b0143be704321fcc2e0badd2c0298f790eb377e6d1c  runimage.superlite
+```
+---------------------------------------------------------------------------------------------------------------------------------------------------
+The `superlite` version includes all the necessary libraries to run 32-64 bit applications and games, also contains `steam`, `GE-Proton`, `lutris`, `MangoHud`, `VkBasalt`, `gamemode`, `reshade`, `gamescope`,  `latencyflex`, a lightweight file manager `spacefm`, `pluma` editor, `palemoon` browser and others (see `pkg_list-superlite.txt`). This version will be used as a runtime for other projects.
+
+**=======================================================================================**
+
 # v0.38.8
 
 * Update rootfs v0.38.8 23.04.11

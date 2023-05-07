@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.38.8'
+export RUNIMAGE_VERSION='0.38.9'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -958,7 +958,7 @@ bwrun() {
                 "$bwchildpid" \
                 $([ -n "$SANDBOX_NET_TAPNAME" ] && echo "$SANDBOX_NET_TAPNAME"||echo 'eth0') &
             SLIRP_PID=$!
-            sleep 0.1
+            sleep 0.2
             if [[ -n "$SLIRP_PID" && -d "/proc/$SLIRP_PID" ]]
                 then
                     while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" ]]
@@ -2362,7 +2362,7 @@ if [ -n "$AUTORUN" ]
                     --run-attach |--rA) shift ; run_attach "$@" ;;
                     --run-update |--rU) shift ; run_update "$@" ;;
                     --overfs-rm  |--oR) shift ; overlayfs_rm "$@" ;;
-                    --run-desktop|--rD) bwrun /usr/bin/rundesktop ;;
+                    --run-desktop|--rD) bwrun "/usr/bin/rundesktop" ;;
                     --run-shell  |--rS) shift ; bwrun "${RUN_SHELL[@]}" "$@" ;;
                     --run-procmon|--rPm) shift ; bwrun "/usr/bin/rpidsmon" "$@" ;;
                     --run-build  |--rB) shift ; "$RUNSTATIC/bash" "$RUNROOTFS/usr/bin/runbuild" "$@" ;;
