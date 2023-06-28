@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+
+for bin in pamac pamac-installer pamac-tray pamac-manager
+do
+mv -f "/usr/bin/$bin" "/usr/bin/_$bin"
+
+cat << EOF > "/usr/bin/$bin"
+#!/usr/bin/sh
+if [ "\$EUID" != 0 ]
+    then sudo /usr/bin/_$bin "\$@"
+    else /usr/bin/_$bin "\$@"
+fi
+EOF
+
+chmod +x "/usr/bin/$bin"
+done

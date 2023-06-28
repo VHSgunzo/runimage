@@ -1,0 +1,10 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/bin/ldconfig
+
+[Action]
+Description = Updating ldconfig...
+When = PostTransaction
+Exec = /usr/share/libalpm/scripts/fix-ldconfig

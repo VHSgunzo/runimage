@@ -96,10 +96,17 @@ Environment variables to configure:
     TMP_HOME_DL=1                        As above, but with binding $HOME/Downloads directory
     SANDBOX_HOME=1                       Creates sandbox home directory and bind it to /home/$USER or to /root
     SANDBOX_HOME_DL=1                    As above, but with binding $HOME/Downloads directory
+    SANDBOX_HOME_DIR="/path/dir"         Specifies sandbox home directory and bind it to /home/$USER or to /root
     PORTABLE_HOME=1                      Creates a portable home directory and uses it as $HOME
+    PORTABLE_HOME_DIR="/path/dir"        Specifies a portable home directory and uses it as $HOME
     PORTABLE_CONFIG=1                    Creates a portable config directory and uses it as $XDG_CONFIG_HOME
     NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
     ALLOW_BG=1                           Allows you to run processes in the background
+    UNSHARE_PIDS=1                       Unshares all host processes
+    UNSHARE_USERS=1                      Don't bind-mount /etc/{passwd,group}
+    SHARE_SYSTEMD=1                      Shares SystemD from the host
+    UNSHARE_DBUS=1                       Unshares DBUS from the host
+    UNSHARE_MODULES=1                    Unshares kernel modules from the host (/usr/lib/modules)
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
     NVIDIA_DRIVERS_DIR="/path/dir"       Specifies custom Nvidia driver images directory
     RUNCACHEDIR="/path/dir"              Specifies custom runimage cache directory
@@ -109,6 +116,9 @@ Environment variables to configure:
     OVERFS_ID=ID                         Specifies the OverlayFS ID
     KEEP_OLD_BUILD=1                     Creates a backup of the old RunImage when building a new one
     BUILD_WITH_EXTENSION=1               Adds an extension when building (compression method and rootfs type)
+    CMPRS_ALGO={zstd|xz|lz4}             Specifies the compression algo for runimage build
+    ZSDT_CMPRS_LVL={1-19}                Specifies the compression ratio of the zstd algo for runimage build
+    NO_RUNDIR_BIND=1                     Disables binding RunDir to /var/RunDir
     RUN_SHELL="shell"                    Selects $SHELL in runimage
     NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
                                             you can also use /usr/bin/nocap in runimage
@@ -116,7 +126,6 @@ Environment variables to configure:
     ALLOW_ROOT=1                         Allows to run runimage under root user
     QUIET_MODE=1                         Disables all non-error runimage messages
     DONT_NOTIFY=1                        Disables all non-error runimage notification
-    UNSHARE_PIDS=1                       Hides all system processes in runimage
     RUNTIME_EXTRACT_AND_RUN=1            Run runimage afer extraction without using FUSE
     TMPDIR="/path/{TMPDIR}"              Used for extract and run options
     RUNIMAGE_CONFIG="/path/{config}"     runimage сonfiguration file (0 to disable)
@@ -124,6 +133,7 @@ Environment variables to configure:
     NO_RPIDSMON=1                        Disables the monitoring thread of running processes
     FORCE_UPDATE=1                       Disables all checks when updating
     SANDBOX_NET=1                        Creates a network sandbox
+    SANDBOX_NET_SHARE_HOST=1             Creates a network sandbox with access to host loopback
     SANDBOX_NET_CIDR=11.22.33.0/24       Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
     SANDBOX_NET_TAPNAME=tap0             Specifies tap interface name in network sandbox (Def: eth0)
     SANDBOX_NET_MAC=B6:40:E0:8B:A6:D7    Specifies tap interface MAC in network sandbox (Def: random)
@@ -143,9 +153,9 @@ Environment variables to configure:
     SYS_SQFUSE=1                         Using system squashfuse
     SYS_UNSQFS=1                         Using system unsquashfs
     SYS_MKSQFS=1                         Using system mksquashfs
-    SYS_FOVERFS=1                        Using system fuse-overlayfs
+    SYS_UNIONFS=1                        Using system unionfs
     SYS_SLIRP=1                          Using system slirp4netns
-    SYS_TOOLS=1                          Using all these binaries from the system
+    SYS_TOOLS=1                          Using all binaries from the system
                                          If they are not found in the system - auto return to the built-in
 
 Other environment variables:
@@ -197,7 +207,7 @@ Other environment variables:
         RUNRUNTIME=""
     Rootfs type:
         RUNROOTFSTYPE=""
-    squashfuse and fuse-overlayfs PIDs:
+    squashfuse and unionfs PIDs:
         FUSE_PIDS=""
     The name of the user who runs runimage:
         RUNUSER=""
@@ -205,8 +215,8 @@ Other environment variables:
         MKSQFS=""
     unsquashfs:
         UNSQFS=""
-    fuse-overlayfs:
-        FOVERFS=""
+    unionfs:
+        UNIONFS=""
     squashfuse:
         SQFUSE=""
     bwrap:
@@ -218,7 +228,6 @@ Custom scripts and aliases:
     /bin/cip                          Сheck public ip
     /bin/dbus-flmgr                   Launch the system file manager via dbus
     /bin/nocap                        Disables container capabilities
-    /bin/sudo                         Fake sudo (fakechroot fakeroot)
     /bin/pac                          sudo pacman (fake sudo)
     /bin/packey                       sudo pacman-key (fake sudo)
     /bin/panelipmon                   Shows information about an active network connection
@@ -281,6 +290,7 @@ Additional information:
         It can also be with the name of the executable file from AUTORUN environment variables,
             or with the same name as the executable being run.
     SANDBOX_HOME* similar to PORTABLE_HOME, but the system HOME becomes isolated.
+    SANDBOX_HOME_DIR and PORTABLE_HOME_DIR point to a specific directory or create it in the absence of.
 
     RunImage uses fakechroot and fakeroot, which allows you to use root commands, including in
         unpacked form, to update the rootfs or install/remove packages.
@@ -338,10 +348,10 @@ Additional information:
         ┌─[user@host]─[~] - in runimage
         └──╼ $ runbuild {build args}
         Optionally, you can specify the following build arguments:
-            {/path/new_runimage_name} {-zstd|-xz} {zstd compression level 1-19}
+            {/path/new_runimage_name} {-zstd|-xz|-lz4} {zstd compression level 1-19}
         By default, runimage is created in the current directory with a standard name and
             with lz4 compression. If a new RunImage is successfully build, the old one is deleted.
-            (see KEEP_OLD_BUILD and BUILD_WITH_EXTENSION)
+            (see KEEP_OLD_BUILD BUILD_WITH_EXTENSION CMPRS_ALGO ZSDT_CMPRS_LVL)
 
     RunImage update:
         Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
@@ -459,7 +469,7 @@ exit
 ```
 * When using `TMP_HOME`* you may run out of RAM, be careful with this.
 * It is also advisable to use `TMPDIR` when using `--runtime-extract-and-run` or `RUNTIME_EXTRACT_AND_RUN`, because by default, unpacking before starting will be carried out in `/tmp`, which may also lead to the end of RAM
-* With `UNSHARE_PIDS`, RunImage desktop does not start on TTY, freezes the entire system, (I haven't figured out what the problem is yet). Don't run RunImage desktop with `UNSHARE_PIDS` on TTY.
+* With `UNSHARE_PIDS`, RunImage desktop does not start on TTY.
 * `Xephyr` does not support GL acceleration and Vulkan has performance issues (But this is not related to RunImage)
 * If you have problems with sound when running RunImage desktop on TTY, just restart pulseaudio.
 ```
@@ -479,6 +489,7 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [bubblewrap-static](https://github.com/VHSgunzo/bubblewrap-static)
 * [chaotic-aur](https://aur.chaotic.cx)
 * [blackarch](https://github.com/BlackArch/blackarch)
+* [runimage-repo](https://github.com/VHSgunzo/runimage-repo)
 * [runimage-fake-nvidia-utils](https://github.com/VHSgunzo/runimage-fake-nvidia-utils)
 * [runimage-nvidia-drivers](https://github.com/VHSgunzo/runimage-nvidia-drivers)
 * [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs)
@@ -503,15 +514,18 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [xz-static](https://github.com/VHSgunzo/xz-static)
 * [minos-static](https://github.com/minos-org/minos-static)
 * [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
-* [fuse-overlayfs](https://github.com/containers/fuse-overlayfs)
+* [unionfs-fuse-static](https://github.com/VHSgunzo/unionfs-fuse-static)
 * [importenv](https://github.com/VHSgunzo/importenv/releases)
 * [slirp4netns](https://github.com/rootless-containers/slirp4netns/releases)
 * [util-linux-static](https://github.com/VHSgunzo/util-linux-static/releases)
-* [hosts](https://github.com/StevenBlack/hosts)
 * [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper)
+* [runimage-fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec)
+* [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd)
 * [fakeroot](https://github.com/mackyle/fakeroot)
 * [fakechroot](https://github.com/dex4er/fakechroot)
 * [ptyspawn](https://github.com/VHSgunzo/ptyspawn)
+* [socat-static](https://github.com/VHSgunzo/socat-static)
+* [hosts](https://github.com/StevenBlack/hosts)
 
 ## Projects based on RunImage:
 

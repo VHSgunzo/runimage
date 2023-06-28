@@ -1,0 +1,5 @@
+#!/usr/bin/sh
+set -e
+sleep $1
+shift
+exec "$@"

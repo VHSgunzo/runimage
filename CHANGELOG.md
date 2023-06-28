@@ -1,3 +1,64 @@
+# v0.39.1
+
+* Update `rootfs` [v0.39.1]()
+* Update static `bubblewrap` [v0.8.0.r20](https://github.com/VHSgunzo/bubblewrap-static/releases/tag/v0.8.0.r20)
+* Update static `bash` [v5.2.015-1.2.3-2](https://github.com/robxu9/bash-static/releases/tag/5.2.015-1.2.3-2)
+* Update static `coreutils` [v9.3](https://github.com/VHSgunzo/coreutils-static/releases/tag/v9.3)
+* Update static `grep` [v3.11](https://github.com/VHSgunzo/grep-static/releases/tag/v3.11)
+* Update static `procps` [v4.0.3.r31](https://github.com/VHSgunzo/procps-static/releases/tag/v4.0.3)
+* Update static `sed` [v4.9](https://github.com/VHSgunzo/sed-static/releases/tag/v4.9)
+* Update static `util-linux` [v2.39](https://github.com/VHSgunzo/util-linux-static/releases/tag/v2.39)
+* Update static `squashfs-tools` [v4.6.1](https://github.com/VHSgunzo/squashfs-tools-static/releases/tag/v4.6.1)
+* Update static `curl` [v8.0.1](https://github.com/moparisthebest/static-curl/releases/tag/v8.0.1)
+* Update staticx `xorg-xhost` [v1.0.9](https://github.com/VHSgunzo/xorg-xhost-static/releases/tag/v1.0.9-alpine) (now its on musl)
+* Update static `xz` [v5.5.0alpha](https://github.com/VHSgunzo/xz-static/releases/tag/v5.5.0)
+* Update `fake-nvidia-utils` [v0.6](https://github.com/VHSgunzo/runimage-fake-nvidia-utils/releases/tag/v0.6)
+* Replace `iptables` with `iptables-nft` in `rootfs`
+* Install `nftables` to `rootfs`
+* Install `openresolv` to `rootfs`
+* Install [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper.git) package
+* Install [runimage-static](https://github.com/VHSgunzo/runimage-static.git) package
+* Install [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Install [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
+* Install [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
+* Fix warnings and errors of setting the root user and group to files when installing and assembling packages
+* Replace `palemoon` with `firefox` in `superlite` version
+* Remove `mangoapp` and `lib32-mangoapp` in `superlite` version
+* Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `superlite` version
+* Replace [fuse-overlayfs](https://github.com/containers/fuse-overlayfs) with [unionfs-fuse](https://github.com/rpodgorny/unionfs-fuse) ([util-linux-static](https://github.com/VHSgunzo/util-linux-static/releases))
+* Add `noatime` to `OverlayFS` mode
+* Fix `OverlayFS` mode in `Porteus`, `EasyOS` and `ZorinOS` (fuse-overlayfs cannot read upper dir cannot allocate memory)
+* Add get `Nvidia` driver version from `/sys/module/nvidia/version`
+* Force using internal `static` binaries from `PATH` (see `SYS_TOOLS` var)
+* Update [hosts](https://github.com/StevenBlack/hosts) in `superlite` version
+* Fix `LatencyFlex` and `cabextract` in `GE-Proton` in `superlite` version
+* Update [GE-Proton v8-4](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.4) in `superlite` version
+* Fix `ldconfig` `nvidia` symlink creation messages
+* Add `steam` `pacman` hook (disabling `capabilitis`)
+* Add `gamemode` `pacman` hook (start the `daemon` with `gamemoderun`)
+* Add `SANDBOX_NET_SHARE_HOST` Creates a network sandbox with access to host loopback
+* Add [RunImage pacman repository](https://github.com/VHSgunzo/runimage-repo)
+* Add increasing `soft limit` to `hard limit`
+* Remove binds `/srv` `/boot` `/var/local` `/var/games` `/var/opt`
+* Add `UNSHARE_USERS` Don't bind-mount `/etc/{passwd,group}`
+* Add `SHARE_SYSTEMD` Shares SystemD from the host
+* Add `UNSHARE_DBUS` Unshares DBUS from the host
+* Add `pacman` hooks for `pamac` (add fake `sudo` wrapper)
+* Remove `pacman` hooks: `grub` `dkms` `mkinitcpio` `depmod`
+* Remake `ALLOW_BG`
+* Add bind `RunDir/static` to `/usr/bin/static`
+* Add `PORTABLE_HOME_DIR` Specifies a portable home directory and uses it as `$HOME`
+* Add `SANDBOX_HOME_DIR` Specifies sandbox home directory and bind it to `/home/$USER` or to `/root`
+* Fix `attaching` to `RunImage` container under `root`
+* Add `UNSHARE_MODULES` Unshares kernel modules from the host (/lib/modules)
+* Rename `BWRAP` and `SYS_BWRAP` var to `BUWRAP` and `SYS_BUWRAP` (`steam` use `BWRAP` var and got error if `RunDir` is sandboxed)
+* Add `CMPRS_ALGO` Specifies the compression algo for `runimage` build
+* Add `ZSDT_CMPRS_LVL` Specifies the compression ratio of the `zstd` algo for `runimage` build
+* Add binding `RunDir` to `/var/RunDir`
+* Add `NO_RUNDIR_BIND` Disables binding RunDir to `/var/RunDir`
+* Add ability to update all utilities and binaries in `RunDir` with `pacman`
+* Minor fixes
+
 # v0.38.9
 
 * Update rootfs v0.38.9 23.05.07

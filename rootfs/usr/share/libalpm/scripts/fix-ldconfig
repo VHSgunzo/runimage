@@ -1,0 +1,7 @@
+#!/usr/bin/bash
+
+mv /usr/bin/ldconfig /usr/bin/_ldconfig
+echo '#!/usr/bin/sh
+_ldconfig "$@" 2>/dev/null
+' > /usr/bin/ldconfig
+chmod +x /usr/bin/ldconfig
