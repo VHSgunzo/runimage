@@ -27,7 +27,7 @@
 * Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `superlite` version
 * Replace [fuse-overlayfs](https://github.com/containers/fuse-overlayfs) with [unionfs-fuse](https://github.com/rpodgorny/unionfs-fuse) ([util-linux-static](https://github.com/VHSgunzo/util-linux-static/releases))
 * Add `noatime` to `OverlayFS` mode
-* Fix `OverlayFS` mode in `Porteus`, `EasyOS` and `ZorinOS` (fuse-overlayfs cannot read upper dir cannot allocate memory)
+* Fix `OverlayFS` mode in `Porteus`, `EasyOS` and `ZorinOS` (`fuse-overlayfs` cannot read upper dir cannot allocate memory)
 * Add get `Nvidia` driver version from `/sys/module/nvidia/version`
 * Force using internal `static` binaries from `PATH` (see `SYS_TOOLS` var)
 * Update [hosts](https://github.com/StevenBlack/hosts) in `superlite` version
@@ -41,8 +41,8 @@
 * Add increasing `soft limit` to `hard limit`
 * Remove binds `/srv` `/boot` `/var/local` `/var/games` `/var/opt`
 * Add `UNSHARE_USERS` Don't bind-mount `/etc/{passwd,group}`
-* Add `SHARE_SYSTEMD` Shares SystemD from the host
-* Add `UNSHARE_DBUS` Unshares DBUS from the host
+* Add `SHARE_SYSTEMD` Shares `SystemD` from the host
+* Add `UNSHARE_DBUS` Unshares `DBUS` from the host
 * Add `pacman` hooks for `pamac` (add fake `sudo` wrapper)
 * Remove `pacman` hooks: `grub` `dkms` `mkinitcpio` `depmod`
 * Remake `ALLOW_BG`
