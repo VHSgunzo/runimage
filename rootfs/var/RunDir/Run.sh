@@ -989,7 +989,7 @@ bwrun() {
                     if [ "$ALLOW_BG" != 1 ]
                         then
                             while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" ]]
-                                do sleep 0.1
+                                do sleep 0.5
                             done
                             try_kill "$SLIRP_PID"
                     fi
