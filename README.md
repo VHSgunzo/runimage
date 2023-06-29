@@ -448,14 +448,7 @@ exit
 
 * By default, all container processes running in the background will be killed after the container is closed, to allow background processes, use the environment variable `ALLOW_BG=1`
 * Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
-* To start the `SSH server`, `SUID Bubblewrap` or run as root is required (see [sshd_config](https://github.com/VHSgunzo/runimage/blob/main/rootfs/etc/ssh/sshd_config))
-```
-    ssh-keygen -q -N "" -t rsa -b 4096 -f ~/.ssh/ssh_host_rsa_key && \
-    ssh-keygen -q -N "" -t ed25519 -b 521 -f ~/.ssh/ssh_host_ed25519_key && \
-    ssh-keygen -q -N "" -t ecdsa -b 521 -f ~/.ssh/ssh_host_ecdsa_key
-    echo 'ssh-rsa AAAAB3NzaC1yc2EA PUB-KEY' >> ~/.ssh/authorized_keys
-    /usr/sbin/sshd
-```
+* To start the `SSH server`, `SUID Bubblewrap` or run as root is required
 * When unpacked, use the [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper) binary file to properly launch the container.
 * In RunImage used the [patched glibc](https://github.com/DissCent/glibc-eac-rc) to work `EAC anti-cheat`. (Only in `superlite` version)
 * If SELinux is enabled in the system, then there may be problems with the launch and operation of Wine ([solution](https://www.tecmint.com/disable-selinux-in-centos-rhel-fedora))
