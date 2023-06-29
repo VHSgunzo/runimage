@@ -13,14 +13,15 @@
 * Update staticx `xorg-xhost` [v1.0.9](https://github.com/VHSgunzo/xorg-xhost-static/releases/tag/v1.0.9-alpine) (now its on musl)
 * Update static `xz` [v5.5.0alpha](https://github.com/VHSgunzo/xz-static/releases/tag/v5.5.0)
 * Update `fake-nvidia-utils` [v0.6](https://github.com/VHSgunzo/runimage-fake-nvidia-utils/releases/tag/v0.6)
-* Replace `iptables` with `iptables-nft` in `rootfs`
-* Install `nftables` to `rootfs`
-* Install `openresolv` to `rootfs`
+* Replace `iptables` with `iptables-nft`
+* Install `nftables` package
+* Install `openresolv` package
 * Install [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper.git) package
 * Install [runimage-static](https://github.com/VHSgunzo/runimage-static.git) package
 * Install [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
 * Install [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
 * Install [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
+* Install [wine-prefix](https://github.com/VHSgunzo/wine-prefix) package in `superlite` version
 * Fix warnings and errors of setting the root user and group to files when installing and assembling packages
 * Replace `palemoon` with `firefox` in `superlite` version
 * Remove `mangoapp` and `lib32-mangoapp` in `superlite` version
