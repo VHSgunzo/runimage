@@ -50,12 +50,12 @@
 * Add `PORTABLE_HOME_DIR` Specifies a portable home directory and uses it as `$HOME`
 * Add `SANDBOX_HOME_DIR` Specifies sandbox home directory and bind it to `/home/$USER` or to `/root`
 * Fix `attaching` to `RunImage` container under `root`
-* Add `UNSHARE_MODULES` Unshares kernel modules from the host (/lib/modules)
+* Add `UNSHARE_MODULES` Unshares kernel modules from the host (`/lib/modules`)
 * Rename `BWRAP` and `SYS_BWRAP` var to `BUWRAP` and `SYS_BUWRAP` (`steam` use `BWRAP` var and got error if `RunDir` is sandboxed)
 * Add `CMPRS_ALGO` Specifies the compression algo for `runimage` build
 * Add `ZSDT_CMPRS_LVL` Specifies the compression ratio of the `zstd` algo for `runimage` build
 * Add bind `RunDir` to `/var/RunDir`
-* Add `NO_RUNDIR_BIND` Disables binding RunDir to `/var/RunDir`
+* Add `NO_RUNDIR_BIND` Disables binding `RunDir` to `/var/RunDir`
 * Add ability to update all utilities and binaries in `RunDir` with `pacman`
 * Minor fixes
 
