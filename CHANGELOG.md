@@ -26,7 +26,7 @@
 * Replace `palemoon` with `firefox` in `superlite` version
 * Remove `mangoapp` and `lib32-mangoapp` in `superlite` version
 * Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `superlite` version
-* Replace [fuse-overlayfs](https://github.com/containers/fuse-overlayfs) with [unionfs-fuse](https://github.com/rpodgorny/unionfs-fuse) ([util-linux-static](https://github.com/VHSgunzo/util-linux-static/releases))
+* Replace [fuse-overlayfs](https://github.com/containers/fuse-overlayfs) with [unionfs-fuse](https://github.com/rpodgorny/unionfs-fuse) ([unionfs-fuse-static](https://github.com/VHSgunzo/unionfs-fuse-static/releases))
 * Add `noatime` to `OverlayFS` mode
 * Fix `OverlayFS` mode in `Porteus`, `EasyOS` and `ZorinOS` (`fuse-overlayfs` cannot read upper dir cannot allocate memory)
 * Add get `Nvidia` driver version from `/sys/module/nvidia/version`
