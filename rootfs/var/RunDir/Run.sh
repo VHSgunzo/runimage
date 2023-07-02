@@ -1018,6 +1018,7 @@ bwrun() {
         --bind-try /mnt /mnt \
         --dev-bind-try /dev /dev \
         --bind-try /media /media \
+        --ro-bind-try /boot /boot \
         --ro-bind-try /etc/hostname /etc/hostname \
         --ro-bind-try /etc/localtime /etc/localtime \
         --ro-bind-try /etc/nsswitch.conf /etc/nsswitch.conf \
@@ -2348,7 +2349,7 @@ fi
 
 add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
 /usr/lib/jvm/default/bin:/usr/local/bin:/usr/local/sbin:\
-$SYS_PATH:/var/RunDir/static"
+/opt/cuda/bin:$HOME/.cargo/bin:$SYS_PATH:/var/RunDir/static"
 [ -n "$LD_LIBRARY_PATH" ] && \
     add_lib_pth "$LD_LIBRARY_PATH"
 

@@ -12,7 +12,7 @@
 * Update static `curl` [v8.0.1](https://github.com/moparisthebest/static-curl/releases/tag/v8.0.1)
 * Update staticx `xorg-xhost` [v1.0.9](https://github.com/VHSgunzo/xorg-xhost-static/releases/tag/v1.0.9-alpine) (now its on musl)
 * Update static `xz` [v5.5.0alpha](https://github.com/VHSgunzo/xz-static/releases/tag/v5.5.0)
-* Update `fake-nvidia-utils` [v0.6](https://github.com/VHSgunzo/runimage-fake-nvidia-utils/releases/tag/v0.6)
+* Update `fake-nvidia-utils` [v0.7](https://github.com/VHSgunzo/runimage-fake-nvidia-utils/releases/tag/v0.7)
 * Replace `iptables` with `iptables-nft`
 * Install `nftables` package
 * Install `openresolv` package
@@ -40,7 +40,7 @@
 * Add `SANDBOX_NET_SHARE_HOST` Creates a network sandbox with access to host loopback
 * Add [RunImage pacman repository](https://github.com/VHSgunzo/runimage-repo)
 * Add increasing `soft limit` to `hard limit`
-* Remove binds `/srv` `/boot` `/var/local` `/var/games` `/var/opt`
+* Remove binds `/srv` `/var/local` `/var/games` `/var/opt`
 * Add `UNSHARE_USERS` Don't bind-mount `/etc/{passwd,group}`
 * Add `SHARE_SYSTEMD` Shares `SystemD` from the host
 * Add `UNSHARE_DBUS` Unshares `DBUS` from the host
