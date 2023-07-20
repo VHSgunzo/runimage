@@ -908,7 +908,7 @@ cleanup() {
             fi
             [ -f "$RPIDSFL" ] && \
                 rm -f "$RPIDSFL" 2>/dev/null
-            [ -f "$EXECFL" ] && \
+            [ -e "$EXECFL" ] && \
                 rm -f "$EXECFL"* 2>/dev/null
             [ -f "$BWINFFL" ] && \
                 rm -f "$BWINFFL" 2>/dev/null
@@ -1701,7 +1701,7 @@ fi
 if [[ "$DISPLAY" == "wayland-"* ]]
     then
         export DISPLAY=":$(echo "$DISPLAY"|sed 's|wayland-||g')"
-elif [[ ! -n "$DISPLAY" && ! -n "$WAYLAND_DISPLAY" ]]
+elif [[ ! -n "$DISPLAY" && ! -n "$WAYLAND_DISPLAY" && -n "$XDG_SESSION_TYPE" ]]
     then
         export DISPLAY="$(who|grep "$RUNUSER"|grep -v "ttyS"|\
                           grep -om1 '(.*)$'|sed 's/(//;s/)//')"
@@ -2378,18 +2378,18 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
     then
         warn_msg "The HOSTEXEC option is enabled!"
         export EXECFL="/tmp/.exec.$RUNPID"
+        mkfifo "$EXECFL"
         ([ -n "$SYS_HOME" ] && \
             export HOME="$SYS_HOME"
         jobnum=1
-        while [ -d "/proc/$RUNPID" ]
+        while [[ -d "/proc/$RUNPID" && -e "$EXECFL" ]]
             do
-                execsize=($(flock -x "$EXECFL" du -sb "$EXECFL" 2>/dev/null))
-                if [[ "$execsize" -gt 0 ]]
+                execjobfl="$EXECFL.$jobnum"
+                execjoboutfl="$EXECFL.$jobnum.o"
+                jobnum=$(( $jobnum + 1 ))
+                cat "$EXECFL" > "$execjobfl"
+                if [[ -e "$EXECFL" && -f "$execjobfl" ]]
                     then
-                        execjobfl="$EXECFL.$jobnum"
-                        execjoboutfl="$EXECFL.$jobnum.o"
-                        jobnum=$(( $jobnum + 1 ))
-                        flock -x "$EXECFL" mv -f "$EXECFL" "$execjobfl" 2>/dev/null
                         ("$RUNSTATIC/bash" "$execjobfl" &>$execjoboutfl &
                         execjobpid=$!
                         touch "$execjobfl.p.$execjobpid"
@@ -2397,7 +2397,6 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                         execstat=$?
                         mv -f "$execjobfl" "$execjobfl.s.$execstat" 2>/dev/null) &
                 fi
-                sleep 0.05
         done) &
 fi
 

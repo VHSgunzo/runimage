@@ -193,7 +193,7 @@ check_args_spaces() {
 }
 
 trap 'killjobpids' SIGINT SIGTERM
-if [ -n "$EXECFL" ]
+if [ -e "$EXECFL" ]
     then
         unset args
         case $1 in
@@ -205,17 +205,17 @@ if [ -n "$EXECFL" ]
         if [ -n "$1" ]
             then
                 check_args_spaces "$@"
-                flock -x "$EXECFL" echo "${args[@]}" > "$EXECFL" 2>/dev/null
+                echo "${args[@]}" > "$EXECFL" 2>/dev/null
             else
                 if [ -n "$args" ]
                     then
-                        flock -x "$EXECFL" echo -n "${args[@]} " > "$EXECFL"
-                        flock -x "$EXECFL" tee -a "$EXECFL" &>/dev/null
+                        echo -n "${args[@]} " > "$EXECFL"
+                        tee -a "$EXECFL" &>/dev/null
                     else
-                        flock -x "$EXECFL" cat > "$EXECFL" 2>/dev/null
+                        cat > "$EXECFL" 2>/dev/null
                 fi
         fi
-        sleep 0.1
+        sleep 0.005
         execjobfl="$(ls -1t "$EXECFL."* 2>/dev/null|head -1|grep -Po "$EXECFL.\d+")"
         execjoboutfl="$execjobfl.o"
         execjobpid="$(ls "$execjobfl.p."* 2>/dev/null|cut -d '.' -f6)"
