@@ -16,7 +16,6 @@ export SYS_PATH="$PATH"
 export RUNPPID="$PPID"
 export RUNPID="$BASHPID"
 export BWINFFL="/tmp/.bwinf.$RUNPID"
-EXECFL="/tmp/.exec.$RUNPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
 unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
@@ -891,6 +890,8 @@ cleanup() {
                         try_unmount "$RO_MNT"
                     try_unmount "$NVDRVMNT"
             fi
+            [ -e "$EXECFL" ] && \
+                rm -f "$EXECFL"* 2>/dev/null
             if [[ "$ALLOW_BG" != 1 || "$1" == "force" ]]
                 then
                     kill -2 $FUSE_PIDS 2>/dev/null
@@ -909,8 +910,6 @@ cleanup() {
             fi
             [ -f "$RPIDSFL" ] && \
                 rm -f "$RPIDSFL" 2>/dev/null
-            [ -e "$EXECFL" ] && \
-                rm -f "$EXECFL"* 2>/dev/null
             [ -f "$BWINFFL" ] && \
                 rm -f "$BWINFFL" 2>/dev/null
         else
@@ -925,7 +924,7 @@ get_bwpids() {
         rpidsfl="$RPIDSFL"
     if [ -f "$rpidsfl" ]
         then
-            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|grep -v 'cat /tmp/\.exec\..*'|\
+            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|\
             grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|grep -v "socat .*/tmp/.rdbus.*"|\
             grep -v "socat .*/tmp/.shell.*"|grep -v "RunDir.*/static/"|grep -v "squashfuse.*$RUNIMAGEDIR.*offset="|\
             grep -v "\.nv\.drv /tmp/\.mount_nv.*drv\."|grep -v "unionfs.*$RUNIMAGEDIR/overlayfs/"|\
@@ -2378,7 +2377,7 @@ fi
 if [ "$ENABLE_HOSTEXEC" == 1 ]
     then
         warn_msg "The HOSTEXEC option is enabled!"
-        export EXECFL
+        export EXECFL="/tmp/.exec.$RUNPID"
         mkfifo "$EXECFL"
         ([ -n "$SYS_HOME" ] && \
             export HOME="$SYS_HOME"

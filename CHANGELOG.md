@@ -1,6 +1,7 @@
 # v0.39.1
 
 * Update `rootfs` [v0.39.1]()
+* Rename `superlite` to `lwrun`
 * Update static `bubblewrap` [v0.8.0.r20](https://github.com/VHSgunzo/bubblewrap-static/releases/tag/v0.8.0.r20)
 * Update static `bash` [v5.2.015-1.2.3-2](https://github.com/robxu9/bash-static/releases/tag/5.2.015-1.2.3-2)
 * Update static `coreutils` [v9.3](https://github.com/VHSgunzo/coreutils-static/releases/tag/v9.3)
@@ -21,19 +22,19 @@
 * Install [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
 * Install [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
 * Install [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
-* Install [wine-prefix](https://github.com/VHSgunzo/wine-prefix) package in `superlite` version
+* Install [wine-prefix](https://github.com/VHSgunzo/wine-prefix) package in `lwrun` version
 * Fix warnings and errors of setting the root user and group to files when installing and assembling packages
-* Replace `palemoon` with `firefox` in `superlite` version
-* Remove `mangoapp` and `lib32-mangoapp` in `superlite` version
-* Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `superlite` version
+* Replace `palemoon` with `firefox` in `lwrun` version
+* Remove `mangoapp` and `lib32-mangoapp` in `lwrun` version
+* Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `lwrun` version
 * Replace [fuse-overlayfs](https://github.com/containers/fuse-overlayfs) with [unionfs-fuse](https://github.com/rpodgorny/unionfs-fuse) ([unionfs-fuse-static](https://github.com/VHSgunzo/unionfs-fuse-static/releases))
 * Add `noatime` to `OverlayFS` mode
 * Fix `OverlayFS` mode in `Porteus`, `EasyOS` and `ZorinOS` (`fuse-overlayfs` cannot read upper dir cannot allocate memory)
 * Add get `Nvidia` driver version from `/sys/module/nvidia/version`
 * Force using internal `static` binaries from `PATH` (see `SYS_TOOLS` var)
-* Update [hosts](https://github.com/StevenBlack/hosts) in `superlite` version
-* Fix `LatencyFlex` and `cabextract` in `GE-Proton` in `superlite` version
-* Update [GE-Proton v8-4](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.4) in `superlite` version
+* Update [hosts](https://github.com/StevenBlack/hosts) in `lwrun` version
+* Fix `LatencyFlex` and `cabextract` in `GE-Proton` in `lwrun` version
+* Update [GE-Proton v8-4](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.4) in `lwrun` version
 * Fix `ldconfig` `nvidia` symlink creation messages
 * Add `steam` `pacman` hook (disabling `capabilitis`)
 * Add `gamemode` `pacman` hook (start the `daemon` with `gamemoderun`)
@@ -63,7 +64,7 @@
 # v0.38.9
 
 * Update rootfs v0.38.9 23.05.07
-* Update `lwrap` v0.77.6 in `superlite` version
+* Update `lwrap` v0.77.6 in `lwrun` version
 * Disable `SANDBOX_NET` for `Lutris Wine` because `MangoHud` bug under `Wayland`
 * Update `mangohud-lw` v0.6.9.1.r44.g7b5c0a4 in `superlite` version
 * Add installing dependencies for `RunImage` desktop mode `rundesktop`
