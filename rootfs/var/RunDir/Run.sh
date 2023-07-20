@@ -16,6 +16,7 @@ export SYS_PATH="$PATH"
 export RUNPPID="$PPID"
 export RUNPID="$BASHPID"
 export BWINFFL="/tmp/.bwinf.$RUNPID"
+EXECFL="/tmp/.exec.$RUNPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
 unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
@@ -939,7 +940,7 @@ get_child_pids() {
         then
             local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
             ps -o user=,pid=,cmd= -p $child_pids 2>/dev/null|grep "^$RUNUSER"|\
-            grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|\
+            grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|grep -v "$EXECFL"|\
             grep -wv "$RUNPPID"|awk '{print$2}'|sort -nu
         else
             return 1
@@ -2377,7 +2378,7 @@ fi
 if [ "$ENABLE_HOSTEXEC" == 1 ]
     then
         warn_msg "The HOSTEXEC option is enabled!"
-        export EXECFL="/tmp/.exec.$RUNPID"
+        export EXECFL
         mkfifo "$EXECFL"
         ([ -n "$SYS_HOME" ] && \
             export HOME="$SYS_HOME"
