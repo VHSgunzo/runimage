@@ -17,6 +17,7 @@ export RUNPPID="$PPID"
 export RUNPID="$BASHPID"
 export BWINFFL="/tmp/.bwinf.$RUNPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
+EXECFL="/tmp/.exec.$RUNPID"
 unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNSHARE_BIND \
@@ -924,7 +925,7 @@ get_bwpids() {
         rpidsfl="$RPIDSFL"
     if [ -f "$rpidsfl" ]
         then
-            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|\
+            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|grep -v 'cat /tmp/\.exec\..*'|\
             grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|grep -v "socat .*/tmp/.rdbus.*"|\
             grep -v "socat .*/tmp/.shell.*"|grep -v "RunDir.*/static/"|grep -v "squashfuse.*$RUNIMAGEDIR.*offset="|\
             grep -v "\.nv\.drv /tmp/\.mount_nv.*drv\."|grep -v "unionfs.*$RUNIMAGEDIR/overlayfs/"|\
@@ -2377,7 +2378,7 @@ fi
 if [ "$ENABLE_HOSTEXEC" == 1 ]
     then
         warn_msg "The HOSTEXEC option is enabled!"
-        export EXECFL="/tmp/.exec.$RUNPID"
+        export EXECFL
         mkfifo "$EXECFL"
         ([ -n "$SYS_HOME" ] && \
             export HOME="$SYS_HOME"
