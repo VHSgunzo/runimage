@@ -18,6 +18,7 @@ export RUNPID="$BASHPID"
 export BWINFFL="/tmp/.bwinf.$RUNPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
 EXECFL="/tmp/.exec.$RUNPID"
+CURJOBFL="/tmp/.ejob.$RUNPID"
 unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNSHARE_BIND \
@@ -892,7 +893,7 @@ cleanup() {
                     try_unmount "$NVDRVMNT"
             fi
             [ -e "$EXECFL" ] && \
-                rm -f "$EXECFL"* 2>/dev/null
+                rm -f "$EXECFL"* "$CURJOBFL"* 2>/dev/null
             if [[ "$ALLOW_BG" != 1 || "$1" == "force" ]]
                 then
                     kill -2 $FUSE_PIDS 2>/dev/null
@@ -2377,17 +2378,19 @@ fi
 
 if [ "$ENABLE_HOSTEXEC" == 1 ]
     then
+        set_curjobnumfl() { curjobnumfl="$CURJOBFL.$jobnum" ; }
         warn_msg "The HOSTEXEC option is enabled!"
         export EXECFL
         mkfifo "$EXECFL"
         ([ -n "$SYS_HOME" ] && \
             export HOME="$SYS_HOME"
         jobnum=1
+        set_curjobnumfl
+        touch "$curjobnumfl"
         while [[ -d "/proc/$RUNPID" && -e "$EXECFL" ]]
             do
-                execjobfl="$EXECFL.$jobnum"
-                execjoboutfl="$EXECFL.$jobnum.o"
-                jobnum=$(( $jobnum + 1 ))
+                execjobfl="$EXECFL.j.$jobnum"
+                execjoboutfl="$execjobfl.o"
                 cat "$EXECFL" > "$execjobfl"
                 if [[ -e "$EXECFL" && -f "$execjobfl" ]]
                     then
@@ -2398,6 +2401,10 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                         execstat=$?
                         mv -f "$execjobfl" "$execjobfl.s.$execstat" 2>/dev/null) &
                 fi
+                jobnum=$(( $jobnum + 1 ))
+                old_curjobnumfl="$curjobnumfl"
+                set_curjobnumfl
+                mv -f "$old_curjobnumfl" "$curjobnumfl" 2>/dev/null
         done) &
 fi
 

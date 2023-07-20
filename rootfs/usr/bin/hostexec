@@ -192,7 +192,31 @@ check_args_spaces() {
     done
 }
 
+set_jobnum() { jobnum="$(ls "/tmp/.ejob.$RUNPID."* 2>/dev/null|cut -d '.' -f4)" ; }
+
+execjobpidfl_exist() {
+    time_out=100
+    wait_time=0
+    while true
+        do
+            if [ "$wait_time" -le "$time_out" ]
+                then
+                    if [ -e "$(ls "$execjobfl.p."* 2>/dev/null)" ]
+                        then return 0
+                        else
+                            wait_time="$(( $wait_time + 1 ))"
+                            sleep 0.0005
+                    fi
+                else
+                    return 1
+            fi
+    done
+}
+
+cleanup() { [ -n "$execjobfl" ] && rm -f "$execjobfl"* 2>/dev/null ; }
+
 trap 'killjobpids' SIGINT SIGTERM
+trap 'cleanup' EXIT
 if [ -e "$EXECFL" ]
     then
         unset args
@@ -205,28 +229,32 @@ if [ -e "$EXECFL" ]
         if [ -n "$1" ]
             then
                 check_args_spaces "$@"
-                echo "${args[@]}" > "$EXECFL" 2>/dev/null
+                set_jobnum
+                echo "${args[@]}" > "$EXECFL"
             else
                 if [ -n "$args" ]
                     then
-                        echo -n "${args[@]} " > "$EXECFL"
-                        tee -a "$EXECFL" &>/dev/null
+                        set_jobnum
+                        (echo -n "${args[@]} ";cat) > "$EXECFL"
                     else
-                        cat > "$EXECFL" 2>/dev/null
+                        set_jobnum
+                        cat > "$EXECFL"
                 fi
         fi
-        sleep 0.005
-        execjobfl="$(ls -1t "$EXECFL."* 2>/dev/null|head -1|grep -Po "$EXECFL.\d+")"
+        execjobfl="$EXECFL.j.$jobnum"
         execjoboutfl="$execjobfl.o"
-        execjobpid="$(ls "$execjobfl.p."* 2>/dev/null|cut -d '.' -f6)"
-        if [[ -n "$execjobpid" && -d "/proc/$execjobpid" ]]
-            then tail --pid="$execjobpid" -q -f "$execjoboutfl" 2>/dev/null
-            else cat "$execjoboutfl" 2>/dev/null
+        if execjobpidfl_exist
+            then
+                sleep 0.001
+                execjobpid="$(ls "$execjobfl.p."* 2>/dev/null|cut -d '.' -f7)"
+                if [[ -n "$execjobpid" && -d "/proc/$execjobpid" ]]
+                    then tail --pid="$execjobpid" -q -f "$execjoboutfl" 2>/dev/null
+                    else cat "$execjoboutfl" 2>/dev/null
+                fi
+                execstat="$(ls "$execjobfl.s."* 2>/dev/null|cut -d '.' -f7)"
+                [ -n "$execstat" ]||execstat=1
+                exit $execstat
         fi
-        execstat="$(ls "$execjobfl.s."* 2>/dev/null|cut -d '.' -f6)"
-        [ -n "$execjobfl" ] && \
-            rm -f "$execjobfl"* 2>/dev/null
-        exit $execstat
     else
         error_msg "EXECFL is not configured!"
         exit 1
