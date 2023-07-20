@@ -1172,9 +1172,9 @@ run_update() {
             warn_msg "Forced update enabled!"
             PACARGS="-dd"
     fi
-    [[ "$RUNROOTFSTYPE" == "superlite" ]] && \
-        unset blackarch_keyring||\
-        blackarch_keyring="blackarch-keyring"
+    grep "^[blackarch]" "$RUNROOTFS/etc/pacman.conf" &>/dev/null && \
+        blackarch_keyring="blackarch-keyring"||\
+        unset blackarch_keyring
     QUIET_MODE=1 NO_NVIDIA_CHECK=1 NO_RUNIMAGE_REBUILD=1 bwrun /usr/bin/bash -c \
         "/usr/bin/pac -Sy archlinux-keyring chaotic-keyring \
         $blackarch_keyring --needed --noconfirm && \
@@ -1607,9 +1607,6 @@ if [[ -n "$1" && ! -n "$AUTORUN" ]]
             ;;
         esac
 fi
-
-[ "$RUNROOTFSTYPE" == "superlite" ] && \
-    SQFUSE_REMOUNT=1
 
 if [ "$RUNIMAGE_CONFIG" != 0 ]
     then
@@ -2354,27 +2351,6 @@ add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
 /opt/cuda/bin:$HOME/.cargo/bin:$SYS_PATH:/var/RunDir/static"
 [ -n "$LD_LIBRARY_PATH" ] && \
     add_lib_pth "$LD_LIBRARY_PATH"
-
-CUSTROOTFLST=("full" "lite" "superlite" "archlinux")
-if [[ "${CUSTROOTFLST[@]}" =~ "$RUNROOTFSTYPE" ]]
-    then
-        [ -x "$RUNROOTFS/usr/bin/qt5ct" ] && \
-            SETENV_ARGS+=("--setenv" "QT_QPA_PLATFORMTHEME" "qt5ct")
-        [[ -x "$RUNROOTFS/usr/bin/startxfce4" && "$RUNROOTFSTYPE" != "superlite" ]] && \
-            SETENV_ARGS+=("--setenv" "XDG_CURRENT_DESKTOP" "XFCE" \
-                          "--setenv" "DESKTOP_SESSION" "xfce")
-        if [ "$RUNROOTFSTYPE" == "superlite" ]
-            then
-                SETENV_ARGS+=("--setenv" "GTK_THEME" "Adwaita:dark")
-                SETENV_ARGS+=("--setenv" "GTK2_RC_FILES" "/usr/share/gtk-2.0/gtkrc")
-            else
-                [[ -f "$RUNROOTFS/usr/share/gtk-2.0/gtkrc" && ! -f "$HOME/.config/gtk-2.0/gtkrc" && \
-                ! -f "$HOME/.config/gtkrc" && ! -f "$HOME/.gtkrc-2.0" ]] && \
-                    SETENV_ARGS+=("--setenv" "GTK2_RC_FILES" "/usr/share/gtk-2.0/gtkrc")
-        fi
-        [ -d "$RUNROOTFS/etc/zsh/zshrc" ] && \
-            SETENV_ARGS+=("--setenv" "ZDOTDIR" "/etc/zsh/zshrc")
-fi
 
 if [ "$ENABLE_HOSTEXEC" == 1 ]
     then
