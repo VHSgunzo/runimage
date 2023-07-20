@@ -925,7 +925,7 @@ get_bwpids() {
         rpidsfl="$RPIDSFL"
     if [ -f "$rpidsfl" ]
         then
-            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|\
+            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|grep -v 'cat /tmp/\.exec\..*'|\
             grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|grep -v "socat .*/tmp/.rdbus.*"|\
             grep -v "socat .*/tmp/.shell.*"|grep -v "RunDir.*/static/"|grep -v "squashfuse.*$RUNIMAGEDIR.*offset="|\
             grep -v "\.nv\.drv /tmp/\.mount_nv.*drv\."|grep -v "unionfs.*$RUNIMAGEDIR/overlayfs/"|\
@@ -940,7 +940,7 @@ get_child_pids() {
         then
             local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
             ps -o user=,pid=,cmd= -p $child_pids 2>/dev/null|grep "^$RUNUSER"|\
-            grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|grep -v "$EXECFL"|\
+            grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|\
             grep -wv "$RUNPPID"|awk '{print$2}'|sort -nu
         else
             return 1
