@@ -41,7 +41,7 @@
 * Add `SANDBOX_NET_SHARE_HOST` Creates a network sandbox with access to host loopback
 * Add [RunImage pacman repository](https://github.com/VHSgunzo/runimage-repo)
 * Add increasing `soft limit` to `hard limit`
-* Remove binds `/srv` `/var/local` `/var/games` `/var/opt`
+* Remove binds `/srv` `/var/local` `/var/games` `/var/opt` `/boot`
 * Add `UNSHARE_USERS` Don't bind-mount `/etc/{passwd,group}`
 * Add `SHARE_SYSTEMD` Shares `SystemD` from the host
 * Add `UNSHARE_DBUS` Unshares `DBUS` from the host

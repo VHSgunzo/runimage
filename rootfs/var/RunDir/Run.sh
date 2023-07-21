@@ -1020,7 +1020,6 @@ bwrun() {
         --bind-try /mnt /mnt \
         --dev-bind-try /dev /dev \
         --bind-try /media /media \
-        --ro-bind-try /boot /boot \
         --ro-bind-try /etc/hostname /etc/hostname \
         --ro-bind-try /etc/localtime /etc/localtime \
         --ro-bind-try /etc/nsswitch.conf /etc/nsswitch.conf \
