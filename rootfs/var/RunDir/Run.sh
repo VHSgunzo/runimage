@@ -2355,7 +2355,7 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
     then
         set_curjobnumfl() { curjobnumfl="$CURJOBFL.$jobnum" ; }
         warn_msg "The HOSTEXEC option is enabled!"
-        export EXECFL
+        export EXECFL CURJOBFL
         mkfifo "$EXECFL"
         ([ -n "$SYS_HOME" ] && \
             export HOME="$SYS_HOME"
@@ -2374,7 +2374,7 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                         touch "$execjobfl.p.$execjobpid"
                         wait $execjobpid 2>/dev/null
                         execstat=$?
-                        mv -f "$execjobfl" "$execjobfl.s.$execstat" 2>/dev/null) &
+                        touch "$execjobfl.s.$execstat") &
                 fi
                 jobnum=$(( $jobnum + 1 ))
                 old_curjobnumfl="$curjobnumfl"
