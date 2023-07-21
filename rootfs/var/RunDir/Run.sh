@@ -2365,21 +2365,20 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
         while [[ -d "/proc/$RUNPID" && -e "$EXECFL" ]]
             do
                 execjobfl="$EXECFL.j.$jobnum"
-                execjoboutfl="$execjobfl.o"
                 cat "$EXECFL" > "$execjobfl"
                 if [[ -e "$EXECFL" && -f "$execjobfl" ]]
                     then
-                        ("$RUNSTATIC/bash" "$execjobfl" &>$execjoboutfl &
+                        ("$RUNSTATIC/bash" "$execjobfl" &>"$execjobfl.o" &
                         execjobpid=$!
                         touch "$execjobfl.p.$execjobpid"
                         wait $execjobpid 2>/dev/null
                         execstat=$?
                         touch "$execjobfl.s.$execstat") &
+                        jobnum=$(( $jobnum + 1 ))
+                        old_curjobnumfl="$curjobnumfl"
+                        set_curjobnumfl
+                        mv -f "$old_curjobnumfl" "$curjobnumfl" 2>/dev/null
                 fi
-                jobnum=$(( $jobnum + 1 ))
-                old_curjobnumfl="$curjobnumfl"
-                set_curjobnumfl
-                mv -f "$old_curjobnumfl" "$curjobnumfl" 2>/dev/null
         done) &
 fi
 
