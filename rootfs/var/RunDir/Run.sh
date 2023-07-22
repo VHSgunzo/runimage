@@ -16,9 +16,8 @@ export SYS_PATH="$PATH"
 export RUNPPID="$PPID"
 export RUNPID="$BASHPID"
 export BWINFFL="/tmp/.bwinf.$RUNPID"
+export EXECFLDIR="/tmp/.exec.$RUNPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
-EXECFL="/tmp/.exec.$RUNPID"
-CURJOBFL="/tmp/.ejob.$RUNPID"
 unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNSHARE_BIND \
@@ -892,8 +891,8 @@ cleanup() {
                         try_unmount "$RO_MNT"
                     try_unmount "$NVDRVMNT"
             fi
-            [ -e "$EXECFL" ] && \
-                rm -f "$EXECFL"* "$CURJOBFL"* 2>/dev/null
+            [ -d "$EXECFLDIR" ] && \
+                rm -rf "$EXECFLDIR" 2>/dev/null
             if [[ "$ALLOW_BG" != 1 || "$1" == "force" ]]
                 then
                     kill -2 $FUSE_PIDS 2>/dev/null
@@ -2353,32 +2352,35 @@ add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
 
 if [ "$ENABLE_HOSTEXEC" == 1 ]
     then
-        set_curjobnumfl() { curjobnumfl="$CURJOBFL.$jobnum" ; }
         warn_msg "The HOSTEXEC option is enabled!"
-        export EXECFL CURJOBFL
-        mkfifo "$EXECFL"
         ([ -n "$SYS_HOME" ] && \
             export HOME="$SYS_HOME"
-        jobnum=1
-        set_curjobnumfl
-        touch "$curjobnumfl"
-        while [[ -d "/proc/$RUNPID" && -e "$EXECFL" ]]
+        JOBNUMFL="$EXECFLDIR/job"
+        mkdir -p "$EXECFLDIR"
+        mkfifo "$JOBNUMFL"
+        unset jobnum
+        while [[ -d "/proc/$RUNPID" && -d "$EXECFLDIR" ]]
             do
-                execjobfl="$EXECFL.j.$jobnum"
-                cat "$EXECFL" > "$execjobfl"
-                if [[ -e "$EXECFL" && -f "$execjobfl" ]]
+                jobnum=$(( $jobnum + 1 ))
+                execjobdir="$EXECFLDIR/$jobnum"
+                execjobfl="$execjobdir/exec"
+                execjobpidfl="$execjobdir/pid"
+                execjoboutfl="$execjobdir/out"
+                execjobstatfl="$execjobdir/stat"
+                mkdir "$execjobdir"
+                mkfifo "$execjobfl"
+                mkfifo "$execjobpidfl"
+                mkfifo "$execjoboutfl"
+                mkfifo "$execjobstatfl"
+                echo "$jobnum" > "$JOBNUMFL" 2>/dev/null
+                if [ -e "$execjobfl" ]
                     then
-                        (mkfifo "$execjobfl.o"
-                        "$RUNSTATIC/bash" "$execjobfl" &>"$execjobfl.o" &
+                        (cat "$execjobfl" 2>/dev/null|"$RUNSTATIC/bash" &>"$execjoboutfl" &
                         execjobpid=$!
-                        touch "$execjobfl.p.$execjobpid"
+                        echo $execjobpid > "$execjobpidfl" 2>/dev/null
                         wait $execjobpid 2>/dev/null
                         execstat=$?
-                        touch "$execjobfl.s.$execstat") &
-                        jobnum=$(( $jobnum + 1 ))
-                        old_curjobnumfl="$curjobnumfl"
-                        set_curjobnumfl
-                        mv -f "$old_curjobnumfl" "$curjobnumfl" 2>/dev/null
+                        echo $execstat > "$execjobstatfl") &
                 fi
         done) &
 fi
