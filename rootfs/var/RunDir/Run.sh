@@ -2368,7 +2368,8 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                 cat "$EXECFL" > "$execjobfl"
                 if [[ -e "$EXECFL" && -f "$execjobfl" ]]
                     then
-                        ("$RUNSTATIC/bash" "$execjobfl" &>"$execjobfl.o" &
+                        (mkfifo "$execjobfl.o"
+                        "$RUNSTATIC/bash" "$execjobfl" &>"$execjobfl.o" &
                         execjobpid=$!
                         touch "$execjobfl.p.$execjobpid"
                         wait $execjobpid 2>/dev/null

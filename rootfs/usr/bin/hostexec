@@ -244,12 +244,7 @@ if [[ -e "$EXECFL" && -n "$CURJOBFL" ]]
         trap 'cleanup' EXIT
         if execjobpidfl_exist
             then
-                sleep 0.001
-                execjobpid="$(ls "$execjobfl.p."* 2>/dev/null|cut -d '.' -f7)"
-                if [[ -n "$execjobpid" && -d "/proc/$execjobpid" ]]
-                    then tail --pid="$execjobpid" -q -f "$execjoboutfl" 2>/dev/null
-                    else cat "$execjoboutfl" 2>/dev/null
-                fi
+                cat "$execjoboutfl" 2>/dev/null
                 execstat="$(ls "$execjobfl.s."* 2>/dev/null|cut -d '.' -f7)"
                 [ -n "$execstat" ]||execstat=1
                 exit $execstat
