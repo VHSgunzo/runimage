@@ -58,7 +58,7 @@
 * Add bind `RunDir` to `/var/RunDir`
 * Add `NO_RUNDIR_BIND` Disables binding `RunDir` to `/var/RunDir`
 * Add ability to update all utilities and binaries in `RunDir` with `pacman`
-* Speedup to 5x `hostexec` (see `ENABLE_HOSTEXEC`)
+* Speedup to 8x `hostexec` (see `ENABLE_HOSTEXEC`)
 * Remove `RUNROOTFSTYPEs` settings in `Run.sh`
 * Minor fixes
 
