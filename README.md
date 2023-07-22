@@ -450,7 +450,7 @@ exit
 * Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
 * To start the `SSH server`, `SUID Bubblewrap` or run as root is required
 * When unpacked, use the [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper) binary file to properly launch the container.
-* In RunImage used the [patched glibc](https://github.com/DissCent/glibc-eac-rc) to work `EAC anti-cheat`. (Only in `superlite` version)
+* In RunImage used the [patched glibc](https://github.com/DissCent/glibc-eac-rc) to work `EAC anti-cheat`. (Only in `lwrun` version)
 * If SELinux is enabled in the system, then there may be problems with the launch and operation of Wine ([solution](https://www.tecmint.com/disable-selinux-in-centos-rhel-fedora))
 * To start nested bubblewrap containerization, you need to disable capabilities (see NO_CAP env var or use [nocap](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/nocap))
 ```
@@ -469,7 +469,7 @@ exit
     killall pulseaudio ; pulseaudio -D
 ```
 * If you disable bubblewrap capabilities using `NO_CAP`, you will not be able to use `FUSE` inside the container.
-* In packed form for fix bug with `MangoHud` and `vkBasalt` in `DXVK` mode need remount container with `squashfuse` (see `SQFUSE_REMOUNT=1`). In `superlite` it's enabled by default.
+* In packed form for fix bug with `MangoHud` and `vkBasalt` in `DXVK` mode need remount container with `squashfuse` (see `SQFUSE_REMOUNT=1`). In `lwrun` it's enabled by default.
 * If `PID_MAX` is less then `4194304`, recommended to increase [PID_MAX](https://www.cyberciti.biz/tips/howto-linux-increase-pid-limits.html) to 4194304 for better stability:
 ```
 sudo sh -c 'echo kernel.pid_max=4194304 >> /etc/sysctl.d/98-pid_max.conf'
