@@ -194,13 +194,15 @@ check_args_spaces() {
 
 set_jobnum() { jobnum="$(ls "$CURJOBFL."* 2>/dev/null|cut -d '.' -f4)" ; }
 
-execjobpidfl_exist() {
+get_execjobpid() {
+    unset execjobpid
     wait_time=100
     while true
         do
             if [ "$wait_time" -gt 0 ]
                 then
-                    if [ -e "$(ls "$execjobfl.p."* 2>/dev/null)" ]
+                    execjobpid="$(ls "$execjobfl.p."* 2>/dev/null|cut -d '.' -f7)"
+                    if [ -n "$execjobpid" ]
                         then return 0
                         else
                             wait_time="$(( $wait_time - 1 ))"
@@ -242,7 +244,7 @@ if [[ -e "$EXECFL" && -n "$CURJOBFL" ]]
         execjobfl="$EXECFL.j.$jobnum"
         execjoboutfl="$execjobfl.o"
         trap 'cleanup' EXIT
-        if execjobpidfl_exist
+        if get_execjobpid
             then
                 cat "$execjoboutfl" 2>/dev/null
                 execstat="$(ls "$execjobfl.s."* 2>/dev/null|cut -d '.' -f7)"
