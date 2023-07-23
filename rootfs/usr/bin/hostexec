@@ -213,11 +213,11 @@ get_execjobpid() {
     done
 }
 
-cleanup() { [ -d "$execjobdir" ] && rm -rf "$execjobdir" 2>/dev/null ; }
+cleanup() { [[ -d "$execjobdir" && -n "$jobnum" ]] && rm -rf "$execjobdir" 2>/dev/null ; }
 
 if [[ -d "$EXECFLDIR" && -e "$JOBNUMFL" ]]
     then
-        trap 'killjobpids' SIGINT SIGTERM
+        trap 'killjobpids;cleanup' SIGINT SIGTERM
         trap 'cleanup' EXIT
         unset args
         case $1 in
@@ -227,24 +227,26 @@ if [[ -d "$EXECFLDIR" && -e "$JOBNUMFL" ]]
             -su|--superuser) shift ; set_supassapp || exit 1 ;;
         esac
         jobnum="$(cat "$JOBNUMFL" 2>/dev/null)"
-        execjobdir="$EXECFLDIR/$jobnum"
-        execjobfl="$execjobdir/exec"
-        execjobpidfl="$execjobdir/pid"
-        execjoboutfl="$execjobdir/out"
-        execjobstatfl="$execjobdir/stat"
-        if [ -n "$1" ]
+        if [ -n "$jobnum" ]
             then
-                check_args_spaces "$@"
-                echo "${args[@]}" > "$execjobfl"
-            else
-                if [ -n "$args" ]
-                    then (echo -n "${args[@]} ";cat) > "$execjobfl" 2>/dev/null
-                    else cat > "$execjobfl" 2>/dev/null
+                execjobdir="$EXECFLDIR/$jobnum"
+                execjobfl="$execjobdir/exec"
+                execjoboutfl="$execjobdir/out"
+                execjobstatfl="$execjobdir/stat"
+                if [ -n "$1" ]
+                    then
+                        check_args_spaces "$@"
+                        echo "${args[@]}" > "$execjobfl"
+                    else
+                        if [ -n "$args" ]
+                            then (echo -n "${args[@]} ";cat) > "$execjobfl" 2>/dev/null
+                            else cat > "$execjobfl" 2>/dev/null
+                        fi
                 fi
+                execjobpid="$(cat "$execjobstatfl" 2>/dev/null)"
+                cat "$execjoboutfl" 2>/dev/null
+                execstat="$(cat "$execjobstatfl" 2>/dev/null)"
         fi
-        execjobpid="$(cat "$execjobpidfl" 2>/dev/null)"
-        cat "$execjoboutfl" 2>/dev/null
-        execstat="$(cat "$execjobstatfl" 2>/dev/null)"
         [ -n "$execstat" ]||execstat=1
         exit $execstat
     else

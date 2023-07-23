@@ -925,7 +925,7 @@ get_bwpids() {
         rpidsfl="$RPIDSFL"
     if [ -f "$rpidsfl" ]
         then
-            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|grep -v 'cat /tmp/\.exec\..*'|\
+            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|grep -v 'tee /tmp/\.exec\..*'|\
             grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|grep -v "socat .*/tmp/.rdbus.*"|\
             grep -v "socat .*/tmp/.shell.*"|grep -v "RunDir.*/static/"|grep -v "squashfuse.*$RUNIMAGEDIR.*offset="|\
             grep -v "\.nv\.drv /tmp/\.mount_nv.*drv\."|grep -v "unionfs.*$RUNIMAGEDIR/overlayfs/"|\
@@ -2364,23 +2364,21 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                 jobnum=$(( $jobnum + 1 ))
                 execjobdir="$EXECFLDIR/$jobnum"
                 execjobfl="$execjobdir/exec"
-                execjobpidfl="$execjobdir/pid"
                 execjoboutfl="$execjobdir/out"
                 execjobstatfl="$execjobdir/stat"
                 mkdir "$execjobdir"
                 mkfifo "$execjobfl"
-                mkfifo "$execjobpidfl"
                 mkfifo "$execjoboutfl"
                 mkfifo "$execjobstatfl"
-                echo "$jobnum" > "$JOBNUMFL" 2>/dev/null
+                tee <<<"$jobnum" "$JOBNUMFL" &>/dev/null
                 if [ -e "$execjobfl" ]
                     then
                         (cat "$execjobfl" 2>/dev/null|"$RUNSTATIC/bash" &>"$execjoboutfl" &
                         execjobpid=$!
-                        echo $execjobpid > "$execjobpidfl" 2>/dev/null
+                        tee <<<"$execjobpid" "$execjobstatfl" &>/dev/null
                         wait $execjobpid 2>/dev/null
                         execstat=$?
-                        echo $execstat > "$execjobstatfl") &
+                        tee <<<"$execstat" "$execjobstatfl" &>/dev/null) &
                 fi
         done) &
 fi
