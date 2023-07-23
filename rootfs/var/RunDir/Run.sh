@@ -165,7 +165,7 @@ mount_exist() {
                             return 0
                         else
                             wait_time="$(( $wait_time + 1 ))"
-                            sleep 0.0001
+                            sleep 0.0001 2>/dev/null
                     fi
                 else
                     return 1
@@ -753,14 +753,31 @@ try_mkdir() {
 }
 
 run_attach() {
+    set_target() {
+        unset NSU
+        [ "$EUID" != 0 ] && NSU="-U"
+        for pid in $(cat "/tmp/.rpids.$1")
+            do
+                for args in "-n -p" "-n" "-p" " "
+                    do
+                        if nsenter --preserve-credentials $NSU -m $args \
+                            -t $pid /usr/bin/true &>/dev/null
+                            then
+                                target="$pid"
+                                target_args="$args"
+                                return 0
+                        fi
+                done
+        done
+        return 1
+    }
     ns_attach() {
-        unset WAITRPIDS NSU
-        target="$(get_bwpids "/tmp/.rpids.$1"|head -1)"
-        if [ -n "$target" ]
+        unset WAITRPIDS
+        if set_target "$1"
             then
                 info_msg "Attaching to RunImage RUNPID: $1"
                 (while [[ -d "/proc/$target" && -d "/proc/$RUNPID" ]]
-                    do sleep 0.5
+                    do sleep 0.5 2>/dev/null
                 done
                 cleanup force) &
                 shift
@@ -771,24 +788,16 @@ run_attach() {
                             $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null)" ]]
                             do
                                 wait_rpids="$(( $wait_rpids - 1 ))"
-                                sleep 0.01
+                                sleep 0.01 2>/dev/null
                         done; sleep 1) &
                         WAITRPIDS=$!
                 fi
-                [ "$EUID" != 0 ] && NSU="-U"
-                for args in "-n -p" "-n" "-p" " "
-                    do
-                        if nsenter --preserve-credentials $NSU -m $args \
-                            -t $target /usr/bin/true &>/dev/null
-                            then
-                                importenv $target nsenter --preserve-credentials \
-                                    --wd=/proc/$target/cwd $NSU -m $args -t $target "$@"
-                                EXEC_STATUS=$?
-                                [ -n "$WAITRPIDS" ] && \
-                                    wait "$WAITRPIDS"
-                                return $EXEC_STATUS
-                        fi
-                done
+                importenv $target nsenter --preserve-credentials \
+                    --wd=/proc/$target/cwd $NSU -m $target_args -t $target "$@"
+                EXEC_STATUS=$?
+                [ -n "$WAITRPIDS" ] && \
+                    wait "$WAITRPIDS"
+                return $EXEC_STATUS
         fi
         error_msg "Failed to attach to RunImage container!"
         return 1
@@ -798,10 +807,8 @@ run_attach() {
             if [ -f "/tmp/.rpids.$1" ]
                 then
                     if [ -n "$2" ]
-                        then
-                            ns_attach "$@"
-                        else
-                            ns_attach "$@" "${RUN_SHELL[@]}"
+                        then ns_attach "$@"
+                        else ns_attach "$@" "${RUN_SHELL[@]}"
                     fi
                 else
                     error_msg "RunImage container not found by RUNPID: $1"
@@ -817,10 +824,8 @@ run_attach() {
                 then
                     runpid="$(ls -1 /tmp/.rpids.* 2>/dev/null|head -1|cut -d'.' -f3)"
                     if [ -n "$1" ]
-                        then
-                            ns_attach "$runpid" "$@"
-                        else
-                            ns_attach "$runpid" "${RUN_SHELL[@]}"
+                        then ns_attach "$runpid" "$@"
+                        else ns_attach "$runpid" "${RUN_SHELL[@]}"
                     fi
             else
                 error_msg "Specify the RunImage RUNPID!"
@@ -860,12 +865,12 @@ try_kill() {
                                 then
                                     kill -2 $pid 2>/dev/null
                                     ret=$?
-                                    sleep 0.05
+                                    sleep 0.05 2>/dev/null
                             elif [[ "$trykillnum" -lt 2 ]]
                                 then
                                     kill -15 $pid 2>/dev/null
                                     ret=$?
-                                    sleep 0.05
+                                    sleep 0.05 2>/dev/null
                             else
                                 kill -9 $pid 2>/dev/null
                                 ret=$?
@@ -918,23 +923,6 @@ cleanup() {
     fi
 }
 
-get_bwpids() {
-    set -o pipefail
-    [ -n "$1" ] && \
-        rpidsfl="$1"||\
-        rpidsfl="$RPIDSFL"
-    if [ -f "$rpidsfl" ]
-        then
-            ps -o user=,pid=,cmd= -p $(cat "$rpidsfl" 2>/dev/null) 2>/dev/null|grep "^$RUNUSER"|grep -v 'tee /tmp/\.exec\..*'|\
-            grep -v "/tmp/\.mount.*/static/"|grep -v "$RUNDIR/static/"|grep -v "socat .*/tmp/.rdbus.*"|\
-            grep -v "socat .*/tmp/.shell.*"|grep -v "RunDir.*/static/"|grep -v "squashfuse.*$RUNIMAGEDIR.*offset="|\
-            grep -v "\.nv\.drv /tmp/\.mount_nv.*drv\."|grep -v "unionfs.*$RUNIMAGEDIR/overlayfs/"|\
-            grep -v "bwrap .*$RUNIMAGEDIR/overlayfs/"|grep -v "bwrap .*/tmp/\.mount.*"|awk '{print$2}'
-        else
-            return 1
-    fi
-}
-
 get_child_pids() {
     if [[ -n "$1" && -d "/proc/$1" ]]
         then
@@ -966,14 +954,14 @@ bwrun() {
             [ "$ALLOW_BG" == 1 ] && \
                 SLEEP_EXEC=("/usr/bin/sleep-exec" "0.05")
             (while [[ -d "/proc/$RUNPID" && ! -f "$BWINFFL" ]]
-                do sleep 0.01
+                do sleep 0.01 2>/dev/null
             done
             unset bwchildpid
             while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" && \
                 ! -n "$bwchildpid" ]] && ! kill -0 "$bwchildpid" 2>/dev/null
                 do
                     bwchildpid="$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')"
-                    sleep 0.01
+                    sleep 0.01 2>/dev/null
             done
             info_msg "Creating a network sandbox..."
             "$SLIRP" --configure \
@@ -990,7 +978,7 @@ bwrun() {
                     if [ "$ALLOW_BG" != 1 ]
                         then
                             while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" ]]
-                                do sleep 0.5
+                                do sleep 0.5 2>/dev/null
                             done
                             try_kill "$SLIRP_PID"
                     fi
@@ -1008,7 +996,7 @@ bwrun() {
             while [[ "$wait_bwrap" -gt 0 && ! -f "$BWINFFL" ]]
                 do
                     wait_bwrap="$(( $wait_bwrap - 1 ))"
-                    sleep 0.01
+                    sleep 0.01 2>/dev/null
             done; sleep 1) &
             WAITBWPID=$!
     fi
@@ -1777,7 +1765,7 @@ if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
             do
                 oldrpids="$(get_child_pids "$RUNPID")"
                 wait_rpids="$(( $wait_rpids - 1 ))"
-                sleep 0.01
+                sleep 0.01 2>/dev/null
         done
         while ps -o pid= -p $oldrpids &>/dev/null
             do
@@ -1787,7 +1775,7 @@ if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
                         if [ "$wait_rpids" -gt 0 ]
                             then
                                 wait_rpids="$(( $wait_rpids - 1 ))"
-                                sleep 0.01
+                                sleep 0.01 2>/dev/null
                                 continue
                         fi
                         break
@@ -1802,7 +1790,7 @@ if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
                                 fi
                         fi
                 fi
-                sleep 0.5
+                sleep 0.5 2>/dev/null
         done) &
 fi
 
