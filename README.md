@@ -450,7 +450,6 @@ exit
 * Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
 * To start the `SSH server`, `SUID Bubblewrap` or run as root is required
 * When unpacked, use the [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper) binary file to properly launch the container.
-* In RunImage used the [patched glibc](https://github.com/DissCent/glibc-eac-rc) to work `EAC anti-cheat`. (Only in `lwrun` version)
 * If SELinux is enabled in the system, then there may be problems with the launch and operation of Wine ([solution](https://www.tecmint.com/disable-selinux-in-centos-rhel-fedora))
 * To start nested bubblewrap containerization, you need to disable capabilities (see NO_CAP env var or use [nocap](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/nocap))
 ```
@@ -509,7 +508,6 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [xorg-xhost-static](https://github.com/VHSgunzo/xorg-xhost-static)
 * [xz-static](https://github.com/VHSgunzo/xz-static)
 * [minos-static](https://github.com/minos-org/minos-static)
-* [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
 * [unionfs-fuse-static](https://github.com/VHSgunzo/unionfs-fuse-static)
 * [importenv](https://github.com/VHSgunzo/importenv/releases)
 * [slirp4netns](https://github.com/rootless-containers/slirp4netns/releases)

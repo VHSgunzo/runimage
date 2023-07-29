@@ -22,19 +22,23 @@
 * Install [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
 * Install [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
 * Install [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
-* Install [wine-prefix](https://github.com/VHSgunzo/wine-prefix) package in `lwrun` version
+* Install [wine-prefix](https://github.com/VHSgunzo/wine-prefix) package to `lwrun`
+* Create and install `EAC` [patched](https://github.com/VHSgunzo/glibc-eac) `glibc-eac` and `lib32-glibc-eac` (2.37-3) to `lwrun`
+* Create and install `Ubuntu` runtime from `Steam` for `Lutris Wine` [ubruntime](https://github.com/VHSgunzo/ubruntime) to `lwrun`
+* Create and install `Reshade Shaders` [reshade-shaders-lw](https://github.com/VHSgunzo/reshade-shaders-lw) to `lwrun`
+* Update [GE-Proton v8-9](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.9) in `lwrun`
+* Replace `palemoon` with `firefox` in `lwrun`
+* Remove `mangoapp` and `lib32-mangoapp` in `lwrun`
+* Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `lwrun`
+* Update [hosts](https://github.com/StevenBlack/hosts) in `lwrun`
+* Fix `LatencyFlex` and `cabextract` in `GE-Proton` in `lwrun`
+* `LW tray` moved to a separate [repository](https://github.com/VHSgunzo/lw-tray) and package lw-tray added to the [RunImage](https://github.com/VHSgunzo/runimage) container [pacman repository](https://runimage-repo.hf.space/) and installed in `lwrun`
 * Fix warnings and errors of setting the root user and group to files when installing and assembling packages
-* Replace `palemoon` with `firefox` in `lwrun` version
-* Remove `mangoapp` and `lib32-mangoapp` in `lwrun` version
-* Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `lwrun` version
 * Replace [fuse-overlayfs](https://github.com/containers/fuse-overlayfs) with [unionfs-fuse](https://github.com/rpodgorny/unionfs-fuse) ([unionfs-fuse-static](https://github.com/VHSgunzo/unionfs-fuse-static/releases))
 * Add `noatime` to `OverlayFS` mode
 * Fix `OverlayFS` mode in `Porteus`, `EasyOS` and `ZorinOS` (`fuse-overlayfs` cannot read upper dir cannot allocate memory)
 * Add get `Nvidia` driver version from `/sys/module/nvidia/version`
 * Force using internal `static` binaries from `PATH` (see `SYS_TOOLS` var)
-* Update [hosts](https://github.com/StevenBlack/hosts) in `lwrun` version
-* Fix `LatencyFlex` and `cabextract` in `GE-Proton` in `lwrun` version
-* Update [GE-Proton v8-4](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.4) in `lwrun` version
 * Fix `ldconfig` `nvidia` symlink creation messages
 * Add `steam` `pacman` hook (disabling `capabilitis`)
 * Add `gamemode` `pacman` hook (start the `daemon` with `gamemoderun`)
@@ -61,6 +65,7 @@
 * Speedup to 8x `hostexec` (see `ENABLE_HOSTEXEC`)
 * Remove `RUNROOTFSTYPEs` settings from `Run.sh`
 * Remake attaching to running container
+* Create [runimage-openssh](https://github.com/VHSgunzo/runimage-openssh) package with patch for fix ssh server in RunImage container
 * Minor fixes
 
 # v0.38.9

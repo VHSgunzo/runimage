@@ -1664,7 +1664,7 @@ if [[ "$RUNSRCNAME" == "Run"* || \
             --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1
                                 SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ;;
             --run-procmon|--rPm) NO_RPIDSMON=1 ; SANDBOX_NET=0 ; SQFUSE_REMOUNT=0
-                                 NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ; ALLOW_BG=0 ;;
+                                 NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ; ALLOW_BG=0 ; ENABLE_HOSTEXEC=0 ;;
         esac
 fi
 
@@ -2344,8 +2344,8 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
         ([ -n "$SYS_HOME" ] && \
             export HOME="$SYS_HOME"
         JOBNUMFL="$EXECFLDIR/job"
-        mkdir -p "$EXECFLDIR"
-        mkfifo "$JOBNUMFL"
+        mkdir -p "$EXECFLDIR" 2>/dev/null
+        mkfifo "$JOBNUMFL" 2>/dev/null
         unset jobnum
         while [[ -d "/proc/$RUNPID" && -d "$EXECFLDIR" ]]
             do
@@ -2354,10 +2354,10 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                 execjobfl="$execjobdir/exec"
                 execjoboutfl="$execjobdir/out"
                 execjobstatfl="$execjobdir/stat"
-                mkdir "$execjobdir"
-                mkfifo "$execjobfl"
-                mkfifo "$execjoboutfl"
-                mkfifo "$execjobstatfl"
+                mkdir "$execjobdir" 2>/dev/null
+                mkfifo "$execjobfl" 2>/dev/null
+                mkfifo "$execjoboutfl" 2>/dev/null
+                mkfifo "$execjobstatfl" 2>/dev/null
                 tee <<<"$jobnum" "$JOBNUMFL" &>/dev/null
                 if [ -e "$execjobfl" ]
                     then
