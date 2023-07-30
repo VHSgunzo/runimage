@@ -35,7 +35,7 @@ warn_msg() {
     fi
 }
 
-is_zstd_cmprs_valid() { [[ "$1" =~ ^[0-9]+$ && "$1" -ge 1 && "$1" -le 19 ]] ; }
+is_zstd_cmprs_valid() { [[ "$1" =~ ^[0-9]+$ && "$1" -ge 1 && "$1" -le 22 ]] ; }
 
 [ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
     NOT_TERM=1
