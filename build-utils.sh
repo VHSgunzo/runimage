@@ -6,3 +6,4 @@ echo "= create runimage-utils.tar.gz"
 tar --gzip -acf runimage-utils.tar.gz -C rootfs ./
 echo "= create archlinux package"
 makepkg -fsCc --noconfirm --nodeps
+rm -f runimage-utils.tar.gz
