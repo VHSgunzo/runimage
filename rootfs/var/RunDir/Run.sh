@@ -1151,20 +1151,9 @@ print_version() {
 }
 
 run_update() {
-    unset PACARG
     info_msg "RunImage update"
-    if [ "$FORCE_UPDATE" == 1 ]
-        then
-            warn_msg "Forced update enabled!"
-            PACARGS="-dd"
-    fi
-    grep "^[blackarch]" "$RUNROOTFS/etc/pacman.conf" &>/dev/null && \
-        blackarch_keyring="blackarch-keyring"||\
-        unset blackarch_keyring
-    QUIET_MODE=1 NO_NVIDIA_CHECK=1 NO_RUNIMAGE_REBUILD=1 bwrun /usr/bin/bash -c \
-        "/usr/bin/pac -Sy archlinux-keyring chaotic-keyring \
-        $blackarch_keyring --needed --noconfirm && \
-        /usr/bin/pac -Su $PACARGS --noconfirm --overwrite '*'"
+    QUIET_MODE=1 NO_NVIDIA_CHECK=1 NO_RUNIMAGE_REBUILD=1 \
+        bwrun /usr/bin/runupdate
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
         then
@@ -1263,7 +1252,6 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RUNIMAGE_CONFIG$GREEN=\"/path/{config}\"     runimage сonfiguration file (0 to disable)
         ${YELLOW}ENABLE_HOSTEXEC$GREEN=1                    Enables the ability to execute commands at the host level
         ${YELLOW}NO_RPIDSMON$GREEN=1                        Disables the monitoring thread of running processes
-        ${YELLOW}FORCE_UPDATE$GREEN=1                       Disables all checks when updating
         ${YELLOW}SANDBOX_NET$GREEN=1                        Creates a network sandbox
         ${YELLOW}SANDBOX_NET_SHARE_HOST$GREEN=1             Creates a network sandbox with access to host loopback
         ${YELLOW}SANDBOX_NET_CIDR$GREEN=11.22.33.0/24       Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
@@ -1371,6 +1359,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}/bin/transfer$GREEN                     Upload file to ${BLUE}https://transfer.sh
         ${YELLOW}/bin/rpidsmon$GREEN                     For monitoring of processes running in runimage containers
         ${YELLOW}/bin/hostexec$GREEN                     For execute commands at the host level (see ${YELLOW}ENABLE_HOSTEXEC$GREEN)
+        ${YELLOW}/usr/bin/runupdate$GREEN                For runimage update
 
         ${YELLOW}ls$GREEN='ls --color=auto'
         ${YELLOW}dir$GREEN='dir --color=auto'
@@ -1489,7 +1478,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${RED}RunImage update:${GREEN}
             Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
                 not be performed. When running an update, you can also pass arguments for a new build.
-                (see RunImage build) (also see ${YELLOW}FORCE_UPDATE${GREEN})
+                (see RunImage build) (also see /usr/bin/runupdate)
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
             $RED└──╼ \$ ${GREEN}runimage ${BLUE}--run-update ${YELLOW}{build args}${GREEN}
             By default, update and rebuild is performed in ${YELLOW}\$RUNIMAGEDIR${GREEN}
@@ -1661,8 +1650,9 @@ if [[ "$RUNSRCNAME" == "Run"* || \
             --overfs-rm  |--oR|\
             --run-build  |--rB|\
             --run-attach |--rA) SQFUSE_REMOUNT=0 ;;
-            --run-update |--rU) [ -n "$RUNIMAGE" ] && OVERFS_MODE=1
-                                SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ;;
+            --run-update |--rU) [ -n "$RUNIMAGE" ] && [ ! -n "$OVERFS_ID" ] && \
+                                    OVERFS_ID="upd$(date +"%H%M%S").$RUNPID" ;
+                                SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ; KEEP_OVERFS=0 ;;
             --run-procmon|--rPm) NO_RPIDSMON=1 ; SANDBOX_NET=0 ; SQFUSE_REMOUNT=0
                                  NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ; ALLOW_BG=0 ; ENABLE_HOSTEXEC=0 ;;
         esac

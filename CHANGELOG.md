@@ -66,6 +66,8 @@
 * Remove `RUNROOTFSTYPEs` settings from `Run.sh`
 * Remake attaching to running container
 * Create [runimage-openssh](https://github.com/VHSgunzo/runimage-openssh) package with patch for fix ssh server in RunImage container
+* Install [pacutils](https://github.com/andrewgregory/pacutils) and add it to `--run-update` (also see `/usr/bin/runupdate`)
+* Remove `FORCE_UPDATE`
 * Minor fixes
 
 # v0.38.9

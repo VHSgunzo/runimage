@@ -131,7 +131,6 @@ Environment variables to configure:
     RUNIMAGE_CONFIG="/path/{config}"     runimage сonfiguration file (0 to disable)
     ENABLE_HOSTEXEC=1                    Enables the ability to execute commands at the host level
     NO_RPIDSMON=1                        Disables the monitoring thread of running processes
-    FORCE_UPDATE=1                       Disables all checks when updating
     SANDBOX_NET=1                        Creates a network sandbox
     SANDBOX_NET_SHARE_HOST=1             Creates a network sandbox with access to host loopback
     SANDBOX_NET_CIDR=11.22.33.0/24       Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
@@ -238,6 +237,7 @@ Custom scripts and aliases:
     /bin/transfer                     Upload file to https://transfer.sh
     /bin/rpidsmon                     For monitoring of processes running in runimage containers
     /bin/hostexec                     For execute commands at the host level (see ENABLE_HOSTEXEC)
+    /usr/bin/runupdate                For runimage update
 
     ls='ls --color=auto'
     dir='dir --color=auto'
@@ -356,7 +356,7 @@ Additional information:
     RunImage update:
         Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
             not be performed. When running an update, you can also pass arguments for a new build.
-            (see RunImage build) (also see FORCE_UPDATE)
+            (see RunImage build) (also see /usr/bin/runupdate)
         ┌─[user@host]─[~]
         └──╼ $ runimage --run-update {build args}
         By default, update and rebuild is performed in $RUNIMAGEDIR
@@ -481,7 +481,8 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [bubblewrap-static](https://github.com/VHSgunzo/bubblewrap-static)
 * [chaotic-aur](https://aur.chaotic.cx)
 * [blackarch](https://github.com/BlackArch/blackarch)
-* [runimage-repo](https://github.com/VHSgunzo/runimage-repo)
+* [runimage-repo](https://github.com/runimage/repo)
+* [runimage-repo-hf](https://runimage-repo.hf.space)
 * [runimage-fake-nvidia-utils](https://github.com/VHSgunzo/runimage-fake-nvidia-utils)
 * [runimage-nvidia-drivers](https://github.com/VHSgunzo/runimage-nvidia-drivers)
 * [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs)
@@ -516,7 +517,7 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [fakechroot](https://github.com/dex4er/fakechroot)
 * [ptyspawn](https://github.com/VHSgunzo/ptyspawn)
 * [socat-static](https://github.com/VHSgunzo/socat-static)
-* [hosts](https://github.com/StevenBlack/hosts)
+* [pacutils](https://github.com/andrewgregory/pacutils)
 
 ## Projects based on RunImage:
 
