@@ -10,6 +10,7 @@ arch=('any')
 license=('MIT')
 source=('runimage-utils.tar.gz')
 sha256sums=('SKIP')
+depends=('pacutils')
 
 package() {
   rm "$srcdir/$source"
