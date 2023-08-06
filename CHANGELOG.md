@@ -13,6 +13,7 @@
 * Update static `curl` [v8.0.1](https://github.com/moparisthebest/static-curl/releases/tag/v8.0.1)
 * Update staticx `xorg-xhost` [v1.0.9](https://github.com/VHSgunzo/xorg-xhost-static/releases/tag/v1.0.9-alpine) (now its on musl)
 * Update static `xz` [v5.5.0alpha](https://github.com/VHSgunzo/xz-static/releases/tag/v5.5.0)
+* Update static `ptyspawn` [v0.0.5](https://github.com/VHSgunzo/ptyspawn/releases/tag/v0.0.5)
 * Update `fake-nvidia-utils` [v0.7](https://github.com/VHSgunzo/runimage-fake-nvidia-utils/releases/tag/v0.7)
 * Replace `iptables` with `iptables-nft`
 * Install `nftables` package
@@ -66,7 +67,8 @@
 * Remove `RUNROOTFSTYPEs` settings from `Run.sh`
 * Remake attaching to running container
 * Create [runimage-openssh](https://github.com/VHSgunzo/runimage-openssh) package with patch for fix ssh server in RunImage container
-* Install [pacutils](https://github.com/andrewgregory/pacutils) and add it to `--run-update` (also see `/usr/bin/runupdate`)
+* Install [pacutils](https://github.com/andrewgregory/pacutils) and use it for `RunImage update` (also see `/usr/bin/runupdate`)
+* Make `RunImage update` in separate `OverlayFS` (OVERFS_ID="upd$(date +"%H%M%S").$RUNPID")
 * Remove `FORCE_UPDATE`
 * Minor fixes
 
