@@ -4,7 +4,7 @@ unset PACTRANS CONFLICTFL
 [ "$EUID" != 0 ] && \
 PACTRANS=(/usr/bin/sudo)
 PACTRANS+=(/usr/bin/pactrans --sysupgrade --yolo)
-FIFOFL="/tmp/.runupd.$RUNPID"
+FIFOFL="/tmp/.rupd.$RUNPID"
 
 grep "^[blackarch]" "/etc/pacman.conf" &>/dev/null && \
     blackarch_keyring="blackarch-keyring"||\
