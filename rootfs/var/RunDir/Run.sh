@@ -1165,8 +1165,11 @@ run_update() {
                             run_build "$@")
                             UPDATE_STATUS="$?"
                     fi
-                    [ "$UPDATE_STATUS" == 0 ] && \
-                        info_msg "Update completed!"
+                    if [ "$UPDATE_STATUS" == 0 ]
+                        then
+                            info_msg "Update completed!"
+                            KEEP_OVERFS=0
+                    fi
                 else
                     info_msg "No package updates found!"
             fi
@@ -1650,9 +1653,9 @@ if [[ "$RUNSRCNAME" == "Run"* || \
             --overfs-rm  |--oR|\
             --run-build  |--rB|\
             --run-attach |--rA) SQFUSE_REMOUNT=0 ;;
-            --run-update |--rU) [ -n "$RUNIMAGE" ] && [ ! -n "$OVERFS_ID" ] && \
+            --run-update |--rU) [[ -n "$RUNIMAGE" && ! -n "$OVERFS_ID" ]] && \
                                     OVERFS_ID="upd$(date +"%H%M%S").$RUNPID" ;
-                                SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ; KEEP_OVERFS=0 ;;
+                                SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ; [ -n "$KEEP_OVERFS" ]||KEEP_OVERFS=0 ;;
             --run-procmon|--rPm) NO_RPIDSMON=1 ; SANDBOX_NET=0 ; SQFUSE_REMOUNT=0
                                  NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ; ALLOW_BG=0 ; ENABLE_HOSTEXEC=0 ;;
         esac
