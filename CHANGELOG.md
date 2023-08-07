@@ -70,6 +70,7 @@
 * Install [pacutils](https://github.com/andrewgregory/pacutils) and use it for `RunImage update` (also see `/usr/bin/runupdate`)
 * Make `RunImage update` in separate `OverlayFS` (OVERFS_ID="upd$(date +"%H%M%S").$RUNPID")
 * Remove `FORCE_UPDATE`
+* Fix `AUTORUN` for symlinks in `/usr/bin`
 * Minor fixes
 
 # v0.38.9

@@ -1975,11 +1975,12 @@ fi
 if [ -n "$AUTORUN" ]
     then
         AUTORUN0ARG=($AUTORUN)
-        [ -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ] && \
-            RUNSRCNAME="$AUTORUN0ARG"
         info_msg "Autorun mode: ${AUTORUN[@]}"
-        if [ ! -x "$RUNROOTFS/usr/bin/$AUTORUN0ARG" ]
+        if NO_NVIDIA_CHECK=1 QUIET_MODE=1 ALLOW_BG=0 SANDBOX_NET=0 bwrun \
+            /usr/bin/sh -c "[ -x '/usr/bin/$AUTORUN0ARG' ]"
             then
+                RUNSRCNAME="$AUTORUN0ARG"
+            else
                 error_msg "$AUTORUN0ARG not found in /usr/bin"
                 cleanup force
                 exit 1
