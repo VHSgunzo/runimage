@@ -24,10 +24,11 @@
 * Install [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
 * Install [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
 * Install [wine-prefix](https://github.com/VHSgunzo/wine-prefix) package to `lwrun`
-* Create and install `EAC` [patched](https://github.com/VHSgunzo/glibc-eac) `glibc-eac` and `lib32-glibc-eac` (2.37-3) to `lwrun`
+* Install [steam-runtime-libs](https://github.com/VHSgunzo/steam-runtime-libs) package to `lwrun`
+* Create `EAC` [patched](https://github.com/VHSgunzo/glibc-eac) `glibc-eac` and `lib32-glibc-eac` (2.37-3)
 * Create and install `Ubuntu` runtime from `Steam` for `Lutris Wine` [ubruntime](https://github.com/VHSgunzo/ubruntime) to `lwrun`
 * Create and install `Reshade Shaders` [reshade-shaders-lw](https://github.com/VHSgunzo/reshade-shaders-lw) to `lwrun`
-* Update [GE-Proton v8-9](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.9) in `lwrun`
+* Update [GE-Proton v8-11](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.9) in `lwrun`
 * Replace `palemoon` with `firefox` in `lwrun`
 * Remove `mangoapp` and `lib32-mangoapp` in `lwrun`
 * Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `lwrun`

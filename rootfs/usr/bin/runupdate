@@ -6,7 +6,7 @@ PACTRANS=(/usr/bin/sudo)
 PACTRANS+=(/usr/bin/pactrans --sysupgrade --yolo)
 FIFOFL="/tmp/.rupd.$RUNPID"
 
-grep "^[blackarch]" "/etc/pacman.conf" &>/dev/null && \
+grep "^\[blackarch\]" "/etc/pacman.conf" &>/dev/null && \
     blackarch_keyring="blackarch-keyring"||\
     unset blackarch_keyring
 
