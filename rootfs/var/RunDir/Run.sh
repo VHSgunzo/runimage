@@ -118,11 +118,13 @@ export RUNROOTFS_VERSION="$(cat "$RUNROOTFS/.version" \
 export RUNROOTFSTYPE="$(cat "$RUNROOTFS/.type" 2>/dev/null)"
 export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version|& awk '{print$2}')"
 
+nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
+
 error_msg() {
     echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
     if [ "$NOT_TERM" == 1 ]
         then
-            notify-send -a 'RunImage Error' "$@" 2>/dev/null &
+            notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
     fi
 }
 
@@ -132,18 +134,18 @@ info_msg() {
             echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
                 then
-                    notify-send -a 'RunImage Info' "$@" 2>/dev/null &
+                    notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }
 
 warn_msg() {
-    if [ "$QUIET_MODE" != 1 ]
+    if [[ "$QUIET_MODE" != 1 && "$NO_WARN" != 1 ]]
         then
             echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
                 then
-                    notify-send -a 'RunImage Warning' "$@" 2>/dev/null &
+                    notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }
@@ -1246,6 +1248,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run runimage with autorun options for /usr/bin executables
         ${YELLOW}ALLOW_ROOT$GREEN=1                         Allows to run runimage under root user
         ${YELLOW}QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
+        ${YELLOW}NO_WARN$GREEN=1                            Disables all warning runimage messages
         ${YELLOW}DONT_NOTIFY$GREEN=1                        Disables all non-error runimage notification
         ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run runimage afer extraction without using FUSE
         ${YELLOW}TMPDIR$GREEN=\"/path/{TMPDIR}\"              Used for extract and run options
@@ -1636,6 +1639,15 @@ if [ "$RUNIMAGE_CONFIG" != 0 ]
         warn_msg "RunImage config is disabled!"
 fi
 
+set_default_option() {
+    NO_WARN=1
+    ALLOW_BG=0
+    XORG_CONF=0
+    SANDBOX_NET=0
+    SQFUSE_REMOUNT=0
+    NO_NVIDIA_CHECK=1
+    ENABLE_HOSTEXEC=0
+}
 if [[ "$RUNSRCNAME" == "Run"* || \
       "$RUNSRCNAME" == "runimage"* ]]
     then
@@ -1649,9 +1661,9 @@ if [[ "$RUNSRCNAME" == "Run"* || \
             --overfs-list|--oL|\
             --overfs-rm  |--oR|\
             --run-build  |--rB|\
-            --run-attach |--rA) SQFUSE_REMOUNT=0 ;;
-            --run-procmon|--rPm) NO_RPIDSMON=1 ; SANDBOX_NET=0 ; SQFUSE_REMOUNT=0
-                                 NO_NVIDIA_CHECK=1 ; QUIET_MODE=1 ; ALLOW_BG=0 ; ENABLE_HOSTEXEC=0 ;;
+            --run-attach |--rA) set_default_option ;;
+            --run-procmon|--rPm) set_default_option
+                                 NO_RPIDSMON=1 ; QUIET_MODE=1 ;;
             --run-update |--rU) if [ -n "$RUNIMAGE" ]
                                     then
                                         OVERFS_MODE=1

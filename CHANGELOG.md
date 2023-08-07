@@ -72,6 +72,9 @@
 * Make `RunImage update` in separate `OverlayFS` (OVERFS_ID="upd$(date +"%H%M%S").$RUNPID")
 * Remove `FORCE_UPDATE`
 * Fix `AUTORUN` for symlinks in `/usr/bin`
+* Add `NO_WARN` Disables all warning `runimage` messages
+* Cut `ANSI colors` from `notify-sent` `*_msg`
+* Add default run option for some `runimage` args
 * Minor fixes
 
 # v0.38.9
