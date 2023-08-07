@@ -138,7 +138,7 @@ if [ -w "$RUNDIR/rootfs" ]
           info_msg "Updating build timestamp..."
           date '+%y.%m.%d.%H%M%S' > "$RUNDIR/rootfs/.build"
           info_msg "Cleanup rootfs..."
-          find "$RUNDIR/rootfs/var/log" -type f -name '*.log' -exec rm -f {} \;
+          find "$RUNDIR/rootfs/var/log/" -type f -name '*.log' -exec rm -f {} \;
           rm -rf "$RUNDIR/rootfs/var/tmp/"*
           if [ -f "$PACLOCKFL" ]
                then
@@ -147,7 +147,6 @@ if [ -w "$RUNDIR/rootfs" ]
           fi
           rm -rf "$RUNDIR/rootfs/var/lib/pacman/sync/"*
           rm -rf "$RUNDIR/rootfs/var/cache/pacman/pkg/"*
-          rm -rf "$RUNDIR/rootfs/var/log/pacman.log"
      else
           warn_msg "Unable to update build timestamp. Read-only!"
           warn_msg "Unable to cleanup rootfs. Read-only!"
