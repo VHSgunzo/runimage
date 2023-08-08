@@ -107,6 +107,7 @@ Environment variables to configure:
     SHARE_SYSTEMD=1                      Shares SystemD from the host
     UNSHARE_DBUS=1                       Unshares DBUS from the host
     UNSHARE_MODULES=1                    Unshares kernel modules from the host (/usr/lib/modules)
+    UNSHARE_DEF_MOUNTS=1                 Unshares default mount points (/mnt /media /run/media)
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
     NVIDIA_DRIVERS_DIR="/path/dir"       Specifies custom Nvidia driver images directory
     RUNCACHEDIR="/path/dir"              Specifies custom runimage cache directory

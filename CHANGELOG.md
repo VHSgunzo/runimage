@@ -64,6 +64,7 @@
 * Add bind `RunDir` to `/var/RunDir`
 * Add `NO_RUNDIR_BIND` Disables binding `RunDir` to `/var/RunDir`
 * Add ability to update all utilities and binaries in `RunDir` with `pacman`
+* Add ability to update custom `RunImage` `rootfs` files with `pacman`
 * Speedup to 8x `hostexec` (see `ENABLE_HOSTEXEC`)
 * Remove `RUNROOTFSTYPEs` settings from `Run.sh`
 * Remake attaching to running container
@@ -75,6 +76,7 @@
 * Add `NO_WARN` Disables all warning `runimage` messages
 * Cut `ANSI colors` from `notify-sent` `*_msg`
 * Add default run option for some `runimage` args
+* Add `UNSHARE_DEF_MOUNTS` Unshares default mount points (`/mnt` `/media` `/run/media`)
 * Minor fixes
 
 # v0.38.9

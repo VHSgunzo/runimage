@@ -13,32 +13,29 @@ export SYS_DISPLAY="$DISPLAY"
 [ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
     NOT_TERM=1
 
+nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
+
 error_msg() {
     echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
     if [ "$NOT_TERM" == 1 ]
-        then
-            notify-send -a 'RunImage Error' "$@" 2>/dev/null &
+        then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
     fi
 }
 
 info_msg() {
     if [ "$QUIET_MODE" != 1 ]
-        then
-            echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
-                then
-                    notify-send -a 'RunImage Info' "$@" 2>/dev/null &
+                then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }
 
 warn_msg() {
-    if [ "$QUIET_MODE" != 1 ]
-        then
-            echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    if [[ "$QUIET_MODE" != 1 && "$NO_WARN" != 1 ]]
+        then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
-                then
-                    notify-send -a 'RunImage Warning' "$@" 2>/dev/null &
+                then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }

@@ -7,4 +7,4 @@ Target = var/RunDir/*
 [Action]
 Description = Updating runimage...
 When = PostTransaction
-Exec = /usr/share/libalpm/scripts/runimage
+Exec = /usr/share/libalpm/scripts/update-runimage

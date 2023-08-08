@@ -26,7 +26,7 @@ unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       FUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BWRAP OVERFS_MNT \
       SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG OVERFS_DIR \
       RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP RUNDIR_BIND \
-      SANDBOX_HOME_DIR MACHINEID_BIND MODULES_BIND
+      SANDBOX_HOME_DIR MACHINEID_BIND MODULES_BIND DEF_MOUNTS_BIND
 
 which_exe() { command -v "$@" ; }
 
@@ -123,29 +123,24 @@ nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 error_msg() {
     echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
     if [ "$NOT_TERM" == 1 ]
-        then
-            notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+        then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
     fi
 }
 
 info_msg() {
     if [ "$QUIET_MODE" != 1 ]
-        then
-            echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
-                then
-                    notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+                then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }
 
 warn_msg() {
     if [[ "$QUIET_MODE" != 1 && "$NO_WARN" != 1 ]]
-        then
-            echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
             if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
-                then
-                    notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+                then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }
@@ -1006,13 +1001,11 @@ bwrun() {
         --info-fd 8 \
         --proc /proc \
         --bind-try /sys /sys \
-        --bind-try /mnt /mnt \
         --dev-bind-try /dev /dev \
-        --bind-try /media /media \
         --ro-bind-try /etc/hostname /etc/hostname \
         --ro-bind-try /etc/localtime /etc/localtime \
         --ro-bind-try /etc/nsswitch.conf /etc/nsswitch.conf \
-        "${MODULES_BIND[@]}" \
+        "${MODULES_BIND[@]}" "${DEF_MOUNTS_BIND[@]}" \
         "${USERS_BIND[@]}" "${RUNDIR_BIND[@]}" \
         "${VAR_BIND[@]}" "${MACHINEID_BIND[@]}" \
         "${NVIDIA_DRIVER_BIND[@]}" "${TMP_BIND[@]}" \
@@ -1034,13 +1027,7 @@ bwrun() {
     EXEC_STATUS=$?
     [ -n "$WAITBWPID" ] && \
         wait "$WAITBWPID"
-    if [[ -f "$RUNIMAGE" && -f "/tmp/.r$RUNPID.rebuild" ]] && \
-        [ "$NO_RUNIMAGE_REBUILD" != 1 ]
-        then
-            rm -f "/tmp/.r$RUNPID.rebuild"
-            run_build && \
-            KEEP_OVERFS=0
-    elif [[ -f "/tmp/.r$RUNPID.copy" && -d "$OVERFS_DIR/layers" ]]
+    if [[ -f "/tmp/.r$RUNPID.copy" && -d "$OVERFS_DIR/layers" ]]
         then
             rm -f "/tmp/.r$RUNPID.copy"
             cp -rf "$OVERFS_DIR/layers"/!(rootfs|.unionfs) "$RUNDIR"
@@ -1154,7 +1141,7 @@ print_version() {
 
 run_update() {
     info_msg "RunImage update"
-    QUIET_MODE=1 NO_NVIDIA_CHECK=1 NO_RUNIMAGE_REBUILD=1 \
+    NO_NVIDIA_CHECK=1 QUIET_MODE=1 ALLOW_BG=0 \
         bwrun /usr/bin/runupdate
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
@@ -1230,6 +1217,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}SHARE_SYSTEMD$GREEN=1                      Shares SystemD from the host
         ${YELLOW}UNSHARE_DBUS$GREEN=1                       Unshares DBUS from the host
         ${YELLOW}UNSHARE_MODULES$GREEN=1                    Unshares kernel modules from the host (/usr/lib/modules)
+        ${YELLOW}UNSHARE_DEF_MOUNTS$GREEN=1                 Unshares default mount points (/mnt /media /run/media)
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
         ${YELLOW}NVIDIA_DRIVERS_DIR$GREEN=\"/path/dir\"       Specifies custom Nvidia driver images directory
         ${YELLOW}RUNCACHEDIR$GREEN=\"/path/dir\"              Specifies custom runimage cache directory
@@ -1669,8 +1657,11 @@ if [[ "$RUNSRCNAME" == "Run"* || \
                                         OVERFS_MODE=1
                                         KEEP_OVERFS=0
                                         OVERFS_ID="upd$(date +"%H%M%S").$RUNPID"
+                                    else
+                                        OVERFS_MODE=0
+                                        unset OVERFS_ID KEEP_OVERFS
                                 fi
-                                SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ;;
+                                SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ; ENABLE_HOSTEXEC=0 ;;
         esac
 fi
 
@@ -1704,6 +1695,18 @@ xhost +si:localuser:$RUNUSER &>/dev/null
 
 ulimit -n $(ulimit -n -H) &>/dev/null
 
+if [ "$UNSHARE_DEF_MOUNTS" != 1 ]
+    then
+        DEF_MOUNTS_BIND=(
+            '--bind-try' '/mnt' '/mnt'
+            '--bind-try' '/media' '/media'
+        )
+        runbinds=("/run/media")
+    else
+        warn_msg "Default mount points are unshared!"
+        unset runbinds
+fi
+
 [[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" ]] && \
     export XDG_RUNTIME_DIR="/run/user/$EUID"
 XDG_RUN_BIND=(
@@ -1712,7 +1715,6 @@ XDG_RUN_BIND=(
     "--dir" "$XDG_RUNTIME_DIR"
     "--chmod" "0700" "$XDG_RUNTIME_DIR"
 )
-runbinds=("/run/media")
 if [[ "$SHARE_SYSTEMD" == 1 && -d "/run/systemd" ]]
     then
         warn_msg "SystemD is shared!"

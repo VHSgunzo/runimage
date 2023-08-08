@@ -1,0 +1,10 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = var/rootfs/*
+
+[Action]
+Description = Updating rootfs...
+When = PostTransaction
+Exec = /usr/share/libalpm/scripts/update-rootfs
