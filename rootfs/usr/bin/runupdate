@@ -5,13 +5,16 @@ unset PACTRANS CONFLICTFL
 PACTRANS=(/usr/bin/sudo)
 PACTRANS+=(/usr/bin/pactrans --sysupgrade --yolo)
 FIFOFL="/tmp/.rupd.$RUNPID"
+PACKEYRINGS=(archlinux-keyring)
+
+grep "^\[chaotic-aur\]" "/etc/pacman.conf" &>/dev/null && \
+    PACKEYRINGS+=(chaotic-keyring)
 
 grep "^\[blackarch\]" "/etc/pacman.conf" &>/dev/null && \
-    blackarch_keyring="blackarch-keyring"||\
-    unset blackarch_keyring
+    PACKEYRINGS+=(blackarch-keyring)
 
-/usr/bin/pac -Sy archlinux-keyring chaotic-keyring \
-    $blackarch_keyring --needed --noconfirm||exit 1
+/usr/bin/pac -Sy "${PACKEYRINGS[@]}" --needed --noconfirm||\
+    exit 1
 
 cleanup() {
     rm -rf "$FIFOFL"

@@ -226,7 +226,7 @@ try_dl() {
         [ "$NO_DL_REPEAT" == 1 ] && \
             return 1
         DL_REP_TITLE="Download interrupted!"
-        DL_REP_TEXT="Failed to download: $FILENAME \nWould you like to repeat it?"
+        DL_REP_TEXT="Failed to download: $FILENAME from $(echo "$URL"|awk -F/ '{print$3"/"$4}') \nWould you like to repeat it?"
         if [[ "$NOT_TERM" != 1 || "$NO_DL_GUI" == 1 ]]
             then
                 yn_case "$DL_REP_TEXT"||return 1
@@ -323,7 +323,7 @@ try_dl() {
                             dl_ret "$?"||return 1
                     fi
                 else
-                    error_msg "No download file found: $FILENAME"
+                    error_msg "$FILENAME not found in $(echo "$URL"|awk -F/ '{print$3"/"$4}')"
                     return 1
             fi
         else
@@ -346,12 +346,17 @@ get_nvidia_driver_image() {
             try_mkdir "$NVIDIA_DRIVERS_DIR"
             info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
             nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
-            driver_url_list=("https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image" \
-                             "https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run")
-            if try_dl "${driver_url_list[0]}" "$NVIDIA_DRIVERS_DIR"
-                then
-                    return 0
-            elif try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"
+            driver_url_list=(
+                "https://huggingface.co/runimage/nvidia-drivers/resolve/main/releases/$nvidia_driver_image"
+                "https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image"
+                "https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run"
+                "https://us.download.nvidia.com/tesla/${nvidia_version}/$nvidia_driver_run"
+            )
+            if try_dl "${driver_url_list[0]}" "$NVIDIA_DRIVERS_DIR"||\
+               try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"
+                then return 0
+            elif try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"||\
+                 try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"
                 then
                     binary_files="mkprecompiled nvidia-cuda-mps-control nvidia-cuda-mps-server \
                         nvidia-debugdump nvidia-installer nvidia-modprobe nvidia-ngx-updater tls_test \
@@ -1216,6 +1221,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}UNSHARE_USERS$GREEN=1                      Don't bind-mount /etc/{passwd,group}
         ${YELLOW}SHARE_SYSTEMD$GREEN=1                      Shares SystemD from the host
         ${YELLOW}UNSHARE_DBUS$GREEN=1                       Unshares DBUS from the host
+        ${YELLOW}UNSHARE_UDEV$GREEN=1                       Unshares UDEV from the host (/run/udev)
         ${YELLOW}UNSHARE_MODULES$GREEN=1                    Unshares kernel modules from the host (/usr/lib/modules)
         ${YELLOW}UNSHARE_DEF_MOUNTS$GREEN=1                 Unshares default mount points (/mnt /media /run/media)
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
@@ -1260,7 +1266,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}XEPHYR_FULLSCREEN$GREEN=1                  Starts runimage desktop in full screen mode
         ${YELLOW}UNSHARE_CLIPBOARD$GREEN=1                  Disables clipboard synchronization for runimage desktop
 
-        ${YELLOW}SYS_BUWRAP$GREEN=1                          Using system ${BLUE}bwrap
+        ${YELLOW}SYS_BUWRAP$GREEN=1                         Using system ${BLUE}bwrap
         ${YELLOW}SYS_SQFUSE$GREEN=1                         Using system ${BLUE}squashfuse
         ${YELLOW}SYS_UNSQFS$GREEN=1                         Using system ${BLUE}unsquashfs
         ${YELLOW}SYS_MKSQFS$GREEN=1                         Using system ${BLUE}mksquashfs
@@ -1636,9 +1642,8 @@ set_default_option() {
     NO_NVIDIA_CHECK=1
     ENABLE_HOSTEXEC=0
 }
-if [[ "$RUNSRCNAME" == "Run"* || \
-      "$RUNSRCNAME" == "runimage"* ]]
-    then
+case "$RUNSRCNAME" in
+    Run*|runimage*|$RUNROOTFSTYPE)
         case $1 in
             --run-pkglist|--rP|\
             --run-kill   |--rK|\
@@ -1651,7 +1656,7 @@ if [[ "$RUNSRCNAME" == "Run"* || \
             --run-build  |--rB|\
             --run-attach |--rA) set_default_option ;;
             --run-procmon|--rPm) set_default_option
-                                 NO_RPIDSMON=1 ; QUIET_MODE=1 ;;
+                                    NO_RPIDSMON=1 ; QUIET_MODE=1 ;;
             --run-update |--rU) if [ -n "$RUNIMAGE" ]
                                     then
                                         OVERFS_MODE=1
@@ -1663,7 +1668,7 @@ if [[ "$RUNSRCNAME" == "Run"* || \
                                 fi
                                 SQFUSE_REMOUNT=0 ; ALLOW_BG=0 ; ENABLE_HOSTEXEC=0 ;;
         esac
-fi
+esac
 
 if logname &>/dev/null
     then
@@ -1715,13 +1720,13 @@ XDG_RUN_BIND=(
     "--dir" "$XDG_RUNTIME_DIR"
     "--chmod" "0700" "$XDG_RUNTIME_DIR"
 )
+[ "$UNSHARE_UDEV" != 1 ] && \
+    runbinds+=("/run/udev")||\
+    warn_msg "UDEV is unshared!"
 if [[ "$SHARE_SYSTEMD" == 1 && -d "/run/systemd" ]]
     then
         warn_msg "SystemD is shared!"
-        runbinds+=(
-            "/run/udev"
-            "/run/systemd"
-        )
+        runbinds+=("/run/systemd")
 fi
 XDG_DBUS=(
     "$XDG_RUNTIME_DIR/bus"

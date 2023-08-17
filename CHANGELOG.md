@@ -21,12 +21,13 @@
 * Install [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper.git) package
 * Install [runimage-static](https://github.com/VHSgunzo/runimage-static.git) package
 * Install [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Install [runimage-mirrorlist](https://github.com/VHSgunzo/runimage-mirrorlist) package
+* Install [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs) package
 * Install [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
 * Install [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
 * Install [wine-prefix](https://github.com/VHSgunzo/wine-prefix) package to `lwrun`
-* Install [steam-runtime-libs](https://github.com/VHSgunzo/steam-runtime-libs) package to `lwrun`
+* Create and install [steam-runtime-libs](https://github.com/VHSgunzo/steam-runtime-libs) package to `lwrun`
 * Create `EAC` [patched](https://github.com/VHSgunzo/glibc-eac) `glibc-eac` and `lib32-glibc-eac` (2.37-3)
-* Create and install `Ubuntu` runtime from `Steam` for `Lutris Wine` [ubruntime](https://github.com/VHSgunzo/ubruntime) to `lwrun`
 * Create and install `Reshade Shaders` [reshade-shaders-lw](https://github.com/VHSgunzo/reshade-shaders-lw) to `lwrun`
 * Update [GE-Proton v8-11](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.9) in `lwrun`
 * Replace `palemoon` with `firefox` in `lwrun`
@@ -45,7 +46,8 @@
 * Add `steam` `pacman` hook (disabling `capabilitis`)
 * Add `gamemode` `pacman` hook (start the `daemon` with `gamemoderun`)
 * Add `SANDBOX_NET_SHARE_HOST` Creates a network sandbox with access to host loopback
-* Add [RunImage pacman repository](https://github.com/VHSgunzo/runimage-repo)
+* Add [RunImage pacman repository](https://github.com/runimage/repo)
+* Add [RunImage pacman repository mirror](https://runimage-repo.hf.space)
 * Add increasing `soft limit` to `hard limit`
 * Remove binds `/srv` `/var/local` `/var/games` `/var/opt` `/boot`
 * Add `UNSHARE_USERS` Don't bind-mount `/etc/{passwd,group}`
@@ -77,6 +79,9 @@
 * Cut `ANSI colors` from `notify-sent` `*_msg`
 * Add default run option for some `runimage` args
 * Add `UNSHARE_DEF_MOUNTS` Unshares default mount points (`/mnt` `/media` `/run/media`)
+* Add `UNSHARE_UDEV` Unshares UDEV from the host (`/run/udev`)
+* Add [huggingface](https://huggingface.co/runimage/nvidia-drivers) mirror for download runimage nvidia driver image
+* Add support for [tesla](https://us.download.nvidia.com/tesla) nvidia drivers
 * Minor fixes
 
 # v0.38.9
