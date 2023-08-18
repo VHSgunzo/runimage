@@ -1032,11 +1032,6 @@ bwrun() {
     EXEC_STATUS=$?
     [ -n "$WAITBWPID" ] && \
         wait "$WAITBWPID"
-    if [[ -f "/tmp/.r$RUNPID.copy" && -d "$OVERFS_DIR/layers" ]]
-        then
-            rm -f "/tmp/.r$RUNPID.copy"
-            cp -rf "$OVERFS_DIR/layers"/!(rootfs|.unionfs) "$RUNDIR"
-    fi
     [ -f "$BWINFFL" ] && \
         rm -f "$BWINFFL"
     return $EXEC_STATUS
