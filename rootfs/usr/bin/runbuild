@@ -6,7 +6,7 @@ BLUE='\033[1;94m'
 GREEN='\033[1;92m'
 YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
-EXEPT_RUNSRCNAMES=("Run" "runbuild" "rundesktop")
+EXEPT_RUNSRCNAMES=("Run" "runbuild" "rundesktop" "runupdate" "rpidsmon")
 
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
