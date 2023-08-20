@@ -29,7 +29,8 @@
 * Create and install [steam-runtime-libs](https://github.com/VHSgunzo/steam-runtime-libs) package to `lwrun`
 * Create `EAC` [patched](https://github.com/VHSgunzo/glibc-eac) `glibc-eac` and `lib32-glibc-eac` (2.37-3)
 * Create and install `Reshade Shaders` [reshade-shaders-lw](https://github.com/VHSgunzo/reshade-shaders-lw) to `lwrun`
-* Update [GE-Proton v8-11](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.9) in `lwrun`
+* Create and install [adwaita-icon-theme-41](https://github.com/VHSgunzo/adwaita-icon-theme-41) package to `portarch`
+* Update [GE-Proton v8-12](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.12) in `lwrun`
 * Replace `palemoon` with `firefox` in `lwrun`
 * Remove `mangoapp` and `lib32-mangoapp` in `lwrun`
 * Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `lwrun`

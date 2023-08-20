@@ -1,0 +1,10 @@
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Target = pacutils
+
+[Action]
+Description = Updating pacutils...
+When = PostTransaction
+Exec = /usr/share/libalpm/scripts/fix-pacutils

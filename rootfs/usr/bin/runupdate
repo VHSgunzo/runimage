@@ -1,9 +1,7 @@
 #!/usr/bin/bash
 
 unset PACTRANS CONFLICTFL
-[ "$EUID" != 0 ] && \
-PACTRANS=(/usr/bin/sudo)
-PACTRANS+=(/usr/bin/pactrans --sysupgrade --yolo)
+PACTRANS=(/usr/bin/pactrans --sysupgrade --yolo)
 FIFOFL="/tmp/.rupd.$RUNPID"
 PACKEYRINGS=(archlinux-keyring)
 
