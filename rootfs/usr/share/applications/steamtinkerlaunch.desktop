@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=Steam Tinker Launch (Settings)
-Comment=steamtinkerlaunch Settings menu
-Categories=Game;
-Exec=nocap steamtinkerlaunch settings
-Icon=steamtinkerlaunch
-Terminal=false
-Type=Application

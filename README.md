@@ -4,49 +4,52 @@
 
 ![image](screenshots/run-shell.png)
 
-RunImage is designed to be completely static and portable to run on almost any Linux. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs/releases). The technology of single-file containerization is based on a modified static AppImage [runtime](https://github.com/VHSgunzo/runimage-runtime-static), squashfs image with `lz4` compression method for better work speed, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static/releases) for the operation of the container [Run.sh script](https://github.com/VHSgunzo/runimage/blob/main/Run.sh), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap).
+`RunImage` is designed to be completely `static` and `portable` to run on almost any `Linux`. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs). The technology of single-file containerization is based on a modified static `AppImage` [runtime](https://github.com/VHSgunzo/runimage-runtime-static), `squashfs` image with `lz4` compression method for better work speed, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static/releases) for the operation of the container [Run.sh script](https://github.com/VHSgunzo/runimage/blob/main/Run.sh), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap).
 
-In addition, RunImage has the ability to isolate itself from the main system, use separate portable home directories and configuration files for each executable file being run, and run separate `X11` servers, including running multiple `Xorg` servers on `TTY`. `XFCE` is used as `DE`.
+In addition, `RunImage` has the ability to `isolate` itself from the main `system`, use separate `portable home` directories and `configuration` files for each `executable` file being run, and run separate `X11` servers, including running multiple `Xorg` servers on `TTY`. `XFCE` is used as `DE`
 
-You can use it to develop and run any applications and games, including applications and games for Windows, launch games from retro platforms using popular emulators, work with the office, with remote desktops, multimedia, browsers, messengers, and even run virtual machines with QEMU/KVM and Virt-Manager, USB and block device forwarding in VM also works.
+You can use it to `develop` and `run` any `applications` and `games`, including applications and games for `Windows`, launch games from retro platforms using popular `emulators`, work with the `office`, with `remote desktops`, `multimedia`, `browsers`, `messengers`, and even run `virtual machines` with `QEMU/KVM` and `Virt-Manager`, `USB` and `block device` `forwarding` in `VM` also `works`
 
-Also inside the container, you can use various means of proxification, such as proxychains, tor and others and run VNC and SSH servers.
+Also inside the `container`, you can use various means of `proxification`, such as `proxychains`, `tor` and others and run `VNC` and `SSH` servers.
+In `network sandbox` mode (see `SANDBOX_NET`*) you can use `VPN` (tested `openvpn`, `wireguard`, `sshuttle`, [tun2proxy](https://github.com/blechschmidt/tun2proxy)) and other network tools `without root` rights.
 
-The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file `pkg_list-{release_type}.txt`
+The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file `pkg_list{-release-type}.txt`
 
 ## Features:
 
-* A Portable single executable file with an idea - downloaded and launched. Nothing needs to be installed in the system.
-* Works on most Linux distributions, including even very old ones or without `glibc` or `systemd` and in `live` boot mode.
+* A `portable` single `executable` file with an idea - downloaded and launched. Nothing needs to be installed in the system.
+* Works on most `Linux` distributions, including even very old ones or without `glibc` or `systemd` and in `live` boot mode.
 * `OverlayFS` mode (It looks like the usual means of containerization like docker) (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help))
-* Read-Write mount in OverlayFS mode.
-* Private `network sandbox`.
-* Running and working without root rights, including package management in unpacked form or in OverlayFS mode.
+* `Read-Write` mount in `OverlayFS` mode.
+* Running and working `without root` rights, including package management.
 * The ability to work in a `packed` and `unpacked` form.
 * The ability to run both `32-bit` and `64-bit` executable files.
 * Based on `Arch Linux`, contains the latest software and [AUR](https://aur.archlinux.org) support.
-* Access to [BlackArch](https://github.com/BlackArch/blackarch) repositories.
-* Updating packages without extracting runimage and automatic rebuild if the update was successful.
-* Ability to exec commands at the host level (see ENABLE_HOSTEXEC and [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec))
+* Access to [BlackArch](https://github.com/BlackArch/blackarch) repo.
+* Own `Pacman` [repository](https://runimage-repo.hf.space) with [mirror](https://github.com/runimage/repo).
+* Updating without extraction `runimage` and automatic rebuild if the update was successful.
+* The ability to launching `AppImage` applications with `FUSE` mount (not needed to extract).
+* The ability to `exec` commands at the `host level` (see `ENABLE_HOSTEXEC` and [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec))
 * The ability to use both separate `home` directories for each `executable` file, and completely `seamless` use of the `system` `home` directory.
 * The ability to use separate `configuration` files for each launched `executable` file (see [config](https://github.com/VHSgunzo/runimage/tree/main/config))
-* There is no `performance` drawdown. All applications and executable files run at the same `speed` as in the `system`.
-* Supports filesystem and `X11` sandboxing.
-* `Temporary` `home` directory in `RAM` (can be used as a real private mode for browsers and applications)
+* There is no `performance` drawdown. All applications and executable files run at the same `speed` as in the `system`
+* The ability to `Filesystem`, `X11`, `DBUS`, `UDEV`, `Network`, `SystemD`, `USERs` and `PIDs` sandboxing.
+* `Temporary` `home` directory in `RAM` (can be used as a real `private mode` for browsers and applications)
 * `Sandbox` and `portable` `home` directory.
-* The ability to launching a full `DE` in `windowed` mode and on `TTY`.
-* Works with any versions of `nvidia` proprietary `drivers`.
+* The ability to launching a full `DE` in `windowed` mode and on `TTY`
+* Works with any versions of `nvidia` proprietary `drivers`
 * Works in `Wayland` session.
-* `Monitoring` of running `processes`.
-* Background `processes` control.
-* `Attaching` to a running `containers`.
+* `Monitoring` of running `processes`
+* Background `processes control`
+* `Attaching` to a running `containers`
+* The ability to start and control `SystemD` services with [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package.
 * Usability and comprehensibility.
 
 ## Requirements:
 
-* Supported architectures (should work on any Linux kernel architecture. However, it is currently only built for `x86_64`)
-* Minimum recommended Linux `kernel` version `4.18+` (tested on Centos 7 with `3.10` and on Ubuntu 12.04 with `3.11` using `SUID Bubblewrap` and it's works, but `5.0+` with [user namespaces](https://lwn.net/Articles/531114) support is recommended)
-* `FUSE` (but not necessarily, because it is possible to work in unpacked form without `FUSE` mounting). Also you can create `/dev/fuse` manually (as root) if the kernel module exists (see this [code](https://github.com/libfuse/libfuse/blob/f0e08cc700d629da2d46def8b620b0ed858cc0d9/util/install_helper.sh#L35)):
+* Supported architectures (should work on any `Linux` kernel architecture. However, it is currently only built for `x86_64`)
+* Minimum recommended Linux `kernel` version `4.18+` (tested on `Centos 7` with `3.10` and on `Ubuntu 12.04` with `3.11` using `SUID Bubblewrap` and it's works, but `5.0+` with [user namespaces](https://lwn.net/Articles/531114) support is recommended)
+* `FUSE` (but not necessarily, because it is possible to work in `unpacked` form without `FUSE` mounting). Also you can create `/dev/fuse` manually (as root) if the `kernel` module exists (see this [code](https://github.com/libfuse/libfuse/blob/f0e08cc700d629da2d46def8b620b0ed858cc0d9/util/install_helper.sh#L35)):
 ```
 mknod /dev/fuse -m 0666 c 10 229
 ```
@@ -96,10 +99,19 @@ Environment variables to configure:
     TMP_HOME_DL=1                        As above, but with binding $HOME/Downloads directory
     SANDBOX_HOME=1                       Creates sandbox home directory and bind it to /home/$USER or to /root
     SANDBOX_HOME_DL=1                    As above, but with binding $HOME/Downloads directory
+    SANDBOX_HOME_DIR="/path/dir"         Specifies sandbox home directory and bind it to /home/$USER or to /root
     PORTABLE_HOME=1                      Creates a portable home directory and uses it as $HOME
+    PORTABLE_HOME_DIR="/path/dir"        Specifies a portable home directory and uses it as $HOME
     PORTABLE_CONFIG=1                    Creates a portable config directory and uses it as $XDG_CONFIG_HOME
     NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
     ALLOW_BG=1                           Allows you to run processes in the background
+    UNSHARE_PIDS=1                       Unshares all host processes
+    UNSHARE_USERS=1                      Don't bind-mount /etc/{passwd,group}
+    SHARE_SYSTEMD=1                      Shares SystemD from the host
+    UNSHARE_DBUS=1                       Unshares DBUS from the host
+    UNSHARE_UDEV=1                       Unshares UDEV from the host (/run/udev)
+    UNSHARE_MODULES=1                    Unshares kernel modules from the host (/usr/lib/modules)
+    UNSHARE_DEF_MOUNTS=1                 Unshares default mount points (/mnt /media /run/media)
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
     NVIDIA_DRIVERS_DIR="/path/dir"       Specifies custom Nvidia driver images directory
     RUNCACHEDIR="/path/dir"              Specifies custom runimage cache directory
@@ -109,21 +121,24 @@ Environment variables to configure:
     OVERFS_ID=ID                         Specifies the OverlayFS ID
     KEEP_OLD_BUILD=1                     Creates a backup of the old RunImage when building a new one
     BUILD_WITH_EXTENSION=1               Adds an extension when building (compression method and rootfs type)
+    CMPRS_ALGO={zstd|xz|lz4}             Specifies the compression algo for runimage build
+    ZSDT_CMPRS_LVL={1-19}                Specifies the compression ratio of the zstd algo for runimage build
+    NO_RUNDIR_BIND=1                     Disables binding RunDir to /var/RunDir
     RUN_SHELL="shell"                    Selects $SHELL in runimage
     NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
                                             you can also use /usr/bin/nocap in runimage
     AUTORUN="{executable} {args}"        Run runimage with autorun options for /usr/bin executables
     ALLOW_ROOT=1                         Allows to run runimage under root user
     QUIET_MODE=1                         Disables all non-error runimage messages
+    NO_WARN=1                            Disables all warning runimage messages
     DONT_NOTIFY=1                        Disables all non-error runimage notification
-    UNSHARE_PIDS=1                       Hides all system processes in runimage
     RUNTIME_EXTRACT_AND_RUN=1            Run runimage afer extraction without using FUSE
     TMPDIR="/path/{TMPDIR}"              Used for extract and run options
     RUNIMAGE_CONFIG="/path/{config}"     runimage сonfiguration file (0 to disable)
     ENABLE_HOSTEXEC=1                    Enables the ability to execute commands at the host level
     NO_RPIDSMON=1                        Disables the monitoring thread of running processes
-    FORCE_UPDATE=1                       Disables all checks when updating
     SANDBOX_NET=1                        Creates a network sandbox
+    SANDBOX_NET_SHARE_HOST=1             Creates a network sandbox with access to host loopback
     SANDBOX_NET_CIDR=11.22.33.0/24       Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
     SANDBOX_NET_TAPNAME=tap0             Specifies tap interface name in network sandbox (Def: eth0)
     SANDBOX_NET_MAC=B6:40:E0:8B:A6:D7    Specifies tap interface MAC in network sandbox (Def: random)
@@ -143,9 +158,9 @@ Environment variables to configure:
     SYS_SQFUSE=1                         Using system squashfuse
     SYS_UNSQFS=1                         Using system unsquashfs
     SYS_MKSQFS=1                         Using system mksquashfs
-    SYS_FOVERFS=1                        Using system fuse-overlayfs
+    SYS_UNIONFS=1                        Using system unionfs
     SYS_SLIRP=1                          Using system slirp4netns
-    SYS_TOOLS=1                          Using all these binaries from the system
+    SYS_TOOLS=1                          Using all binaries from the system
                                          If they are not found in the system - auto return to the built-in
 
 Other environment variables:
@@ -197,16 +212,18 @@ Other environment variables:
         RUNRUNTIME=""
     Rootfs type:
         RUNROOTFSTYPE=""
-    squashfuse and fuse-overlayfs PIDs:
+    squashfuse and unionfs PIDs:
         FUSE_PIDS=""
     The name of the user who runs runimage:
         RUNUSER=""
+    If inside RunImage:
+        INSIDE_RUNIMAGE=1
     mksquashfs:
         MKSQFS=""
     unsquashfs:
         UNSQFS=""
-    fuse-overlayfs:
-        FOVERFS=""
+    unionfs:
+        UNIONFS=""
     squashfuse:
         SQFUSE=""
     bwrap:
@@ -218,7 +235,6 @@ Custom scripts and aliases:
     /bin/cip                          Сheck public ip
     /bin/dbus-flmgr                   Launch the system file manager via dbus
     /bin/nocap                        Disables container capabilities
-    /bin/sudo                         Fake sudo (fakechroot fakeroot)
     /bin/pac                          sudo pacman (fake sudo)
     /bin/packey                       sudo pacman-key (fake sudo)
     /bin/panelipmon                   Shows information about an active network connection
@@ -229,6 +245,7 @@ Custom scripts and aliases:
     /bin/transfer                     Upload file to https://transfer.sh
     /bin/rpidsmon                     For monitoring of processes running in runimage containers
     /bin/hostexec                     For execute commands at the host level (see ENABLE_HOSTEXEC)
+    /usr/bin/runupdate                For runimage update
 
     ls='ls --color=auto'
     dir='dir --color=auto'
@@ -281,6 +298,7 @@ Additional information:
         It can also be with the name of the executable file from AUTORUN environment variables,
             or with the same name as the executable being run.
     SANDBOX_HOME* similar to PORTABLE_HOME, but the system HOME becomes isolated.
+    SANDBOX_HOME_DIR and PORTABLE_HOME_DIR point to a specific directory or create it in the absence of.
 
     RunImage uses fakechroot and fakeroot, which allows you to use root commands, including in
         unpacked form, to update the rootfs or install/remove packages.
@@ -338,15 +356,15 @@ Additional information:
         ┌─[user@host]─[~] - in runimage
         └──╼ $ runbuild {build args}
         Optionally, you can specify the following build arguments:
-            {/path/new_runimage_name} {-zstd|-xz} {zstd compression level 1-19}
+            {/path/new_runimage_name} {-zstd|-xz|-lz4} {zstd compression level 1-19}
         By default, runimage is created in the current directory with a standard name and
             with lz4 compression. If a new RunImage is successfully build, the old one is deleted.
-            (see KEEP_OLD_BUILD and BUILD_WITH_EXTENSION)
+            (see KEEP_OLD_BUILD BUILD_WITH_EXTENSION CMPRS_ALGO ZSDT_CMPRS_LVL)
 
     RunImage update:
         Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
             not be performed. When running an update, you can also pass arguments for a new build.
-            (see RunImage build) (also see FORCE_UPDATE)
+            (see RunImage build) (also see /usr/bin/runupdate)
         ┌─[user@host]─[~]
         └──╼ $ runimage --run-update {build args}
         By default, update and rebuild is performed in $RUNIMAGEDIR
@@ -379,7 +397,7 @@ Additional information:
         You can download a ready-made driver image from the releases or build driver image manually:
             https://github.com/VHSgunzo/runimage-nvidia-drivers
         In runimage, a fake version of the nvidia driver is installed by default to reduce the size:
-            https://github.com/VHSgunzo/runimage-fake-nvidia-utils
+            https://github.com/VHSgunzo/runimage-fake-nvidia-driver
         But you can also install the usual nvidia driver of your version in runimage.
         Checking the nvidia driver version can be disabled using NO_NVIDIA_CHECK variable.
         The nvidia driver image can be located next to runimage:
@@ -436,18 +454,20 @@ exit
 
 ## Troubleshooting and problem solving:
 
+* To start `SystemD` services with `systemctl` in `RunImage` `SystemD` replaced with [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package based on [docker-systemctl-replacement](https://github.com/gdraheim/docker-systemctl-replacement) with some modification. It's depend on `python3`
 * By default, all container processes running in the background will be killed after the container is closed, to allow background processes, use the environment variable `ALLOW_BG=1`
-* Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
-* To start the `SSH server`, `SUID Bubblewrap` or run as root is required (see [sshd_config](https://github.com/VHSgunzo/runimage/blob/main/rootfs/etc/ssh/sshd_config))
+* To start the `SSH server` you need to install patched [runimage-openssh](https://github.com/VHSgunzo/runimage-openssh) package from runimage [pacman repo](https://github.com/runimage/repo)
 ```
-    ssh-keygen -q -N "" -t rsa -b 4096 -f ~/.ssh/ssh_host_rsa_key && \
-    ssh-keygen -q -N "" -t ed25519 -b 521 -f ~/.ssh/ssh_host_ed25519_key && \
-    ssh-keygen -q -N "" -t ecdsa -b 521 -f ~/.ssh/ssh_host_ecdsa_key
-    echo 'ssh-rsa AAAAB3NzaC1yc2EA PUB-KEY' >> ~/.ssh/authorized_keys
-    /usr/sbin/sshd
+pac -Sy runimage-openssh
+ssh-keygen -A
+# Don't forget to add your ssh keys for authorization to /etc/ssh/authorized_keys in the container
+#   or to $HOME/.ssh/authorized_keys
+#   password authorization disabled and don't work
+systemctl start sshd    # systemctl depend on python3
+# OR
+/usr/bin/sshd -D &
 ```
 * When unpacked, use the [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper) binary file to properly launch the container.
-* In RunImage used the [patched glibc](https://github.com/DissCent/glibc-eac-rc) to work `EAC anti-cheat`. (Only in `superlite` version)
 * If SELinux is enabled in the system, then there may be problems with the launch and operation of Wine ([solution](https://www.tecmint.com/disable-selinux-in-centos-rhel-fedora))
 * To start nested bubblewrap containerization, you need to disable capabilities (see NO_CAP env var or use [nocap](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/nocap))
 ```
@@ -459,14 +479,15 @@ exit
 ```
 * When using `TMP_HOME`* you may run out of RAM, be careful with this.
 * It is also advisable to use `TMPDIR` when using `--runtime-extract-and-run` or `RUNTIME_EXTRACT_AND_RUN`, because by default, unpacking before starting will be carried out in `/tmp`, which may also lead to the end of RAM
-* With `UNSHARE_PIDS`, RunImage desktop does not start on TTY, freezes the entire system, (I haven't figured out what the problem is yet). Don't run RunImage desktop with `UNSHARE_PIDS` on TTY.
+* With `UNSHARE_PIDS`, RunImage desktop does not start on TTY.
 * `Xephyr` does not support GL acceleration and Vulkan has performance issues (But this is not related to RunImage)
 * If you have problems with sound when running RunImage desktop on TTY, just restart pulseaudio.
+* Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
 ```
     killall pulseaudio ; pulseaudio -D
 ```
 * If you disable bubblewrap capabilities using `NO_CAP`, you will not be able to use `FUSE` inside the container.
-* In packed form for fix bug with `MangoHud` and `vkBasalt` in `DXVK` mode need remount container with `squashfuse` (see `SQFUSE_REMOUNT=1`). In `superlite` it's enabled by default.
+* In packed form for fix bug with `MangoHud` and `vkBasalt` in `DXVK` mode need remount container with `squashfuse` (see `SQFUSE_REMOUNT=1`). In `lwrun` it's enabled by default.
 * If `PID_MAX` is less then `4194304`, recommended to increase [PID_MAX](https://www.cyberciti.biz/tips/howto-linux-increase-pid-limits.html) to 4194304 for better stability:
 ```
 sudo sh -c 'echo kernel.pid_max=4194304 >> /etc/sysctl.d/98-pid_max.conf'
@@ -479,11 +500,17 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [bubblewrap-static](https://github.com/VHSgunzo/bubblewrap-static)
 * [chaotic-aur](https://aur.chaotic.cx)
 * [blackarch](https://github.com/BlackArch/blackarch)
-* [runimage-fake-nvidia-utils](https://github.com/VHSgunzo/runimage-fake-nvidia-utils)
+* [runimage-repo](https://github.com/runimage/repo)
+* [runimage-repo-hf](https://runimage-repo.hf.space)
+* [runimage-mirrorlist](https://github.com/VHSgunzo/runimage-mirrorlist)
+* [runimage-fake-nvidia-driver](https://github.com/VHSgunzo/runimage-fake-nvidia-driver)
 * [runimage-nvidia-drivers](https://github.com/VHSgunzo/runimage-nvidia-drivers)
 * [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs)
 * [runimage-runtime-static](https://github.com/VHSgunzo/runimage-runtime-static)
 * [runimage-static](https://github.com/VHSgunzo/runimage-static)
+* [runimage-fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec)
+* [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper)
+* [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd)
 * [bash-static](https://github.com/robxu9/bash-static)
 * [coreutils-static](https://github.com/VHSgunzo/coreutils-static)
 * [findutils-static](https://github.com/VHSgunzo/findutils-static)
@@ -502,16 +529,15 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [xorg-xhost-static](https://github.com/VHSgunzo/xorg-xhost-static)
 * [xz-static](https://github.com/VHSgunzo/xz-static)
 * [minos-static](https://github.com/minos-org/minos-static)
-* [glibc-eac-rc](https://github.com/DissCent/glibc-eac-rc)
-* [fuse-overlayfs](https://github.com/containers/fuse-overlayfs)
+* [unionfs-fuse-static](https://github.com/VHSgunzo/unionfs-fuse-static)
 * [importenv](https://github.com/VHSgunzo/importenv/releases)
 * [slirp4netns](https://github.com/rootless-containers/slirp4netns/releases)
 * [util-linux-static](https://github.com/VHSgunzo/util-linux-static/releases)
-* [hosts](https://github.com/StevenBlack/hosts)
-* [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper)
 * [fakeroot](https://github.com/mackyle/fakeroot)
 * [fakechroot](https://github.com/dex4er/fakechroot)
 * [ptyspawn](https://github.com/VHSgunzo/ptyspawn)
+* [socat-static](https://github.com/VHSgunzo/socat-static)
+* [pacutils](https://github.com/andrewgregory/pacutils)
 
 ## Projects based on RunImage:
 

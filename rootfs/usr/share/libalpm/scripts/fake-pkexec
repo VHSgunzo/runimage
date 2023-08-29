@@ -1,4 +1,0 @@
-#!/usr/bin/bash
-
-echo -e '#!/usr/bin/bash\nfakechroot fakeroot "$@"' > /usr/bin/pkexec
-chmod +x /usr/bin/pkexec

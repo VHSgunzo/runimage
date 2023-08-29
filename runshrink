@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+shopt -s extglob
+if [ -d RunDir ]
+    then
+        rm -rvf RunDir/rootfs/usr/share/locale/!(locale.alias|uk|ru|en|en_US)
+        rm -rvf RunDir/rootfs/usr/share/gtk-doc/*
+        rm -rvf RunDir/rootfs/usr/share/man/*
+        rm -rvf RunDir/rootfs/usr/share/help/*
+        rm -rvf RunDir/rootfs/usr/share/info/*
+        rm -rvf RunDir/rootfs/usr/share/doc/*
+        find RunDir/rootfs/ -type d -name '__pycache__' -exec rm -rvf {} \;
+        find RunDir/rootfs/ -type f -name '*.pacnew' -exec rm -rvf {} \;
+        find RunDir/rootfs/ -type f -name '*.pacsave' -exec rm -rvf {} \;
+        find RunDir/rootfs/var/log/ -type f -name '*.log' -exec rm -rvf {} \;
+        rm -rvf RunDir/rootfs/var/tmp/*
+        rm -rvf RunDir/rootfs/var/lib/pacman/sync/*
+        rm -rvf RunDir/rootfs/var/cache/pacman/pkg/*
+        rm -rvf RunDir/rootfs/var/lib/pacman/db.lck
+        rm -rvf RunDir/rootfs/etc/pacman.d/gnupg/pubring.gpg~
+        nv_version="$(cat /sys/module/nvidia/version 2>/dev/null)"
+        [ -n "$nv_version"  ] && \
+            find RunDir/rootfs/ -name "*so.$nv_version" -exec rm -rvf {} \;
+        if [ -f RunDir/rootfs/etc/ld.so.version ]
+            then
+                echo "Found ld.so.version!"
+                rm -rvf RunDir/rootfs/etc/ld.so.version
+                NO_NVIDIA_CHECK=1 QUIET_MODE=1 ALLOW_BG=0 SANDBOX_NET=0 \
+                    RunDir/Run ldconfig
+         fi
+    else
+        echo "RunDir not found!"
+        exit 1
+fi

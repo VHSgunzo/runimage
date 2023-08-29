@@ -1,0 +1,13 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/bin/pamac
+Target = usr/bin/pamac-installer
+Target = usr/bin/pamac-manager
+Target = usr/bin/pamac-tray
+
+[Action]
+Description = Updating pamac...
+When = PostTransaction
+Exec = /usr/share/libalpm/scripts/fix-pamac

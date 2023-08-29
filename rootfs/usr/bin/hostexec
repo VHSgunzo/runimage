@@ -6,6 +6,7 @@ GREEN='\033[1;92m'
 YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 PATH="$PATH:$RUNSTATIC"
+JOBNUMFL="$EXECFLDIR/job"
 
 error_msg() {
     echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
@@ -192,9 +193,32 @@ check_args_spaces() {
     done
 }
 
-trap 'killjobpids' SIGINT SIGTERM
-if [ -n "$EXECFL" ]
+get_execjobpid() {
+    unset execjobpid
+    wait_time=100
+    while true
+        do
+            if [ "$wait_time" -gt 0 ]
+                then
+                    execjobpid="$(ls "$execjobfl.p."* 2>/dev/null|cut -d '.' -f7)"
+                    if [ -n "$execjobpid" ]
+                        then return 0
+                        else
+                            wait_time="$(( $wait_time - 1 ))"
+                            sleep 0.0005
+                    fi
+                else
+                    return 1
+            fi
+    done
+}
+
+cleanup() { [[ -d "$execjobdir" && -n "$jobnum" ]] && rm -rf "$execjobdir" 2>/dev/null ; }
+
+if [[ -d "$EXECFLDIR" && -e "$JOBNUMFL" ]]
     then
+        trap 'killjobpids;cleanup' SIGINT SIGTERM
+        trap 'cleanup' EXIT
         unset args
         case $1 in
             -h |--help) print_help ; exit 0 ;;
@@ -202,32 +226,30 @@ if [ -n "$EXECFL" ]
             -t |--terminal) shift ; set_terminal || exit 1 ;;
             -su|--superuser) shift ; set_supassapp || exit 1 ;;
         esac
-        if [ -n "$1" ]
+        jobnum="$(cat "$JOBNUMFL" 2>/dev/null)"
+        if [ -n "$jobnum" ]
             then
-                check_args_spaces "$@"
-                flock -x "$EXECFL" echo "${args[@]}" > "$EXECFL" 2>/dev/null
-            else
-                if [ -n "$args" ]
+                execjobdir="$EXECFLDIR/$jobnum"
+                execjobfl="$execjobdir/exec"
+                execjoboutfl="$execjobdir/out"
+                execjobstatfl="$execjobdir/stat"
+                if [ -n "$1" ]
                     then
-                        flock -x "$EXECFL" echo -n "${args[@]} " > "$EXECFL"
-                        flock -x "$EXECFL" tee -a "$EXECFL" &>/dev/null
+                        check_args_spaces "$@"
+                        echo "${args[@]}" > "$execjobfl"
                     else
-                        flock -x "$EXECFL" cat > "$EXECFL" 2>/dev/null
+                        if [ -n "$args" ]
+                            then (echo -n "${args[@]} ";cat) > "$execjobfl" 2>/dev/null
+                            else cat > "$execjobfl" 2>/dev/null
+                        fi
                 fi
+                execjobpid="$(cat "$execjobstatfl" 2>/dev/null)"
+                cat "$execjoboutfl" 2>/dev/null
+                execstat="$(cat "$execjobstatfl" 2>/dev/null)"
         fi
-        sleep 0.1
-        execjobfl="$(ls -1t "$EXECFL."* 2>/dev/null|head -1|grep -Po "$EXECFL.\d+")"
-        execjoboutfl="$execjobfl.o"
-        execjobpid="$(ls "$execjobfl.p."* 2>/dev/null|cut -d '.' -f6)"
-        if [[ -n "$execjobpid" && -d "/proc/$execjobpid" ]]
-            then tail --pid="$execjobpid" -q -f "$execjoboutfl" 2>/dev/null
-            else cat "$execjoboutfl" 2>/dev/null
-        fi
-        execstat="$(ls "$execjobfl.s."* 2>/dev/null|cut -d '.' -f6)"
-        [ -n "$execjobfl" ] && \
-            rm -f "$execjobfl"* 2>/dev/null
+        [ -n "$execstat" ]||execstat=1
         exit $execstat
     else
-        error_msg "EXECFL is not configured!"
+        error_msg "EXECFLDIR is not configured!"
         exit 1
 fi

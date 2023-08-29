@@ -1,0 +1,12 @@
+ALLOW_BG=0
+SQFUSE_REMOUNT=0
+ENABLE_HOSTEXEC=0
+if [ -n "$RUNIMAGE" ]
+    then
+        OVERFS_MODE=1
+        KEEP_OVERFS=0
+        OVERFS_ID="upd$(date +"%H%M%S").$RUNPID"
+    else
+        OVERFS_MODE=0
+        unset OVERFS_ID KEEP_OVERFS
+fi

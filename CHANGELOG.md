@@ -1,7 +1,101 @@
+# v0.39.1
+
+* Update `rootfs` v0.39.1 23.08.29
+* Rename `superlite` to `lwrun`
+* Update static `bubblewrap` [v0.8.0.r20](https://github.com/VHSgunzo/bubblewrap-static/releases/tag/v0.8.0.r20)
+* Update static `bash` [v5.2.015-1.2.3-2](https://github.com/robxu9/bash-static/releases/tag/5.2.015-1.2.3-2)
+* Update static `coreutils` [v9.3](https://github.com/VHSgunzo/coreutils-static/releases/tag/v9.3)
+* Update static `grep` [v3.11](https://github.com/VHSgunzo/grep-static/releases/tag/v3.11)
+* Update static `procps` [v4.0.3.r31](https://github.com/VHSgunzo/procps-static/releases/tag/v4.0.3)
+* Update static `sed` [v4.9](https://github.com/VHSgunzo/sed-static/releases/tag/v4.9)
+* Update static `util-linux` [v2.39](https://github.com/VHSgunzo/util-linux-static/releases/tag/v2.39)
+* Update static `squashfs-tools` [v4.6.1](https://github.com/VHSgunzo/squashfs-tools-static/releases/tag/v4.6.1)
+* Update static `curl` [v8.0.1](https://github.com/moparisthebest/static-curl/releases/tag/v8.0.1)
+* Update staticx `xorg-xhost` [v1.0.9](https://github.com/VHSgunzo/xorg-xhost-static/releases/tag/v1.0.9-alpine) (now its on musl)
+* Update static `xz` [v5.5.0alpha](https://github.com/VHSgunzo/xz-static/releases/tag/v5.5.0)
+* Update static `ptyspawn` [v0.0.5](https://github.com/VHSgunzo/ptyspawn/releases/tag/v0.0.5)
+* Rename `fake-nvidia-utils`package to [fake-nvidia-driver](https://github.com/VHSgunzo/runimage-fake-nvidia-driver)
+* Update `fake-nvidia-driver` [v0.8](https://github.com/VHSgunzo/runimage-fake-nvidia-driver/releases/tag/v0.8)
+* Update `Nvidia driver` check/bind functions
+* Add `OpenCL` support for [runimage-nvidia-drivers](https://github.com/VHSgunzo/runimage-nvidia-drivers)
+* Add [huggingface](https://huggingface.co/runimage/nvidia-drivers) mirror for download runimage nvidia driver image
+* Add support for [tesla](https://us.download.nvidia.com/tesla) nvidia drivers
+* Replace `iptables` with `iptables-nft`
+* Install `nftables` package
+* Install `openresolv` package
+* Install [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper.git) package
+* Install [runimage-static](https://github.com/VHSgunzo/runimage-static.git) package
+* Install [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Install [runimage-mirrorlist](https://github.com/VHSgunzo/runimage-mirrorlist) package
+* Install [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs) package
+* Install [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
+* Install [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
+* Install [wine-prefix](https://github.com/VHSgunzo/wine-prefix) package to `lwrun`
+* Create and install [steam-runtime-libs](https://github.com/VHSgunzo/steam-runtime-libs) package to `lwrun`
+* Create `EAC` [patched](https://github.com/VHSgunzo/glibc-eac) `glibc-eac` and `lib32-glibc-eac` (2.37-3)
+* Create and install `Reshade Shaders` [reshade-shaders-lw](https://github.com/VHSgunzo/reshade-shaders-lw) to `lwrun`
+* Create [portarch](https://github.com/VHSgunzo/portarch) Portable `Arch Linux`
+* Create and install [adwaita-icon-theme-41](https://github.com/VHSgunzo/adwaita-icon-theme-41) package to `portarch`
+* Update [GE-Proton v8-13](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.13) in `lwrun`
+* Replace `palemoon` with `firefox` in `lwrun`
+* Remove `mangoapp` and `lib32-mangoapp` in `lwrun`
+* Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `lwrun`
+* Update [hosts](https://github.com/StevenBlack/hosts) in `lwrun`
+* Fix `LatencyFlex` and `cabextract` in `GE-Proton` in `lwrun`
+* `LW tray` moved to a separate [repository](https://github.com/VHSgunzo/lw-tray) and package lw-tray added to the [RunImage](https://github.com/VHSgunzo/runimage) container [pacman repository](https://runimage-repo.hf.space/) and installed in `lwrun`
+* Fix warnings and errors of setting the root user and group to files when installing and assembling packages
+* Replace [fuse-overlayfs](https://github.com/containers/fuse-overlayfs) with [unionfs-fuse](https://github.com/rpodgorny/unionfs-fuse) ([unionfs-fuse-static](https://github.com/VHSgunzo/unionfs-fuse-static/releases))
+* Add `noatime` to `OverlayFS` mode
+* Fix `OverlayFS` mode in `Porteus`, `EasyOS` and `ZorinOS` (`fuse-overlayfs` cannot read upper dir cannot allocate memory)
+* Fix `gpg-agent` connection errors
+* Add get `Nvidia` driver version from `/sys/module/nvidia/version`
+* Force using internal `static` binaries from `PATH` (see `SYS_TOOLS` var)
+* Fix `ldconfig` `nvidia` symlink creation messages
+* Add `steam` `pacman` hook (disabling `capabilitis`)
+* Add `gamemode` `pacman` hook (start the `daemon` with `gamemoderun`)
+* Add `SANDBOX_NET_SHARE_HOST` Creates a network sandbox with access to host loopback
+* Add [RunImage pacman repository](https://github.com/runimage/repo)
+* Add [RunImage pacman repository mirror](https://runimage-repo.hf.space)
+* Add increasing `soft limit` to `hard limit`
+* Remove binds `/srv` `/var/local` `/var/games` `/var/opt` `/boot`
+* Add `UNSHARE_USERS` Don't bind-mount `/etc/{passwd,group}`
+* Add `SHARE_SYSTEMD` Shares `SystemD` from the host
+* Add `UNSHARE_DBUS` Unshares `DBUS` from the host
+* Add `pacman` hooks for `pamac` (add fake `sudo` wrapper)
+* Remove `pacman` hooks: `grub` `dkms` `mkinitcpio` `depmod`
+* Remake `ALLOW_BG`
+* Add `PORTABLE_HOME_DIR` Specifies a portable home directory and uses it as `$HOME`
+* Add `SANDBOX_HOME_DIR` Specifies sandbox home directory and bind it to `/home/$USER` or to `/root`
+* Fix `attaching` to `RunImage` container under `root`
+* Add `UNSHARE_MODULES` Unshares kernel modules from the host (`/lib/modules`)
+* Rename `BWRAP` and `SYS_BWRAP` var to `BUWRAP` and `SYS_BUWRAP` (`steam` use `BWRAP` var and got error if `RunDir` is sandboxed)
+* Add `CMPRS_ALGO` Specifies the compression algo for `runimage` build
+* Add `ZSDT_CMPRS_LVL` Specifies the compression ratio of the `zstd` algo for `runimage` build
+* Add bind `RunDir` to `/var/RunDir`
+* Add `NO_RUNDIR_BIND` Disables binding `RunDir` to `/var/RunDir`
+* Add ability to update all utilities and binaries in `RunDir` with `pacman`
+* Add ability to update custom `RunImage` `rootfs` files with `pacman`
+* Speedup to 8x `hostexec` (see `ENABLE_HOSTEXEC`)
+* Remove `RUNROOTFSTYPEs` settings from `Run.sh`
+* Remake attaching to running container
+* Create [runimage-openssh](https://github.com/VHSgunzo/runimage-openssh) package with patch for fix ssh server in RunImage container
+* Install [pacutils](https://github.com/andrewgregory/pacutils) and use it for `RunImage update` (also see `/usr/bin/runupdate`)
+* Make `RunImage update` in separate `OverlayFS` (OVERFS_ID="upd$(date +"%H%M%S").$RUNPID")
+* Remove `FORCE_UPDATE`
+* Fix `AUTORUN` for symlinks in `/usr/bin`
+* Add `NO_WARN` Disables all warning `runimage` messages
+* Cut `ANSI colors` from `notify-sent` `*_msg`
+* Add default run option for some `runimage` args
+* Add `UNSHARE_DEF_MOUNTS` Unshares default mount points (`/mnt` `/media` `/run/media`)
+* Add `UNSHARE_UDEV` Unshares UDEV from the host (`/run/udev`)
+* Remove `GDK_BACKEND` and `NO_AT_BRIDGE` env from `bwrun` setenv
+* Add `INSIDE_RUNIMAGE=1` var if inside `RunImage`
+* Minor fixes
+
 # v0.38.9
 
 * Update rootfs v0.38.9 23.05.07
-* Update `lwrap` v0.77.6 in `superlite` version
+* Update `lwrap` v0.77.6 in `lwrun` version
 * Disable `SANDBOX_NET` for `Lutris Wine` because `MangoHud` bug under `Wayland`
 * Update `mangohud-lw` v0.6.9.1.r44.g7b5c0a4 in `superlite` version
 * Add installing dependencies for `RunImage` desktop mode `rundesktop`

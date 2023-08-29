@@ -13,48 +13,48 @@ export SYS_DISPLAY="$DISPLAY"
 [ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
     NOT_TERM=1
 
+nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
+
 error_msg() {
     echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
     if [ "$NOT_TERM" == 1 ]
-        then
-            notify-send -a 'RunImage Error' "$@" 2>/dev/null &
+        then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
     fi
 }
 
 info_msg() {
     if [ "$QUIET_MODE" != 1 ]
-        then
-            echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
-                then
-                    notify-send -a 'RunImage Info' "$@" 2>/dev/null &
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
+                then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }
 
 warn_msg() {
-    if [ "$QUIET_MODE" != 1 ]
-        then
-            echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$NO_NOTIFY" != 1 ]]
-                then
-                    notify-send -a 'RunImage Warning' "$@" 2>/dev/null &
+    if [[ "$QUIET_MODE" != 1 && "$NO_WARN" != 1 ]]
+        then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
+                then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }
 
-if [ "$(pac -Qq xorg-server tk tcl xclip xfce4-session pavucontrol pulseaudio 2>/dev/null|wc -l)" != "7" ]
+[[ "$INSIDE_RUNIMAGE" == 1 && ! -d "$RUNROOTFS" ]] && \
+     RUNROOTFS='/'
+
+if [ -w "$RUNROOTFS" ]
     then
-        if [ -w "$RUNROOTFS" ]
+        if [ "$(pacman -Qq xorg-server tk tcl xclip xfce4-session pavucontrol pulseaudio 2>/dev/null|wc -l)" != "7" ]
             then
                 info_msg "Installing the necessary dependencies..."
                 pac -Syu --noconfirm && \
                 pac -S xorg tk tcl xclip xfce4 xfce4-goodies pavucontrol pulseaudio --noconfirm||\
                 exit 1
-            else
-                error_msg "Unable to install dependencies. Read-only!"
-                exit 1
         fi
+    else
+        error_msg "Unable to install dependencies. Read-only!"
+        exit 1
 fi
 
 # PID randomizer (UNSHARE_PIDS ICEauthority bug)

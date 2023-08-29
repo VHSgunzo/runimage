@@ -1,0 +1,28 @@
+#!/usr/bin/bash
+
+for bin in pactrans pacrepairfile pacrepairdb
+do
+mv -f "/usr/bin/$bin" "/usr/bin/_$bin"
+
+cat << EOF > "/usr/bin/$bin"
+#!/usr/bin/sh
+if [ "\$EUID" != 0 ]
+    then sudo /usr/bin/_$bin "\$@"
+    else /usr/bin/_$bin "\$@"
+fi
+EOF
+
+chmod +x "/usr/bin/$bin"
+done
+
+for mode in install remove
+do
+rm -f "/usr/bin/pac$mode"
+
+cat << EOF > "/usr/bin/pac$mode"
+#!/usr/bin/sh
+/usr/bin/pactrans --$mode "\$@"
+EOF
+
+chmod +x "/usr/bin/pac$mode"
+done
