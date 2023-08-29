@@ -40,18 +40,21 @@ warn_msg() {
     fi
 }
 
-if [ "$(pac -Qq xorg-server tk tcl xclip xfce4-session pavucontrol pulseaudio 2>/dev/null|wc -l)" != "7" ]
+[[ "$INSIDE_RUNIMAGE" == 1 && ! -d "$RUNROOTFS" ]] && \
+     RUNROOTFS='/'
+
+if [ -w "$RUNROOTFS" ]
     then
-        if [ -w "$RUNROOTFS" ]
+        if [ "$(pacman -Qq xorg-server tk tcl xclip xfce4-session pavucontrol pulseaudio 2>/dev/null|wc -l)" != "7" ]
             then
                 info_msg "Installing the necessary dependencies..."
                 pac -Syu --noconfirm && \
                 pac -S xorg tk tcl xclip xfce4 xfce4-goodies pavucontrol pulseaudio --noconfirm||\
                 exit 1
-            else
-                error_msg "Unable to install dependencies. Read-only!"
-                exit 1
         fi
+    else
+        error_msg "Unable to install dependencies. Read-only!"
+        exit 1
 fi
 
 # PID randomizer (UNSHARE_PIDS ICEauthority bug)

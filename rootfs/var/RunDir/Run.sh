@@ -18,6 +18,8 @@ export RUNPID="$BASHPID"
 export BWINFFL="/tmp/.bwinf.$RUNPID"
 export EXECFLDIR="/tmp/.exec.$RUNPID"
 RPIDSFL="/tmp/.rpids.$RUNPID"
+UNPASSWDFL="/tmp/.passwd.$RUNPID"
+UNGROUPFL="/tmp/.group.$RUNPID"
 unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNSHARE_BIND \
@@ -284,23 +286,25 @@ try_dl() {
                                 else return 1
                                 fi
                             }
-                            if [ "$NO_ARIA2C" != 1 ] && is_exe_exist aria2c
+                            if [ "$NO_ARIA2C" != 1 ] && \
+                                is_exe_exist aria2c
                                 then
                                     aria2c -x 13 -s 13 --allow-overwrite --summary-interval=1 -o \
-                                        "$FILENAME" -d "$FILEDIR" "$URL"|stdbuf -o0 grep 'ETA'|\
-                                        sed -u 's/(.*)/ &/;s/(//;s/)//;s/\[//;s/\]//;s/%//'|\
-                                        stdbuf -o0 awk '{print$3"\n#Downloading at "$2,$5,$6}'|\
+                                        "$FILENAME" -d "$FILEDIR" "$URL"|grep --line-buffered 'ETA'|\
+                                        sed -u 's|(.*)| &|g;s|(||g;s|)||g;s|\[||g;s|\]||g'|\
+                                        awk '{print$3"\n#Downloading at "$3,$2,$5,$6;system("")}'|\
                                     dl_progress
                             elif is_exe_exist wget
                                 then
                                     wget --no-check-certificate --content-disposition -t 3 -T 5 \
                                         -w 0.5 "$URL" -O "$FILEDIR/$FILENAME"|& tr '\r' '\n'|\
-                                        sed -u 's/.* \([0-9]\+%\)\ \+\([0-9,.]\+.\) \(.*\)/\1\n#Downloading at \1\, \2\/s, ETA \3/; s/^20[0-9][0-9].*/#Done./'|\
+                                        sed -u 's/.* \([0-9]\+%\)\ \+\([0-9,.]\+.\) \(.*\)/\1\n#Downloading at \1\ ETA: \3/; s/^20[0-9][0-9].*/#Done./'|\
                                     dl_progress
                             elif is_exe_exist curl
                                 then
-                                    curl --progress-bar --insecure --fail -L "$1" -o \
-                                        "$FILEDIR/$FILENAME" |& tr '\r' '\n'|sed -ur 's/[# ]+/#/g;'|\
+                                    curl --progress-bar --insecure --fail -L "$URL" -o \
+                                        "$FILEDIR/$FILENAME" |& tr '\r' '\n'|\
+                                        sed -ur 's|[# ]+||g;s|.*=.*||g;s|.*|#Downloading at &\n&|g'|\
                                     dl_progress
                             else
                                 err_no_downloader
@@ -361,10 +365,9 @@ get_nvidia_driver_image() {
                     binary_files="mkprecompiled nvidia-cuda-mps-control nvidia-cuda-mps-server \
                         nvidia-debugdump nvidia-installer nvidia-modprobe nvidia-ngx-updater tls_test \
                         nvidia-persistenced nvidia-powerd nvidia-settings nvidia-smi nvidia-xconfig"
-                    trash_libs="libEGL.so* libGLdispatch.so* *.swidtag \
-                        libGLESv1_CM.so* libGLESv2.so* libGL.so* \
-                        libGLX.so* libOpenCL.so* libOpenGL.so* \
-                        libnvidia-opencl* libnvidia-compiler* *.la"
+                    trash_libs="libEGL.so* libGLdispatch.so* *.swidtag libnvidia-egl-wayland.so* \
+                         libGLESv!(*nvidia).so* libGL.so* libGLX.so* libOpenCL.so* libOpenGL.so* \
+                         libnvidia-compiler* *.la"
                     chmod u+x "$NVIDIA_DRIVERS_DIR/$nvidia_driver_run"
                     info_msg "Unpacking $nvidia_driver_run..."
                     (cd "$NVIDIA_DRIVERS_DIR" && \
@@ -450,7 +453,7 @@ check_nvidia_driver() {
                             then
                                 echo "$RUNROOTFS_VERSION-$nvidia_version" > \
                                     "$RUNCACHEDIR/ld.so.version"
-                                if [ "$1" == 'cp' ]
+                                if [ -w "$RUNROOTFS" ]
                                     then
                                         cp -f "$RUNCACHEDIR/ld.so.cache" \
                                             "$RUNROOTFS/etc/ld.so.cache" 2>/dev/null
@@ -468,7 +471,7 @@ check_nvidia_driver() {
                         return 1
                 fi
             else
-                if [ "$1" == 'cp' ]
+                if [ -w "$RUNROOTFS" ]
                     then
                         if [ "$(cat "$RUNROOTFS/etc/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
                             then
@@ -559,7 +562,7 @@ check_nvidia_driver() {
                             fi
                             if [ -f "$nvidia_driver_dir/64/nvidia_drv.so" ]
                                 then
-                                    nvidia_libs_list="libcuda.so libEGL_nvidia.so libGLESv1_CM_nvidia.so \
+                                    nvidia_libs_list="libcuda.so libEGL_nvidia.so libGLESv1_CM_nvidia.so libnvidia-opencl.so \
                                         libGLESv2_nvidia.so libGLX_nvidia.so libnvcuvid.so libnvidia-allocator.so \
                                         libnvidia-cfg.so libnvidia-eglcore.so libnvidia-encode.so libnvidia-fbc.so \
                                         libnvidia-glcore.so libnvidia-glsi.so libnvidia-glvkspirv.so libnvidia-ml.so \
@@ -641,11 +644,11 @@ check_nvidia_driver() {
                                                 "$nvidia_driver_dir/json/nvidia_layers.json" \
                                                 "/usr/share/vulkan/implicit_layer.d/nvidia_layers.json")
                                     fi
-                                    if [ -f "$RUNROOTFS/usr/share/dbus-1/system.d/nvidia-dbus.conf" ]
+                                    if [ -f "$RUNROOTFS/etc/OpenCL/vendors/nvidia.icd" ]
                                         then
                                             NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/conf/nvidia-dbus.conf" \
-                                                "/usr/share/dbus-1/system.d/nvidia-dbus.conf")
+                                                "$nvidia_driver_dir/conf/nvidia.icd" \
+                                                "/etc/OpenCL/vendors/nvidia.icd")
                                     fi
                                     if [ -d "$RUNROOTFS/usr/share/nvidia" ]
                                         then
@@ -659,6 +662,24 @@ check_nvidia_driver() {
                                                 "$nvidia_driver_dir/wine" \
                                                 "/usr/lib/nvidia/wine")
                                     fi
+                                    if [ -w "$RUNROOTFS" ]
+                                        then
+                                            if [[ ! -d "$RUNROOTFS/usr/bin/nvidia" || \
+                                                  ! -d "$RUNROOTFS/usr/lib/nvidia/64" || \
+                                                  ! -d "$RUNROOTFS/usr/lib/nvidia/32" ]]
+                                                then
+                                                    mkdir -p "$RUNROOTFS/usr/bin/nvidia"
+                                                    mkdir -p "$RUNROOTFS/usr/lib/nvidia/64"
+                                                    mkdir -p "$RUNROOTFS/usr/lib/nvidia/32"
+                                            fi
+                                            if [ ! -f "$RUNROOTFS/etc/ld.so.conf.d/nvidia.conf" ]
+                                                then
+                                                    mkdir -p "$RUNROOTFS/etc/ld.so.conf.d"
+                                                    echo -e "/usr/lib/nvidia/64\n/usr/lib/nvidia/32" > \
+                                                        "$RUNROOTFS/etc/ld.so.conf.d/nvidia.conf"
+                                                    rm -f "$RUNCACHEDIR/ld.so."*
+                                            fi
+                                    fi
                                     if [ -d "$RUNROOTFS/usr/bin/nvidia" ] && \
                                         [ -d "$RUNROOTFS/usr/lib/nvidia/64" ] && \
                                         [ -d "$RUNROOTFS/usr/lib/nvidia/32" ]
@@ -668,11 +689,14 @@ check_nvidia_driver() {
                                                 "--ro-bind-try" "$nvidia_driver_dir/32" "/usr/lib/nvidia/32")
                                             add_bin_pth '/usr/bin/nvidia'
                                             add_lib_pth '/usr/lib/nvidia/64:/usr/lib/nvidia/32'
+                                    elif [ -d "$nvidia_driver_dir/bin" ] && \
+                                         [ -d "$nvidia_driver_dir/64" ] && \
+                                         [ -d "$nvidia_driver_dir/32" ]
+                                        then
+                                            add_bin_pth "$nvidia_driver_dir/bin"
+                                            add_lib_pth "$nvidia_driver_dir/64:$nvidia_driver_dir/32"
                                     fi
-                                    if [ ! -w "$RUNROOTFS" ]
-                                        then update_ld_cache
-                                        else update_ld_cache cp
-                                    fi
+                                    update_ld_cache
                                     NVXSOCKET="$(ls /run/nvidia-xdriver-* 2>/dev/null|head -1)"
                                     [ -S "$NVXSOCKET" ] && \
                                         XDG_RUN_BIND+=("--bind-try" "$NVXSOCKET" "$NVXSOCKET")
@@ -920,6 +944,10 @@ cleanup() {
                 rm -f "$RPIDSFL" 2>/dev/null
             [ -f "$BWINFFL" ] && \
                 rm -f "$BWINFFL" 2>/dev/null
+            [ -f "$UNPASSWDFL" ] && \
+                rm -f "$UNPASSWDFL" 2>/dev/null
+            [ -f "$UNGROUPFL" ] && \
+                rm -f "$UNGROUPFL" 2>/dev/null
         else
             warn_msg "Cleanup is disabled!"
     fi
@@ -1018,10 +1046,9 @@ bwrun() {
         "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}" \
         "${UNSHARE_BIND[@]}" "${HOME_BIND[@]}" \
         "${XORG_CONF_BIND[@]}" "${BWRAP_CAP[@]}" \
+        --setenv INSIDE_RUNIMAGE '1' \
         --setenv RUNPID "$RUNPID" \
-        --setenv NO_AT_BRIDGE "1" \
         --setenv PATH "$BIN_PATH" \
-        --setenv GDK_BACKEND "x11" \
         --setenv FAKEROOTDONTTRYCHOWN "true" \
         --setenv LD_LIBRARY_PATH "$LIB_PATH" \
         --setenv XDG_CONFIG_DIRS "/etc/xdg:$XDG_CONFIG_DIRS" \
@@ -1165,7 +1192,24 @@ run_update() {
     return $UPDATE_STATUS
 }
 
+add_unshared_user() {
+    if grep -o ".*:x:$EUID:" "$1" &>/dev/null
+        then sed -i "s|.*:x:$EUID:.*|$RUNUSER:x:$EUID:0:[^_^]:/home/$RUNUSER:/usr/bin/bash|g" "$1"
+        else echo "$RUNUSER:x:$EUID:0:[^_^]:/home/$RUNUSER:/usr/bin/bash" >> "$1"
+    fi
+}
+
 run_build() { "$RUNSTATIC/bash" "$RUNROOTFS/usr/bin/runbuild" "$@" ; }
+
+set_default_option() {
+    NO_WARN=1
+    ALLOW_BG=0
+    XORG_CONF=0
+    SANDBOX_NET=0
+    SQFUSE_REMOUNT=0
+    NO_NVIDIA_CHECK=1
+    ENABLE_HOSTEXEC=0
+}
 
 print_help() {
     RUNHOSTNAME="$(uname -a|awk '{print$2}')"
@@ -1323,6 +1367,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}FUSE_PIDS${GREEN}=\"$FUSE_PIDS\"
         ${GREEN}The name of the user who runs runimage:
             ${YELLOW}RUNUSER${GREEN}=\"$RUNUSER\"
+        ${GREEN}If inside RunImage:
+            ${YELLOW}INSIDE_RUNIMAGE${GREEN}=1
         ${GREEN}mksquashfs:
             ${YELLOW}MKSQFS${GREEN}=\"$MKSQFS\"
         ${GREEN}unsquashfs:
@@ -1503,7 +1549,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             You can download a ready-made driver image from the releases or build driver image manually:
                 ${BLUE}https://github.com/VHSgunzo/runimage-nvidia-drivers${GREEN}
             In runimage, a fake version of the nvidia driver is installed by default to reduce the size:
-                ${BLUE}https://github.com/VHSgunzo/runimage-fake-nvidia-utils${GREEN}
+                ${BLUE}https://github.com/VHSgunzo/runimage-fake-nvidia-driver${GREEN}
             But you can also install the usual nvidia driver of your version in runimage.
             Checking the nvidia driver version can be disabled using ${YELLOW}NO_NVIDIA_CHECK$GREEN variable.
             The nvidia driver image can be located next to runimage:
@@ -1628,15 +1674,6 @@ if [ "$RUNIMAGE_CONFIG" != 0 ]
         warn_msg "RunImage config is disabled!"
 fi
 
-set_default_option() {
-    NO_WARN=1
-    ALLOW_BG=0
-    XORG_CONF=0
-    SANDBOX_NET=0
-    SQFUSE_REMOUNT=0
-    NO_NVIDIA_CHECK=1
-    ENABLE_HOSTEXEC=0
-}
 case "$RUNSRCNAME" in
     Run*|runimage*|$RUNROOTFSTYPE)
         case $1 in
@@ -2337,7 +2374,13 @@ fi
 [[ -d "$BRUNDIR" && "$OVERFS_MNT" == "$BRUNDIR" ]]||\
     BRUNDIR="$RUNDIR"
 if [ "$NO_RUNDIR_BIND" != 1 ]
-    then RUNDIR_BIND=("--bind-try" "$BRUNDIR" "/var/RunDir")
+    then RUNDIR_BIND=(
+            "--bind-try" "$BRUNDIR" "/var/RunDir"
+            "--setenv" "RUNDIR" "/var/RunDir"
+            "--setenv" "RUNSTATIC" "/var/RunDir/static"
+            "--setenv" "RUNROOTFS" "/var/RunDir/rootfs"
+            "--setenv" "RUNRUNTIME" "/var/RunDir/static/runtime-fuse2-all"
+        )
     else warn_msg "Binding RunDir is disabled!"
 fi
 
@@ -2410,6 +2453,21 @@ if [ "$UNSHARE_USERS" == 1 ]
     then
         warn_msg "Users are unshared!"
         USERS_BIND+=("--unshare-user-try")
+        if ! grep -wo "^$RUNUSER:x:$EUID:0" "$RUNROOTFS/etc/passwd" &>/dev/null
+            then
+                if [ -w "$RUNROOTFS" ]
+                    then
+                        add_unshared_user "$RUNROOTFS/etc/passwd"
+                    else
+                        cp -f "$RUNROOTFS/etc/group" "$UNGROUPFL" 2>/dev/null
+                        cp -f "$RUNROOTFS/etc/passwd" "$UNPASSWDFL" 2>/dev/null
+                        add_unshared_user "$UNPASSWDFL"
+                        USERS_BIND+=(
+                            "--bind-try" "$UNGROUPFL" "/etc/group"
+                            "--bind-try" "$UNPASSWDFL" "/etc/passwd"
+                        )
+                fi
+        fi
     else
         USERS_BIND+=(
             "--ro-bind-try" "/etc/group" "/etc/group"

@@ -1,6 +1,6 @@
 # v0.39.1
 
-* Update `rootfs` [v0.39.1]()
+* Update `rootfs` v0.39.1 23.08.29
 * Rename `superlite` to `lwrun`
 * Update static `bubblewrap` [v0.8.0.r20](https://github.com/VHSgunzo/bubblewrap-static/releases/tag/v0.8.0.r20)
 * Update static `bash` [v5.2.015-1.2.3-2](https://github.com/robxu9/bash-static/releases/tag/5.2.015-1.2.3-2)
@@ -14,7 +14,12 @@
 * Update staticx `xorg-xhost` [v1.0.9](https://github.com/VHSgunzo/xorg-xhost-static/releases/tag/v1.0.9-alpine) (now its on musl)
 * Update static `xz` [v5.5.0alpha](https://github.com/VHSgunzo/xz-static/releases/tag/v5.5.0)
 * Update static `ptyspawn` [v0.0.5](https://github.com/VHSgunzo/ptyspawn/releases/tag/v0.0.5)
-* Update `fake-nvidia-utils` [v0.7](https://github.com/VHSgunzo/runimage-fake-nvidia-utils/releases/tag/v0.7)
+* Rename `fake-nvidia-utils`package to [fake-nvidia-driver](https://github.com/VHSgunzo/runimage-fake-nvidia-driver)
+* Update `fake-nvidia-driver` [v0.8](https://github.com/VHSgunzo/runimage-fake-nvidia-driver/releases/tag/v0.8)
+* Update `Nvidia driver` check/bind functions
+* Add `OpenCL` support for [runimage-nvidia-drivers](https://github.com/VHSgunzo/runimage-nvidia-drivers)
+* Add [huggingface](https://huggingface.co/runimage/nvidia-drivers) mirror for download runimage nvidia driver image
+* Add support for [tesla](https://us.download.nvidia.com/tesla) nvidia drivers
 * Replace `iptables` with `iptables-nft`
 * Install `nftables` package
 * Install `openresolv` package
@@ -29,8 +34,9 @@
 * Create and install [steam-runtime-libs](https://github.com/VHSgunzo/steam-runtime-libs) package to `lwrun`
 * Create `EAC` [patched](https://github.com/VHSgunzo/glibc-eac) `glibc-eac` and `lib32-glibc-eac` (2.37-3)
 * Create and install `Reshade Shaders` [reshade-shaders-lw](https://github.com/VHSgunzo/reshade-shaders-lw) to `lwrun`
+* Create [portarch](https://github.com/VHSgunzo/portarch) Portable `Arch Linux`
 * Create and install [adwaita-icon-theme-41](https://github.com/VHSgunzo/adwaita-icon-theme-41) package to `portarch`
-* Update [GE-Proton v8-12](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.12) in `lwrun`
+* Update [GE-Proton v8-13](https://github.com/VHSgunzo/ge-proton-lw/releases/tag/v8.13) in `lwrun`
 * Replace `palemoon` with `firefox` in `lwrun`
 * Remove `mangoapp` and `lib32-mangoapp` in `lwrun`
 * Replace `mangohud-lw-git` with `mangohud` `lib32-mangohud` in `lwrun`
@@ -41,6 +47,7 @@
 * Replace [fuse-overlayfs](https://github.com/containers/fuse-overlayfs) with [unionfs-fuse](https://github.com/rpodgorny/unionfs-fuse) ([unionfs-fuse-static](https://github.com/VHSgunzo/unionfs-fuse-static/releases))
 * Add `noatime` to `OverlayFS` mode
 * Fix `OverlayFS` mode in `Porteus`, `EasyOS` and `ZorinOS` (`fuse-overlayfs` cannot read upper dir cannot allocate memory)
+* Fix `gpg-agent` connection errors
 * Add get `Nvidia` driver version from `/sys/module/nvidia/version`
 * Force using internal `static` binaries from `PATH` (see `SYS_TOOLS` var)
 * Fix `ldconfig` `nvidia` symlink creation messages
@@ -81,8 +88,8 @@
 * Add default run option for some `runimage` args
 * Add `UNSHARE_DEF_MOUNTS` Unshares default mount points (`/mnt` `/media` `/run/media`)
 * Add `UNSHARE_UDEV` Unshares UDEV from the host (`/run/udev`)
-* Add [huggingface](https://huggingface.co/runimage/nvidia-drivers) mirror for download runimage nvidia driver image
-* Add support for [tesla](https://us.download.nvidia.com/tesla) nvidia drivers
+* Remove `GDK_BACKEND` and `NO_AT_BRIDGE` env from `bwrun` setenv
+* Add `INSIDE_RUNIMAGE=1` var if inside `RunImage`
 * Minor fixes
 
 # v0.38.9

@@ -42,12 +42,6 @@ is_zstd_cmprs_valid() { [[ "$1" =~ ^[0-9]+$ && "$1" -ge 1 && "$1" -le 22 ]] ; }
 
 info_msg "RunImage build"
 
-[[ ! -d "$RUNSTATIC" && -d "/var/RunDir/static" ]] && \
-     RUNSTATIC="/var/RunDir/static"
-
-[ ! -x "$RUNRUNTIME" ] && \
-     RUNRUNTIME="$RUNSTATIC/runtime-fuse2-all"
-
 if [ ! -x "$RUNRUNTIME" ]
      then
           error_msg "RunImage runtime not found!"
@@ -58,12 +52,6 @@ RUNRUNTIMESIZE=($(du -sb "$RUNRUNTIME" 2>/dev/null))
 
 [ ! -x "$MKSQFS" ] && \
      MKSQFS="$RUNSTATIC/mksquashfs"
-
-if [ -d "$OVERFS_MNT" ]
-     then RUNDIR="$OVERFS_MNT"
-elif [ -x "/var/RunDir/Run" ]
-     then RUNDIR="/var/RunDir"
-fi
 
 CMPRS_ARGS=("-zstd" "-xz" "-lz4")
 if [[ -n "$1" && ! "${CMPRS_ARGS[@]}" =~ "$1" ]]
@@ -131,22 +119,25 @@ OLDRUNIMAGE="${NEWRUNIMAGE%.new$BUILDKEY}"
 [[ -f "$NEWRUNIMAGE" || -d "$NEWRUNIMAGE" || -L "$NEWRUNIMAGE" ]] && \
      rm -rf "$NEWRUNIMAGE"
 
+[[ "$INSIDE_RUNIMAGE" == 1 && ! -d "$RUNROOTFS" ]] && \
+     RUNROOTFS='/'
+
 unset IS_PACLOCKFL
-PACLOCKFL="$RUNDIR/rootfs/var/lib/pacman/db.lck"
-if [ -w "$RUNDIR/rootfs" ]
+PACLOCKFL="$RUNROOTFS/var/lib/pacman/db.lck"
+if [ -w "$RUNROOTFS" ]
      then
           info_msg "Updating build timestamp..."
-          date '+%y.%m.%d.%H%M%S' > "$RUNDIR/rootfs/.build"
+          date '+%y.%m.%d.%H%M%S' > "$RUNROOTFS/.build"
           info_msg "Cleanup rootfs..."
-          find "$RUNDIR/rootfs/var/log/" -type f -name '*.log' -exec rm -f {} \;
-          rm -rf "$RUNDIR/rootfs/var/tmp/"*
+          find "$RUNROOTFS/var/log/" -type f -name '*.log' -exec rm -f {} \;
+          rm -rf "$RUNROOTFS/var/tmp"/*
           if [ -f "$PACLOCKFL" ]
                then
                     IS_PACLOCKFL=1
                     rm -rf "$PACLOCKFL"
           fi
-          rm -rf "$RUNDIR/rootfs/var/lib/pacman/sync/"*
-          rm -rf "$RUNDIR/rootfs/var/cache/pacman/pkg/"*
+          rm -rf "$RUNROOTFS/var/lib/pacman/sync"/*
+          rm -rf "$RUNROOTFS/var/cache/pacman/pkg"/*
      else
           warn_msg "Unable to update build timestamp. Read-only!"
           warn_msg "Unable to cleanup rootfs. Read-only!"
