@@ -544,6 +544,7 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [Lutris Wine](https://github.com/VHSgunzo/lutris-wine)
 * [stable-diffusion](https://github.com/VHSgunzo/stable-diffusion)
 * [NitroWine](https://github.com/RusNor/NitroWine)
+* [PortArch](https://github.com/VHSgunzo/portarch)
 
 ## Similar projects:
 
