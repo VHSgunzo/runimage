@@ -91,6 +91,15 @@
 * Remove `GDK_BACKEND` and `NO_AT_BRIDGE` env from `bwrun` setenv
 * Add `INSIDE_RUNIMAGE=1` var if inside `RunImage`
 * Minor fixes
+-----------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.39.1/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.39.1/pkg_list.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+1e80356c35dc2f35cbd6f5f93325744bac4b531a2987ce1fa45084cbaa9c39e1  runimage
+```
+
+**=======================================================================================**
 
 # v0.38.9
 
