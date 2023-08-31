@@ -1477,7 +1477,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${RED}RunImage desktop:${GREEN}
             Ability to run RunImage in desktop mode. Default DE: XFCE (see /usr/bin/rundesktop)
             If the launch is carried out from an already running desktop, then Xephyr will start
-                in windowed mode (see ${YELLOW}XEPHYR_*$GREEN environment variables)
+                in windowed/full screen mode (see ${YELLOW}XEPHYR_*$GREEN environment variables)
                 Use CTRL+SHIFT to grab the keyboard and mouse.
             It is also possible to run on TTY with Xorg (see ${YELLOW}XORG_CONF$GREEN environment variables)
                 To do this, just log in to TTY and run RunImage desktop.
