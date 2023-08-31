@@ -4,7 +4,7 @@
 
 ![image](screenshots/run-shell.png)
 
-`RunImage` is designed to be completely `static` and `portable` to run on almost any `Linux`. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs). The technology of single-file containerization is based on a modified static `AppImage` [runtime](https://github.com/VHSgunzo/runimage-runtime-static), `squashfs` image with `lz4` compression method for better work speed, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static/releases) for the operation of the container [Run.sh script](https://github.com/VHSgunzo/runimage/blob/main/Run.sh), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap).
+`RunImage` is designed to be completely `static` and `portable` to run on almost any `Linux`. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs). The technology of single-file containerization is based on a modified static `AppImage` [runtime](https://github.com/VHSgunzo/runimage-runtime-static), `squashfs` image with `lz4` compression method for better work speed, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static/releases) for the operation of the container [Run.sh script](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/Run.sh), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap).
 
 In addition, `RunImage` has the ability to `isolate` itself from the main `system`, use separate `portable home` directories and `configuration` files for each `executable` file being run, and run separate `X11` servers, including running multiple `Xorg` servers on `TTY`. `XFCE` is used as `DE`
 
@@ -36,7 +36,7 @@ The full list of installed packages can be found in the [**releases**](https://g
 * The ability to `Filesystem`, `X11`, `DBUS`, `UDEV`, `Network`, `SystemD`, `USERs` and `PIDs` sandboxing.
 * `Temporary` `home` directory in `RAM` (can be used as a real `private mode` for browsers and applications)
 * `Sandbox` and `portable` `home` directory.
-* The ability to launching a full `DE` in `windowed` mode and on `TTY`
+* The ability to launching a full `DE` in `windowed/full screen` mode and on `TTY`
 * Works with any versions of `nvidia` proprietary `drivers`
 * Works in `Wayland` session.
 * `Monitoring` of running `processes`
@@ -59,7 +59,7 @@ mknod /dev/fuse -m 0666 c 10 229
 1. Download latest release from the [**releases**](https://github.com/VHSgunzo/runimage/releases) page.
 2. Make it executable before run.
 ```
-chmod +x runimage*
+chmod +x runimage
 ```
 
 ## Usage (from RunImage help):
@@ -164,6 +164,8 @@ Environment variables to configure:
                                          If they are not found in the system - auto return to the built-in
 
 Other environment variables:
+    If inside RunImage:
+        INSIDE_RUNIMAGE=1
     RunImage path (for packed):
         RUNIMAGE=""
     Squashfs offset (for packed):
@@ -216,8 +218,6 @@ Other environment variables:
         FUSE_PIDS=""
     The name of the user who runs runimage:
         RUNUSER=""
-    If inside RunImage:
-        INSIDE_RUNIMAGE=1
     mksquashfs:
         MKSQFS=""
     unsquashfs:
@@ -325,7 +325,7 @@ Additional information:
     RunImage desktop:
         Ability to run RunImage in desktop mode. Default DE: XFCE (see /usr/bin/rundesktop)
         If the launch is carried out from an already running desktop, then Xephyr will start
-            in windowed mode (see XEPHYR_* environment variables)
+            in windowed/full screen mode (see XEPHYR_* environment variables)
             Use CTRL+SHIFT to grab the keyboard and mouse.
         It is also possible to run on TTY with Xorg (see XORG_CONF environment variables)
             To do this, just log in to TTY and run RunImage desktop.

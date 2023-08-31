@@ -1315,6 +1315,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                                              If they are not found in the system - auto return to the built-in
 
     ${RED}Other environment variables:
+        ${GREEN}If inside RunImage:
+            ${YELLOW}INSIDE_RUNIMAGE${GREEN}=1
         ${GREEN}RunImage path (for packed):
             ${YELLOW}RUNIMAGE${GREEN}=\"$RUNIMAGE\"
         ${GREEN}Squashfs offset (for packed):
@@ -1367,8 +1369,6 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}FUSE_PIDS${GREEN}=\"$FUSE_PIDS\"
         ${GREEN}The name of the user who runs runimage:
             ${YELLOW}RUNUSER${GREEN}=\"$RUNUSER\"
-        ${GREEN}If inside RunImage:
-            ${YELLOW}INSIDE_RUNIMAGE${GREEN}=1
         ${GREEN}mksquashfs:
             ${YELLOW}MKSQFS${GREEN}=\"$MKSQFS\"
         ${GREEN}unsquashfs:

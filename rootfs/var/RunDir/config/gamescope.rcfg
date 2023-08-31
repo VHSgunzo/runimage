@@ -1,2 +1,0 @@
-BWRAP_CAP+=("--cap-drop" "CAP_SYS_NICE") # Gamecope bug https://github.com/Plagman/gamescope/issues/309
-SQFUSE_REMOUNT=1
