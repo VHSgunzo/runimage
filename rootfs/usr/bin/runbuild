@@ -145,6 +145,8 @@ fi
 
 info_msg "Creating new RunImage..."
 info_msg "Path: '$OLDRUNIMAGE'"
+[ -d "$OVERFS_MNT" ] && \
+     RUNDIR="$OVERFS_MNT"
 echo -en "$BLUE"
 "$MKSQFS" "$RUNDIR" "$NEWRUNIMAGE" -root-owned -offset "$RUNRUNTIMESIZE" \
      -no-xattrs -noappend -quiet -mkfs-time 0 -b $CMPRS_MTHD
