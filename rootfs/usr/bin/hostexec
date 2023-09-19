@@ -193,26 +193,6 @@ check_args_spaces() {
     done
 }
 
-get_execjobpid() {
-    unset execjobpid
-    wait_time=100
-    while true
-        do
-            if [ "$wait_time" -gt 0 ]
-                then
-                    execjobpid="$(ls "$execjobfl.p."* 2>/dev/null|cut -d '.' -f7)"
-                    if [ -n "$execjobpid" ]
-                        then return 0
-                        else
-                            wait_time="$(( $wait_time - 1 ))"
-                            sleep 0.0005
-                    fi
-                else
-                    return 1
-            fi
-    done
-}
-
 cleanup() { [[ -d "$execjobdir" && -n "$jobnum" ]] && rm -rf "$execjobdir" 2>/dev/null ; }
 
 if [[ -d "$EXECFLDIR" && -e "$JOBNUMFL" ]]

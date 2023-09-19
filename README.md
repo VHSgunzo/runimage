@@ -541,7 +541,7 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 
 ## Projects based on RunImage:
 
-* [Lutris Wine](https://github.com/VHSgunzo/lutris-wine)
+* [Lux Wine](https://github.com/VHSgunzo/lux-wine)
 * [stable-diffusion](https://github.com/VHSgunzo/stable-diffusion)
 * [NitroWine](https://github.com/RusNor/NitroWine)
 * [PortArch](https://github.com/VHSgunzo/portarch)

@@ -192,7 +192,7 @@ yn_case() {
     done
 }
 
-check_url_stat_code() { curl -sL -o /dev/null -I -w "%{http_code}" "$@" 2>/dev/null ; }
+check_url_stat_code() { curl -sL -o /dev/null --insecure -I -w "%{http_code}" "$@" 2>/dev/null ; }
 
 is_url() {
     [ ! -n "$1" ] && \
@@ -289,7 +289,7 @@ try_dl() {
                             if [ "$NO_ARIA2C" != 1 ] && \
                                 is_exe_exist aria2c
                                 then
-                                    aria2c -x 13 -s 13 --allow-overwrite --summary-interval=1 -o \
+                                    aria2c -R -x 13 -s 13 --allow-overwrite --summary-interval=1 -o \
                                         "$FILENAME" -d "$FILEDIR" "$URL"|grep --line-buffered 'ETA'|\
                                         sed -u 's|(.*)| &|g;s|(||g;s|)||g;s|\[||g;s|\]||g'|\
                                         awk '{print$3"\n#Downloading at "$3,$2,$5,$6;system("")}'|\
@@ -302,7 +302,7 @@ try_dl() {
                                     dl_progress
                             elif is_exe_exist curl
                                 then
-                                    curl --progress-bar --insecure --fail -L "$URL" -o \
+                                    curl -R --progress-bar --insecure --fail -L "$URL" -o \
                                         "$FILEDIR/$FILENAME" |& tr '\r' '\n'|\
                                         sed -ur 's|[# ]+||g;s|.*=.*||g;s|.*|#Downloading at &\n&|g'|\
                                     dl_progress
@@ -313,14 +313,14 @@ try_dl() {
                         else
                             if [ "$NO_ARIA2C" != 1 ] && is_exe_exist aria2c
                                 then
-                                    aria2c -x 13 -s 13 --allow-overwrite -d "$FILEDIR" -o "$FILENAME" "$URL"
+                                    aria2c -R -x 13 -s 13 --allow-overwrite -d "$FILEDIR" -o "$FILENAME" "$URL"
                             elif is_exe_exist wget
                                 then
                                     wget -q --show-progress --no-check-certificate --content-disposition \
                                         -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME"
                             elif is_exe_exist curl
                                 then
-                                    curl --progress-bar --insecure --fail -L "$URL" -o "$FILEDIR/$FILENAME"
+                                    curl -R --progress-bar --insecure --fail -L "$URL" -o "$FILEDIR/$FILENAME"
                             else
                                 err_no_downloader
                             fi
