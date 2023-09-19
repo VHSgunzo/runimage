@@ -1,8 +1,5 @@
 #!/usr/bin/bash
 
-unset PACTRANS CONFLICTFL
-PACTRANS=(/usr/bin/pactrans --sysupgrade --yolo)
-FIFOFL="/tmp/.rupd.$RUNPID"
 PACKEYRINGS=(archlinux-keyring)
 
 grep "^\[chaotic-aur\]" "/etc/pacman.conf" &>/dev/null && \
@@ -14,27 +11,4 @@ grep "^\[blackarch\]" "/etc/pacman.conf" &>/dev/null && \
 /usr/bin/pac -Sy "${PACKEYRINGS[@]}" --needed --noconfirm||\
     exit 1
 
-cleanup() {
-    rm -rf "$FIFOFL"
-    kill $PACTRANSPID 2>/dev/null
-}
-trap 'cleanup' EXIT SIGINT SIGTERM
-
-mkfifo "$FIFOFL"
-
-"${PACTRANS[@]}"|& tee "$FIFOFL" &
-PACTRANSPID=$!
-
-CONFLICTFL=(
-    $(grep "file conflict:" "$FIFOFL"|\
-      awk '{print$3}'|sed "s|'||g")
-)
-
-if [ -n "$CONFLICTFL" ]
-    then
-        is_conflict=1
-        rm -rvf "${CONFLICTFL[@]}"
-        "${PACTRANS[@]}"
-fi
-
-exit $?
+/usr/bin/pactrans --sysupgrade --yolo
