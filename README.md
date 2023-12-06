@@ -56,7 +56,7 @@ mknod /dev/fuse -m 0666 c 10 229
 
 ## To get started:
 
-1. Download latest release from the [**releases**](https://github.com/VHSgunzo/runimage/releases) page.
+1. Download latest release from the [**releases**](https://github.com/VHSgunzo/runimage/releases) page. ([HF mirror](https://huggingface.co/runimage/releases/tree/main/stable))
 2. Make it executable before run.
 ```
 chmod +x runimage
