@@ -1,14 +1,26 @@
 #!/usr/bin/bash
 
-PACKEYRINGS=(archlinux-keyring)
+is_exe_exist() { command -v "$@" &>/dev/null ; }
 
-grep "^\[chaotic-aur\]" "/etc/pacman.conf" &>/dev/null && \
-    PACKEYRINGS+=(chaotic-keyring)
+if is_exe_exist pacman
+    then
+        PACKEYRINGS=(archlinux-keyring)
 
-grep "^\[blackarch\]" "/etc/pacman.conf" &>/dev/null && \
-    PACKEYRINGS+=(blackarch-keyring)
+        grep "^\[chaotic-aur\]" "/etc/pacman.conf" &>/dev/null && \
+            PACKEYRINGS+=(chaotic-keyring)
 
-/usr/bin/pac -Sy "${PACKEYRINGS[@]}" --needed --noconfirm||\
+        grep "^\[blackarch\]" "/etc/pacman.conf" &>/dev/null && \
+            PACKEYRINGS+=(blackarch-keyring)
+
+        /usr/bin/pac -Sy "${PACKEYRINGS[@]}" --needed --noconfirm && \
+        /usr/bin/pactrans --sysupgrade --yolo||\
+        exit 1
+elif is_exe_exist apt
+    then
+        sudo apt update && \
+        sudo apt upgrade -y||\
+        exit 1
+else
+    error_msg "The package manager cannot be detected!"
     exit 1
-
-/usr/bin/pactrans --sysupgrade --yolo
+fi

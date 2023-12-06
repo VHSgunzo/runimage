@@ -21,14 +21,15 @@ RPIDSFL="/tmp/.rpids.$RUNPID"
 UNPASSWDFL="/tmp/.passwd.$RUNPID"
 UNGROUPFL="/tmp/.group.$RUNPID"
 unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
-      MKSQFS NVDRVMNT BWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
+      MKSQFS NVDRVMNT BUWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNSHARE_BIND \
-      NETWORK_BIND SET_HOME_DIR SET_CONF_DIR HOME_BIND BWRAP_ARGS \
+      NETWORK_BIND SET_HOME_DIR SET_CONF_DIR HOME_BIND BUWRAP_ARGS \
       LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND EXEC_ARGS \
-      FUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BWRAP OVERFS_MNT \
+      FUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BUWRAP OVERFS_MNT \
       SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG OVERFS_DIR \
       RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP RUNDIR_BIND \
-      SANDBOX_HOME_DIR MACHINEID_BIND MODULES_BIND DEF_MOUNTS_BIND
+      SANDBOX_HOME_DIR MACHINEID_BIND MODULES_BIND DEF_MOUNTS_BIND \
+      LOCALTIME_BIND
 
 which_exe() { command -v "$@" ; }
 
@@ -89,7 +90,7 @@ fi
 [ ! -n "$RUNTTY" ] && \
     export RUNTTY="$(tty|grep -v 'not a')"
 [ ! -n "$(echo "$RUNTTY"|grep -Eo 'tty|pts')" ] && \
-    NOT_TERM=1
+    NOT_TERM=1||NOT_TERM=0
 
 [ "$NOT_TERM" != 1 ] && \
     SETSID_RUN=("ptyspawn")||\
@@ -1036,8 +1037,8 @@ bwrun() {
         --bind-try /sys /sys \
         --dev-bind-try /dev /dev \
         --ro-bind-try /etc/hostname /etc/hostname \
-        --ro-bind-try /etc/localtime /etc/localtime \
         --ro-bind-try /etc/nsswitch.conf /etc/nsswitch.conf \
+        "${LOCALTIME_BIND[@]}" \
         "${MODULES_BIND[@]}" "${DEF_MOUNTS_BIND[@]}" \
         "${USERS_BIND[@]}" "${RUNDIR_BIND[@]}" \
         "${VAR_BIND[@]}" "${MACHINEID_BIND[@]}" \
@@ -1045,7 +1046,7 @@ bwrun() {
         "${NETWORK_BIND[@]}" "${XDG_RUN_BIND[@]}" \
         "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}" \
         "${UNSHARE_BIND[@]}" "${HOME_BIND[@]}" \
-        "${XORG_CONF_BIND[@]}" "${BWRAP_CAP[@]}" \
+        "${XORG_CONF_BIND[@]}" "${BUWRAP_CAP[@]}" \
         --setenv INSIDE_RUNIMAGE '1' \
         --setenv RUNPID "$RUNPID" \
         --setenv PATH "$BIN_PATH" \
@@ -1053,7 +1054,7 @@ bwrun() {
         --setenv LD_LIBRARY_PATH "$LIB_PATH" \
         --setenv XDG_CONFIG_DIRS "/etc/xdg:$XDG_CONFIG_DIRS" \
         --setenv XDG_DATA_DIRS "/usr/local/share:/usr/share:$XDG_DATA_DIRS" \
-        "${SETENV_ARGS[@]}" "${BWRAP_ARGS[@]}" \
+        "${SETENV_ARGS[@]}" "${BUWRAP_ARGS[@]}" \
         "${EXEC_ARGS[@]}" "${SLEEP_EXEC[@]}" \
         "$@" 8>$BWINFFL
     EXEC_STATUS=$?
@@ -1151,7 +1152,19 @@ try_mkhome() {
     try_mkdir "$1/.config"
 }
 
-pkg_list() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun /usr/bin/pacman -Q 2>/dev/null ; }
+pkg_list() (
+    QUIET_MODE=1
+    SANDBOX_NET=0
+    NO_NVIDIA_CHECK=1
+    if bwrun which pacman &>/dev/null
+        then bwrun /usr/bin/pacman -Q 2>/dev/null
+    elif bwrun which apt &>/dev/null
+        then bwrun /usr/bin/apt list --installed 2>/dev/null
+    else
+        error_msg "The package manager cannot be detected!"
+        exit 1
+    fi
+)
 
 bwrap_help() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun --help ; }
 
@@ -1173,7 +1186,8 @@ run_update() {
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
         then
-            if [ -n "$(ls -A "$RUNROOTFS/var/cache/pacman/pkg/" 2>/dev/null)" ]
+            if [ -n "$(ls -A "$RUNROOTFS/var/cache/pacman/pkg/" 2>/dev/null)" ]||\
+               [ -n "$(ls -A "$RUNROOTFS/var/cache/apt/archives"/*.deb 2>/dev/null)" ]
                 then
                     if [ -n "$RUNIMAGE" ]
                         then
@@ -1199,7 +1213,21 @@ add_unshared_user() {
     fi
 }
 
+add_unshared_group() {
+    if grep -o ".*:x:$EGID:" "$1" &>/dev/null
+        then sed -i "s|.*:x:$EGID:.*|$RUNGROUP:x:$EGID:|g" "$1"
+        else echo "$RUNGROUP:x:$EGID:" >> "$1"
+    fi
+}
+
 run_build() { "$RUNSTATIC/bash" "$RUNROOTFS/usr/bin/runbuild" "$@" ; }
+
+disable_sandbox_net() {
+    unset SANDBOX_NET_CIDR SANDBOX_NET_HOSTS SANDBOX_NET_MAC \
+        SANDBOX_NET_MTU SANDBOX_NET_RESOLVCONF SANDBOX_NET_TAPNAME
+    SANDBOX_NET=0
+    warn_msg "SANDBOX_NET is disabled for now!"
+}
 
 set_default_option() {
     NO_WARN=1
@@ -1262,6 +1290,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}UNSHARE_DBUS$GREEN=1                       Unshares DBUS from the host
         ${YELLOW}UNSHARE_UDEV$GREEN=1                       Unshares UDEV from the host (/run/udev)
         ${YELLOW}UNSHARE_MODULES$GREEN=1                    Unshares kernel modules from the host (/usr/lib/modules)
+        ${YELLOW}UNSHARE_LOCALTIME$GREEN=1                  Unshares localtime from the host (/etc/localtime)
         ${YELLOW}UNSHARE_DEF_MOUNTS$GREEN=1                 Unshares default mount points (/mnt /media /run/media)
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
         ${YELLOW}NVIDIA_DRIVERS_DIR$GREEN=\"/path/dir\"       Specifies custom Nvidia driver images directory
@@ -1273,7 +1302,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}KEEP_OLD_BUILD$GREEN=1                     Creates a backup of the old RunImage when building a new one
         ${YELLOW}BUILD_WITH_EXTENSION$GREEN=1               Adds an extension when building (compression method and rootfs type)
         ${YELLOW}CMPRS_ALGO$GREEN={zstd|xz|lz4}             Specifies the compression algo for runimage build
-        ${YELLOW}ZSDT_CMPRS_LVL$GREEN={1-19}                Specifies the compression ratio of the zstd algo for runimage build
+        ${YELLOW}ZSDT_CMPRS_LVL$GREEN={1-22}                Specifies the compression ratio of the zstd algo for runimage build
         ${YELLOW}NO_RUNDIR_BIND$GREEN=1                     Disables binding RunDir to /var/RunDir
         ${YELLOW}RUN_SHELL$GREEN=\"shell\"                    Selects ${YELLOW}\$SHELL$GREEN in runimage
         ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
@@ -1296,7 +1325,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}SANDBOX_NET_MTU$GREEN=65520                Specifies tap interface MTU in network sandbox (Def: 1500)
         ${YELLOW}SANDBOX_NET_HOSTS$GREEN=\"file\"             Binds specified file to /etc/hosts in network sandbox
         ${YELLOW}SANDBOX_NET_RESOLVCONF$GREEN=\"file\"        Binds specified file to /etc/resolv.conf in network sandbox
-        ${YELLOW}BWRAP_ARGS$GREEN+=()                       Array with Bubblewrap arguments (for config file)
+        ${YELLOW}BUWRAP_ARGS$GREEN+=()                       Array with Bubblewrap arguments (for config file)
         ${YELLOW}EXEC_ARGS$GREEN+=()                        Array with Bubblewrap exec arguments (for config file)
         ${YELLOW}XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
                                                 (Default: /etc/X11/xorg.conf bind from the system)
@@ -1717,6 +1746,9 @@ elif [ -n "$(who|grep -m1 'tty'|awk '{print$1}')" ]
         export RUNUSER="$(who|grep -m1 'tty'|awk '{print$1}')"
 fi
 
+export EGID="$(id -g 2>/dev/null)"
+export RUNGROUP="$(id -gn 2>/dev/null)"
+
 if [[ "$DISPLAY" == "wayland-"* ]]
     then
         export DISPLAY=":$(echo "$DISPLAY"|sed 's|wayland-||g')"
@@ -1802,6 +1834,11 @@ fi
 for bind in "${runbinds[@]}"
     do XDG_RUN_BIND+=("--bind-try" "$bind" "$bind")
 done
+
+if [ "$UNSHARE_LOCALTIME" != 1 ]
+    then LOCALTIME_BIND=("--ro-bind-try" "/etc/localtime" "/etc/localtime")
+    else warn_msg "Host localtime is unshared!"
+fi
 
 if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
     then
@@ -1956,15 +1993,15 @@ if [[ "$SYS_BUWRAP" == 1 && "$EUID" != 0 && \
       -x "$(find "$BUWRAP" -perm -u=s 2>/dev/null)" ]]
     then
         warn_msg "Bubblewrap has SUID sticky bit!"
-        SUID_BWRAP=1
+        SUID_BUWRAP=1
 fi
-if [[ "$SUID_BWRAP" == 1 || "$NO_CAP" == 1 ]]
+if [[ "$SUID_BUWRAP" == 1 || "$NO_CAP" == 1 ]]
     then
         warn_msg "Bubblewrap capabilities is disabled!"
-        BWRAP_CAP=("--cap-drop" "ALL")
+        BUWRAP_CAP=("--cap-drop" "ALL")
     else
-        BWRAP_CAP=("--cap-add" "ALL" "${BWRAP_CAP[@]}")
-        BWRAP_CAP+=("--cap-drop" "CAP_SYS_NICE") # Gamecope bug https://github.com/Plagman/gamescope/issues/309
+        BUWRAP_CAP=("--cap-add" "ALL" "${BUWRAP_CAP[@]}")
+        BUWRAP_CAP+=("--cap-drop" "CAP_SYS_NICE") # Gamecope bug https://github.com/Plagman/gamescope/issues/309
 fi
 
 [ "$(getenforce 2>/dev/null)" == "Enforcing" ] && \
@@ -2013,7 +2050,7 @@ if [ "$OVERFS_MODE" != 0 ] && [[ "$OVERFS_MODE" == 1 || "$KEEP_OVERFS" == 1 || -
         export OVERFS_MNT="$OVERFS_DIR/mnt"
         BRUNDIR="$OVERFS_MNT"
         "$UNIONFS" -f -o max_files=$(ulimit -n -H),hide_meta_files,cow,noatime \
-                      -o $([ "$EUID" != 0 ] && echo relaxed_permissions),uid=$EUID,gid=$(id -g) \
+                      -o $([ "$EUID" != 0 ] && echo relaxed_permissions),uid=$EUID,gid=$EGID \
                       -o dirs="$OVERFS_DIR/layers"=RW:"$([ -n "$RO_MNT" ] && echo "$RO_MNT"||\
                          echo "$RUNDIR")"=RO "$OVERFS_MNT" &>/dev/null &
         UNIONFS_PID="$!"
@@ -2285,14 +2322,12 @@ fi
    "$SANDBOX_NET_SHARE_HOST" == 1 ]] && \
    SANDBOX_NET=1
 
+[[ "$SANDBOX_NET" == 1 && "$SUID_BUWRAP" == 1 ]] && \
+    disable_sandbox_net
+
 if [[ "$SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
     then
         tun_err_text="SANDBOX_NET enabled, but /dev/net/tun not found!"
-        disable_sandbox_net() {
-            unset SANDBOX_NET SANDBOX_NET_CIDR SANDBOX_NET_HOSTS SANDBOX_NET_MAC \
-                    SANDBOX_NET_MTU SANDBOX_NET_RESOLVCONF SANDBOX_NET_TAPNAME
-            warn_msg "SANDBOX_NET is disabled for now!"
-        }
         if [ "$EUID" == 0 ]
             then
                 warn_msg "$tun_err_text"
@@ -2386,7 +2421,8 @@ fi
 
 add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
 /usr/lib/jvm/default/bin:/usr/local/bin:/usr/local/sbin:\
-/opt/cuda/bin:$HOME/.cargo/bin:$SYS_PATH:/var/RunDir/static"
+/opt/cuda/bin:$HOME/.cargo/bin:$SYS_PATH:/usr/bin/vendor_perl:\
+/var/RunDir/static"
 [ -n "$LD_LIBRARY_PATH" ] && \
     add_lib_pth "$LD_LIBRARY_PATH"
 
@@ -2453,15 +2489,18 @@ if [ "$UNSHARE_USERS" == 1 ]
     then
         warn_msg "Users are unshared!"
         USERS_BIND+=("--unshare-user-try")
-        if ! grep -wo "^$RUNUSER:x:$EUID:0" "$RUNROOTFS/etc/passwd" &>/dev/null
+        if ! grep -wo "^$RUNUSER:x:$EUID:0" "$RUNROOTFS/etc/passwd" &>/dev/null || \
+           ! grep -wo "^$RUNGROUP:x:$EGID:" "$RUNROOTFS/etc/group" &>/dev/null
             then
                 if [ -w "$RUNROOTFS" ]
                     then
                         add_unshared_user "$RUNROOTFS/etc/passwd"
+                        add_unshared_group "$RUNROOTFS/etc/group"
                     else
                         cp -f "$RUNROOTFS/etc/group" "$UNGROUPFL" 2>/dev/null
                         cp -f "$RUNROOTFS/etc/passwd" "$UNPASSWDFL" 2>/dev/null
                         add_unshared_user "$UNPASSWDFL"
+                        add_unshared_group "$UNGROUPFL"
                         USERS_BIND+=(
                             "--bind-try" "$UNGROUPFL" "/etc/group"
                             "--bind-try" "$UNPASSWDFL" "/etc/passwd"

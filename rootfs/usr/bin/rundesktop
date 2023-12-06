@@ -40,21 +40,44 @@ warn_msg() {
     fi
 }
 
+is_exe_exist() { command -v "$@" &>/dev/null ; }
+
+is_not_ro() {
+    if [ ! -w "$RUNROOTFS" ]
+        then
+            error_msg "Unable to install dependencies. Read-only!"
+            exit 1
+    fi
+}
+
 [[ "$INSIDE_RUNIMAGE" == 1 && ! -d "$RUNROOTFS" ]] && \
      RUNROOTFS='/'
 
-if [ -w "$RUNROOTFS" ]
+if is_exe_exist pacman
     then
-        if [ "$(pacman -Qq xorg-server tk tcl xclip xfce4-session pavucontrol pulseaudio 2>/dev/null|wc -l)" != "7" ]
+        if [ "$(pacman -Qq xorg-server tk tcl xclip xfce4-session pavucontrol pulseaudio qt5ct 2>/dev/null|wc -l)" != "8" ] && is_not_ro
             then
                 info_msg "Installing the necessary dependencies..."
                 pac -Syu --noconfirm && \
-                pac -S xorg tk tcl xclip xfce4 xfce4-goodies pavucontrol pulseaudio --noconfirm||\
+                pac -S xorg tk tcl xclip xfce4 xfce4-goodies pavucontrol pulseaudio qt5ct --noconfirm||\
                 exit 1
         fi
-    else
-        error_msg "Unable to install dependencies. Read-only!"
-        exit 1
+elif is_exe_exist apt
+    then
+        if [ "$(dpkg --get-selections|awk '{print$1}'|\
+                grep -Ew '^xserver-xorg$|^xserver-xephyr$|^tk$|^tcl$|^xclip$|^xfce4-session$|^pavucontrol$|^pulseaudio$|^qt5ct$'|\
+                wc -l)" != "9" ] && is_not_ro
+            then
+                info_msg "Installing the necessary dependencies..."
+                sudo apt update && \
+                sudo apt upgrade -y && \
+                sudo apt install task-xfce-desktop xorg tk tcl xclip xfce4 \
+                    xfce4-goodies pavucontrol pulseaudio xserver-xephyr qt5ct -y||\
+                exit 1
+        fi
+else
+    error_msg "The package manager cannot be detected!"
+    exit 1
 fi
 
 # PID randomizer (UNSHARE_PIDS ICEauthority bug)
@@ -74,9 +97,14 @@ if [[ "$RUNTTY" =~ "tty" ]]
         info_msg "Xorg DISPLAY=$DISPLAY"
         unset XEPHYR XEPHYR_FULLSCREEN \
               XEPHYR_SIZE XEPHYR_DISPLAY
-        [ -x "/usr/lib/Xorg.wrap" ] && \
-            XORG="/usr/lib/Xorg.wrap" || \
-            XORG="/usr/lib/Xorg"
+        if [ -x "/usr/lib/Xorg.wrap" ]
+            then XORG="/usr/lib/Xorg.wrap"
+        elif [ -x "/usr/bin/Xorg" ]
+            then XORG="/usr/bin/Xorg"
+        elif [ -x "/usr/bin/X" ]
+            then XORG="/usr/bin/X"
+        else XORG="/bin/Xorg"
+        fi
         $XORG -nolisten tcp vt$XDG_VTNR $DISPLAY &
         XORG_PID="$!"
         sleep 0.01
@@ -133,7 +161,7 @@ if [ "$RUN_X" == 1 ]
                 warn_msg "Clipboard synchronization is disabled!"
         fi
         dbus-run-session bash /etc/xdg/xfce4/xinitrc
-        EXEC_STATUS="$!"
+        EXEC_STATUS="$?"
         kill $XEPHYR_PID $XORG_PID $XFWM_PID $XCLIPSYNC_PID 2>/dev/null
         kill $(pgrep -fa xclipfrom|grep "$DESKTOP_KEY"|awk '{print$1}') 2>/dev/null
         rm -rf "/tmp/.X$DESKTOP_DISPLAY-lock" 2>/dev/null

@@ -24,8 +24,7 @@ rpids_ps() {
                     echo "$(ps -fp $(cat "$rpids" 2>/dev/null) 2>/dev/null||\
                                 rm -f "$rpids" 2>/dev/null)"
                     red_msg "==========================================================="
-                else
-                    norpids="$(( norpids + 1 ))"
+                else norpids="$(( norpids + 1 ))"
             fi
     done
     [ "$norpids" == "${#args[@]}" ] && \
@@ -34,20 +33,17 @@ rpids_ps() {
 
 rpids_check() {
     if [ -n "$RPIDS" ]
-        then
-            rpids_ps "$(for rpids in ${RPIDS[@]}; do echo "/tmp/.rpids.$rpids"; done)"
+        then rpids_ps "$(for rpids in ${RPIDS[@]}; do echo "/tmp/.rpids.$rpids"; done)"
         else
             RPIDSFLS="$(ls /tmp/.rpids.* 2>/dev/null)"
             if [ -n "$RPIDSFLS" ]
-                then
-                    rpids_ps "$RPIDSFLS"
-                else
-                    green_msg "Waiting for RunImage containers..."
+                then rpids_ps "$RPIDSFLS"
+                else green_msg "Waiting for RunImage containers..."
             fi
     fi
 }
 
-rpids_check_loop() { watch -ctn 0.5 bash -c rpids_check $RPIDSMONPID ; }
+rpids_check_loop() { watch -ctn 0.5 -x bash -c rpids_check $RPIDSMONPID ; }
 
 [ -n "$1" ] && \
     export RPIDS="$@"||\

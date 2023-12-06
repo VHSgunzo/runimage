@@ -1,3 +1,25 @@
+# v0.39.2
+
+* Update `rootfs` v0.39.2 xx.xx.xx
+* Rename `*BWRAP*` other var to `*BUWRAP*`
+* Fix exit code for `rundesktop`
+* Add `/usr/bin/vendor_perl` to `PATH`
+* Add disabling `SANDBOX_NET` if `SUID Bubblewrap` is used
+* Add support for `apt-based` rootfs
+* Add `UNSHARE_LOCALTIME` Unshares localtime from the host (/etc/localtime)
+* Fix `UNSHARE_USERS` group
+* Minor fixes
+
+-----------------------------------------------------------------------------------------------------------------------------
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.39.2/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.39.2/pkg_list.txt)
+---------------------------------------------------------------------------------------------------------------------------------------------------
+## sha256sum:
+```
+xxxxxxxxx  runimage
+```
+
+**=======================================================================================**
+
 # v0.39.1
 
 * Update `rootfs` v0.39.1 23.08.29

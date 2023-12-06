@@ -17,6 +17,10 @@ if [ -d RunDir ]
         rm -rvf RunDir/rootfs/var/cache/pacman/pkg/*
         rm -rvf RunDir/rootfs/var/lib/pacman/db.lck
         rm -rvf RunDir/rootfs/etc/pacman.d/gnupg/pubring.gpg~
+        rm -rf RunDir/rootfs/var/cache/apt/archives/*.deb
+        rm -rf RunDir/rootfs/var/cache/apt/*.bin
+        rm -rf RunDir/rootfs/var/lib/apt/lists/deb.*
+        rm -rf RunDir/rootfs/var/log/apt/*
         nv_version="$(cat /sys/module/nvidia/version 2>/dev/null)"
         [ -n "$nv_version"  ] && \
             find RunDir/rootfs/ -name "*so.$nv_version" -exec rm -rvf {} \;

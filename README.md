@@ -31,7 +31,7 @@ The full list of installed packages can be found in the [**releases**](https://g
 * The ability to launching `AppImage` applications with `FUSE` mount (not needed to extract).
 * The ability to `exec` commands at the `host level` (see `ENABLE_HOSTEXEC` and [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec))
 * The ability to use both separate `home` directories for each `executable` file, and completely `seamless` use of the `system` `home` directory.
-* The ability to use separate `configuration` files for each launched `executable` file (see [config](https://github.com/VHSgunzo/runimage/tree/main/config))
+* The ability to use separate `configuration` files for each launched `executable` file (see [config](https://github.com/VHSgunzo/runimage/tree/main/rootfs/var/RunDir/config))
 * There is no `performance` drawdown. All applications and executable files run at the same `speed` as in the `system`
 * The ability to `Filesystem`, `X11`, `DBUS`, `UDEV`, `Network`, `SystemD`, `USERs` and `PIDs` sandboxing.
 * `Temporary` `home` directory in `RAM` (can be used as a real `private mode` for browsers and applications)
@@ -111,6 +111,7 @@ Environment variables to configure:
     UNSHARE_DBUS=1                       Unshares DBUS from the host
     UNSHARE_UDEV=1                       Unshares UDEV from the host (/run/udev)
     UNSHARE_MODULES=1                    Unshares kernel modules from the host (/usr/lib/modules)
+    UNSHARE_LOCALTIME=1                  Unshares localtime from the host (/etc/localtime)
     UNSHARE_DEF_MOUNTS=1                 Unshares default mount points (/mnt /media /run/media)
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
     NVIDIA_DRIVERS_DIR="/path/dir"       Specifies custom Nvidia driver images directory
@@ -122,7 +123,7 @@ Environment variables to configure:
     KEEP_OLD_BUILD=1                     Creates a backup of the old RunImage when building a new one
     BUILD_WITH_EXTENSION=1               Adds an extension when building (compression method and rootfs type)
     CMPRS_ALGO={zstd|xz|lz4}             Specifies the compression algo for runimage build
-    ZSDT_CMPRS_LVL={1-19}                Specifies the compression ratio of the zstd algo for runimage build
+    ZSDT_CMPRS_LVL={1-22}                Specifies the compression ratio of the zstd algo for runimage build
     NO_RUNDIR_BIND=1                     Disables binding RunDir to /var/RunDir
     RUN_SHELL="shell"                    Selects $SHELL in runimage
     NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
@@ -145,7 +146,7 @@ Environment variables to configure:
     SANDBOX_NET_MTU=65520                Specifies tap interface MTU in network sandbox (Def: 1500)
     SANDBOX_NET_HOSTS="file"             Binds specified file to /etc/hosts in network sandbox
     SANDBOX_NET_RESOLVCONF="file"        Binds specified file to /etc/resolv.conf in network sandbox
-    BWRAP_ARGS+=()                       Array with Bubblewrap arguments (for config file)
+    BUWRAP_ARGS+=()                       Array with Bubblewrap arguments (for config file)
     EXEC_ARGS+=()                        Array with Bubblewrap exec arguments (for config file)
     XORG_CONF="/path/xorg.conf"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
                                             (Default: /etc/X11/xorg.conf bind from the system)
@@ -154,7 +155,7 @@ Environment variables to configure:
     XEPHYR_FULLSCREEN=1                  Starts runimage desktop in full screen mode
     UNSHARE_CLIPBOARD=1                  Disables clipboard synchronization for runimage desktop
 
-    SYS_BWRAP=1                          Using system bwrap
+    SYS_BUWRAP=1                          Using system bwrap
     SYS_SQFUSE=1                         Using system squashfuse
     SYS_UNSQFS=1                         Using system unsquashfs
     SYS_MKSQFS=1                         Using system mksquashfs
@@ -227,7 +228,7 @@ Other environment variables:
     squashfuse:
         SQFUSE=""
     bwrap:
-        BWRAP=""
+        BUWRAP=""
     slirp4netns:
         SLIRP=""
 

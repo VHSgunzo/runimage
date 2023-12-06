@@ -138,6 +138,10 @@ if [ -w "$RUNROOTFS" ]
           fi
           rm -rf "$RUNROOTFS/var/lib/pacman/sync"/*
           rm -rf "$RUNROOTFS/var/cache/pacman/pkg"/*
+          rm -rf "$RUNROOTFS/var/cache/apt/archives"/*.deb
+          rm -rf "$RUNROOTFS/var/cache/apt"/*.bin
+          rm -rf "$RUNROOTFS/var/lib/apt/lists"/deb.*
+          rm -rf "$RUNROOTFS/var/log/apt"/*
      else
           warn_msg "Unable to update build timestamp. Read-only!"
           warn_msg "Unable to cleanup rootfs. Read-only!"
