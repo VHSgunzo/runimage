@@ -112,6 +112,7 @@ Environment variables to configure:
     UNSHARE_UDEV=1                       Unshares UDEV from the host (/run/udev)
     UNSHARE_MODULES=1                    Unshares kernel modules from the host (/usr/lib/modules)
     UNSHARE_LOCALTIME=1                  Unshares localtime from the host (/etc/localtime)
+    UNSHARE_NSS=1                        Unshares NSS from the host (/etc/nsswitch.conf)
     UNSHARE_DEF_MOUNTS=1                 Unshares default mount points (/mnt /media /run/media)
     NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
     NVIDIA_DRIVERS_DIR="/path/dir"       Specifies custom Nvidia driver images directory

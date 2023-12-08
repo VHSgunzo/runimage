@@ -8,6 +8,7 @@
 * Add support for `apt-based` rootfs
 * Add `UNSHARE_LOCALTIME` Unshares localtime from the host (/etc/localtime)
 * Fix `UNSHARE_USERS` group
+* Add `UNSHARE_NSS` Unshares NSS from the host (/etc/nsswitch.conf)
 * Minor fixes
 
 -----------------------------------------------------------------------------------------------------------------------------

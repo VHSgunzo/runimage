@@ -29,7 +29,7 @@ unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG OVERFS_DIR \
       RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP RUNDIR_BIND \
       SANDBOX_HOME_DIR MACHINEID_BIND MODULES_BIND DEF_MOUNTS_BIND \
-      LOCALTIME_BIND
+      LOCALTIME_BIND NSSWITCH_BIND
 
 which_exe() { command -v "$@" ; }
 
@@ -1037,8 +1037,7 @@ bwrun() {
         --bind-try /sys /sys \
         --dev-bind-try /dev /dev \
         --ro-bind-try /etc/hostname /etc/hostname \
-        --ro-bind-try /etc/nsswitch.conf /etc/nsswitch.conf \
-        "${LOCALTIME_BIND[@]}" \
+        "${LOCALTIME_BIND[@]}" "${NSSWITCH_BIND[@]}" \
         "${MODULES_BIND[@]}" "${DEF_MOUNTS_BIND[@]}" \
         "${USERS_BIND[@]}" "${RUNDIR_BIND[@]}" \
         "${VAR_BIND[@]}" "${MACHINEID_BIND[@]}" \
@@ -1291,6 +1290,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}UNSHARE_UDEV$GREEN=1                       Unshares UDEV from the host (/run/udev)
         ${YELLOW}UNSHARE_MODULES$GREEN=1                    Unshares kernel modules from the host (/usr/lib/modules)
         ${YELLOW}UNSHARE_LOCALTIME$GREEN=1                  Unshares localtime from the host (/etc/localtime)
+        ${YELLOW}UNSHARE_NSS$GREEN=1                        Unshares NSS from the host (/etc/nsswitch.conf)
         ${YELLOW}UNSHARE_DEF_MOUNTS$GREEN=1                 Unshares default mount points (/mnt /media /run/media)
         ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
         ${YELLOW}NVIDIA_DRIVERS_DIR$GREEN=\"/path/dir\"       Specifies custom Nvidia driver images directory
@@ -1838,6 +1838,11 @@ done
 if [ "$UNSHARE_LOCALTIME" != 1 ]
     then LOCALTIME_BIND=("--ro-bind-try" "/etc/localtime" "/etc/localtime")
     else warn_msg "Host localtime is unshared!"
+fi
+
+if [ "$UNSHARE_NSS" != 1 ]
+    then NSSWITCH_BIND=("--ro-bind-try" "/etc/nsswitch.conf" "/etc/nsswitch.conf")
+    else warn_msg "Host NSS is unshared!"
 fi
 
 if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
