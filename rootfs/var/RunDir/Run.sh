@@ -339,14 +339,14 @@ try_dl() {
 
 
 share_nvidia_driver(){
-# NVIDIA driver integration. This is straight from https://github.com/89luca89/distrobox/blob/main/distrobox-init#L1478,
+	# NVIDIA driver integration. This is straight from https://github.com/89luca89/distrobox/blob/main/distrobox-init#L1478,
 
 	# First we find all non-lib files we need, this includes
 	#	- binaries
 	#	- confs
 	#	- egl files
 	#	- icd files
-	#	Excluding here the libs, we will threat them later specifically
+	#	Excluding here the libs, we will treat them later specifically
 	NVIDIA_FILES="$(find /etc/ /usr/ \
 		-path "/usr/lib/i386-linux-gnu/*" -prune -o \
 		-path "/usr/lib/x86_64-linux-gnu/*" -prune -o \
@@ -354,16 +354,34 @@ share_nvidia_driver(){
 		-path "/usr/lib64/*" -prune -o \
 		-iname "*nvidia*" -not -type d -print 2> /dev/null || :)"
 	for nvidia_file in ${NVIDIA_FILES}; do
-		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_file}" "${RUNROOTFS}/${nvidia_file}")
+		if printf "%s" "${nvidia_file}" | grep -Eq "x86_64-linux-gnu|i386-linux-gnu"; then
+			# Remove origin so we plug our own
+			dest_dir=$(printf "%s" "${nvidia_file}" |
+				sed "s|/usr/lib/x86_64-linux-gnu/|/usr/lib64/|g" |
+				sed "s|/usr/lib/i386-linux-gnu/|/usr/lib32/|g")
+		else
+			dest_dir="${nvidia_file}"
+		fi
+
+		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_file}" "${dest_dir}")
 	done
 
 	# Then we find all directories with nvidia in the name and just mount them
 	NVIDIA_DIRS="$(find /etc /usr -iname "*nvidia*" -type d 2> /dev/null || :)"
 	for nvidia_dir in ${NVIDIA_DIRS}; do
-		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_dir}" "${RUNROOTFS}/${nvidia_dir}")
+		if printf "%s" "${nvidia_dir}" | grep -Eq "x86_64-linux-gnu|i386-linux-gnu"; then
+			# Remove origin so we plug our own
+			dest_dir=$(printf "%s" "${nvidia_dir}" |
+				sed "s|/usr/lib/x86_64-linux-gnu/|/usr/lib64/|g" |
+				sed "s|/usr/lib/i386-linux-gnu/|/usr/lib32/|g")
+		else
+			dest_dir="${nvidia_dir}"
+		fi
+
+		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_dir}" "${dest_dir}")
 	done
 
-	# Then we find all the ".so" libraries, there are searched separately
+	# Then we find all the ".so" libraries, they are searched separately
 	# because we need to extract the relative path to mount them in the
 	# correct path based on the guest's setup
 	#
@@ -374,17 +392,25 @@ share_nvidia_driver(){
 		/usr/lib/x86_64-linux-gnu/ \
 		/usr/lib32/ \
 		/usr/lib64/ \
-		-iname "*nvidia*.so*" \
+        -iname "*nvidia*.so*" \
 		-o -iname "libcuda*.so*" \
 		-o -iname "libnvcuvid*.so*" \
 		-o -iname "libnvoptix*.so*" 2> /dev/null || :)"
 	for nvidia_lib in ${NVIDIA_LIBS}; do
+		if printf "%s" "$nvidia_lib" | grep -Eq "x86_64-linux-gnu|i386-linux-gnu"; then
+			# Remove origin so we plug our own
+			dest_dir=$(printf "%s" "$nvidia_lib" |
+				sed "s|/usr/lib/x86_64-linux-gnu/|/usr/lib64/|g" |
+				sed "s|/usr/lib/i386-linux-gnu/|/usr/lib32/|g")
+		else
+			dest_dir="${nvidia_lib}"
+		fi
 
 		# If file exists, just continue
 		# this may happen for directories like /usr/lib/nvidia/xorg/foo.so
 		# where the directory is already bind mounted (ro) and we don't need
 		# to mount further files in it.
-		if [ -e "${nvidia_lib}" ]; then
+		if [ -e "$dest_dir" ]; then
 			continue
 		fi
 
@@ -394,11 +420,11 @@ share_nvidia_driver(){
 		fi
 
 		if [ "${type}" = "link" ]; then
-			mkdir -p "$(dirname "${RUNROOTFS}/${nvidia_lib}")"
-			cp -d "${nvidia_lib}" "${RUNROOTFS}/${nvidia_lib}"
+			mkdir -p "$(dirname "${dest_dir}")"
+			cp -d "${nvidia_lib}" "${dest_dir}"
 			continue
 		fi
-		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_lib}" "${RUNROOTFS}/${nvidia_lib}")
+		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_lib}" "${dest_dir}")
 	done
 
 	# Refresh ldconfig cache, also detect if there are empty files remaining
@@ -412,6 +438,7 @@ share_nvidia_driver(){
 	fi
 
 }
+
 
 get_nvidia_driver_image() {
     (if [[ -n "$1" || -n "$nvidia_version" ]] && [ "$UNSHARE_NVIDIA" == "1" ]
