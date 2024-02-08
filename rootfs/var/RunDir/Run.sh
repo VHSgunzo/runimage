@@ -1052,8 +1052,13 @@ bwrun() {
             check_nvidia_driver
     elif [[ "$UNSHARE_NVIDIA" != 1 && ! -n "$NVIDIA_DRIVER_BIND" ]]
         then
-            info_msg "The Nvidia system driver will be used"
-            share_nvidia_driver
+            if [[ ! $(ldconfig -p | grep "/usr/lib/i386-linux-gnu/libGLX_nvidia.so") ]] || [[  $(ldconfig -p | grep "/usr/lib32/libGLX_nvidia.so") ]]
+                then
+                    warn_msg "Nvidia 32 bit drivers are not found in the system, forcibly download the drivers"
+                    check_nvidia_driver
+            else
+                share_nvidia_driver
+            fi
     fi
     [ "$ADD_LD_CACHE" == 1 ] && \
         LD_CACHE_BIND=("--bind-try" \
