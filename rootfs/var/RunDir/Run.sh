@@ -337,8 +337,84 @@ try_dl() {
     fi
 }
 
+
+share_nvidia_driver(){
+# NVIDIA driver integration. This is straight from https://github.com/89luca89/distrobox/blob/main/distrobox-init#L1478,
+
+	# First we find all non-lib files we need, this includes
+	#	- binaries
+	#	- confs
+	#	- egl files
+	#	- icd files
+	#	Excluding here the libs, we will threat them later specifically
+	NVIDIA_FILES="$(find /etc/ /usr/ \
+		-path "/usr/lib/i386-linux-gnu/*" -prune -o \
+		-path "/usr/lib/x86_64-linux-gnu/*" -prune -o \
+		-path "/usr/lib32/*" -prune -o \
+		-path "/usr/lib64/*" -prune -o \
+		-iname "*nvidia*" -not -type d -print 2> /dev/null || :)"
+	for nvidia_file in ${NVIDIA_FILES}; do
+		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_file}" "${RUNROOTFS}/${nvidia_file}")
+	done
+
+	# Then we find all directories with nvidia in the name and just mount them
+	NVIDIA_DIRS="$(find /etc /usr -iname "*nvidia*" -type d 2> /dev/null || :)"
+	for nvidia_dir in ${NVIDIA_DIRS}; do
+		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_dir}" "${RUNROOTFS}/${nvidia_dir}")
+	done
+
+	# Then we find all the ".so" libraries, there are searched separately
+	# because we need to extract the relative path to mount them in the
+	# correct path based on the guest's setup
+	#
+	# /usr/lib64 is common in Arch or RPM based distros, while /usr/lib/x86_64-linux-gnu is
+	# common on Debian derivatives, so we need to adapt between the two nomenclatures.
+	NVIDIA_LIBS="$(find \
+		/usr/lib/i386-linux-gnu/ \
+		/usr/lib/x86_64-linux-gnu/ \
+		/usr/lib32/ \
+		/usr/lib64/ \
+		-iname "*nvidia*.so*" \
+		-o -iname "libcuda*.so*" \
+		-o -iname "libnvcuvid*.so*" \
+		-o -iname "libnvoptix*.so*" 2> /dev/null || :)"
+	for nvidia_lib in ${NVIDIA_LIBS}; do
+
+		# If file exists, just continue
+		# this may happen for directories like /usr/lib/nvidia/xorg/foo.so
+		# where the directory is already bind mounted (ro) and we don't need
+		# to mount further files in it.
+		if [ -e "${nvidia_lib}" ]; then
+			continue
+		fi
+
+		type="file"
+		if [ -L "${nvidia_lib}" ]; then
+			type="link"
+		fi
+
+		if [ "${type}" = "link" ]; then
+			mkdir -p "$(dirname "${RUNROOTFS}/${nvidia_lib}")"
+			cp -d "${nvidia_lib}" "${RUNROOTFS}/${nvidia_lib}"
+			continue
+		fi
+		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_lib}" "${RUNROOTFS}/${nvidia_lib}")
+	done
+
+	# Refresh ldconfig cache, also detect if there are empty files remaining
+	# and clean them.
+	# This could happen when upgrading drivers and changing versions.
+	empty_libs="$(ldconfig 2>&1 | grep -Eo "File.*is empty" | cut -d' ' -f2)"
+	if [ -n "${empty_libs}" ]; then
+		# shellcheck disable=SC2086
+		find ${empty_libs} -delete 2> /dev/null || :
+		find /usr/ /etc/ -empty -iname "*nvidia*" -delete 2> /dev/null || :
+	fi
+
+}
+
 get_nvidia_driver_image() {
-    (if [[ -n "$1" || -n "$nvidia_version" ]]
+    (if [[ -n "$1" || -n "$nvidia_version" ]] && [ "$UNSHARE_NVIDIA" == "1" ]
         then
             [ ! -n "$nvidia_version" ] && \
                 nvidia_version="$1"
@@ -414,7 +490,7 @@ get_nvidia_driver_image() {
 }
 
 mount_nvidia_driver_image() {
-    if [[ -n "$1" && -n "$(echo "$1"|grep -o "\.nv\.drv$")" ]]
+    if [[ -n "$1" && -n "$(echo "$1"|grep -o "\.nv\.drv$")" ]]  && [ "$UNSHARE_NVIDIA" == "1" ]
         then
             [ ! -n "$nvidia_version" ] && \
                 nvidia_version="$(echo "$1"|sed 's|.nv.drv||g')"
@@ -443,7 +519,7 @@ check_nvidia_driver() {
     unset NVIDIA_DRIVER_BIND
     print_nv_drv_dir() { info_msg "Found nvidia driver directory: $(basename "$nvidia_driver_dir")" ; }
     update_ld_cache() {
-        if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
+        if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]  && [ "$UNSHARE_NVIDIA" == "1" ]
             then
                 info_msg "Updating the nvidia library cache..."
                 if (ALLOW_BG=0 SANDBOX_NET=0 bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null)
@@ -974,6 +1050,10 @@ bwrun() {
     elif [[ "$NO_NVIDIA_CHECK" != 1 && ! -n "$NVIDIA_DRIVER_BIND" ]]
         then
             check_nvidia_driver
+    elif [[ "$UNSHARE_NVIDIA" != 1 && ! -n "$NVIDIA_DRIVER_BIND" ]]
+        then
+            info_msg "The Nvidia system driver will be used"
+            share_nvidia_driver
     fi
     [ "$ADD_LD_CACHE" == 1 ] && \
         LD_CACHE_BIND=("--bind-try" \
