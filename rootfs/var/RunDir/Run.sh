@@ -337,48 +337,42 @@ try_dl() {
     fi
 }
 
-
 share_nvidia_driver(){
 	# NVIDIA driver integration. This is straight from https://github.com/89luca89/distrobox/blob/main/distrobox-init#L1478,
 
 	# First we find all non-lib files we need, this includes
 	#	- binaries
-	#	- confs
 	#	- egl files
 	#	- icd files
+	#   - conf files
 	#	Excluding here the libs, we will treat them later specifically
-	NVIDIA_FILES="$(find /etc/ /usr/ \
-		-path "/usr/lib/i386-linux-gnu/*" -prune -o \
-		-path "/usr/lib/x86_64-linux-gnu/*" -prune -o \
-		-path "/usr/lib32/*" -prune -o \
-		-path "/usr/lib64/*" -prune -o \
-		-iname "*nvidia*" -not -type d -print 2> /dev/null || :)"
+
+NVIDIA_BINARIES_LIST=("makeself-help-script.sh" "makeself.sh" "mkprecompiled" "nvidia-bug-report.sh" "nvidia-cuda-mps-control" "nvidia-cuda-mps-server" "nvidia-debugdump" "nvidia-installer" "nvidia-modprobe" "nvidia-ngx-updater" "nvidia-persistenced" "nvidia-powerd" "nvidia-settings" "nvidia-smi" "nvidia-xconfig")
+
+NVIDIA_FILES_LIST=("10_nvidia_wayland.json" "10_nvidia.json" "15_nvidia_gbm.json" "nvidia_icd.json" "nvidia_icd.json" "nvidia_layers.json" "_nvngx.dll" "nvngx.dll")
+
+NVIDIA_CONF_LIST=("nvidia-dbus.conf" "nvidia-drm-outputclass.conf" "nvidia.icd")
+
+NVIDIA32_LIBS_LIST=("libcuda.so.$nvidia_version" "libEGL_nvidia.so.$nvidia_version" "libGLESv1_CM_nvidia.so.$nvidia_version" "libGLESv2_nvidia.so.$nvidia_version" "libGLX_nvidia.so.$nvidia_version" "libnvcuvid.so.$nvidia_version" "libnvidia-allocator.so.$nvidia_version" "libnvidia-eglcore.so.$nvidia_version" "libnvidia-encode.so.$nvidia_version" "libnvidia-fbc.so.$nvidia_version" "libnvidia-glcore.so.$nvidia_version" "libnvidia-glsi.so.$nvidia_version" "libnvidia-glvkspirv.so.$nvidia_version" "libnvidia-ml.so.$nvidia_version" "libnvidia-nvvm.so.$nvidia_version" "libnvidia-opencl.so.$nvidia_version" "libnvidia-opticalflow.so.$nvidia_version" "libnvidia-ptxjitcompiler.so.$nvidia_version" "libnvidia-tls.so.$nvidia_version" "libvdpau_nvidia.so.$nvidia_version")
+
+NVIDIA64_LIBS_LIST=("libcuda.so.$nvidia_version" "libcudadebugger.so.$nvidia_version" "libEGL_nvidia.so.$nvidia_version" "libGLESv1_CM_nvidia.so.$nvidia_version" "libGLESv2_nvidia.so.$nvidia_version" "libGLX_nvidia.so.$nvidia_version" "libglxserver_nvidia.so.$nvidia_version" "libnvcuvid.so.$nvidia_version" "libnvidia-allocator.so.$nvidia_version" "libnvidia-api.so.1" "libnvidia-cfg.so.$nvidia_version" "libnvidia-egl-gbm.so.1.1.0" "libnvidia-eglcore.so.$nvidia_version" "libnvidia-encode.so.$nvidia_version" "libnvidia-fbc.so.$nvidia_version" "libnvidia-glcore.so.$nvidia_version" "libnvidia-glsi.so.$nvidia_version" "libnvidia-glvkspirv.so.$nvidia_version" "libnvidia-gtk2.so.$nvidia_version" "libnvidia-gtk3.so.$nvidia_version" "libnvidia-ml.so.$nvidia_version" "libnvidia-ngx.so.$nvidia_version" "libnvidia-nvvm.so.$nvidia_version" "libnvidia-opencl.so.$nvidia_version" "libnvidia-opticalflow.so.$nvidia_version" "libnvidia-pkcs11.so.$nvidia_version" "libnvidia-ptxjitcompiler.so.$nvidia_version" "libnvidia-rtcore.so.$nvidia_version" "libnvidia-tls.so.$nvidia_version" "libnvidia-vulkan-producer.so.$nvidia_version" "libnvidia-wayland-client.so.$nvidia_version" "libnvoptix.so.$nvidia_version" "libvdpau_nvidia.so.$nvidia_version" "nvidia_drv.so")
+
+	# Find where the system expects libraries to be put
+	if [ -e "/usr/lib/x86_64-linux-gnu" ]; then
+		lib64_dir="/usr/lib/x86_64-linux-gnu/"
+	elif [ -e "/usr/lib64" ]; then
+		lib64_dir="/usr/lib64/"
+	fi
+	if [ -e "/usr/lib/i386-linux-gnu" ]; then
+		lib32_dir="/usr/lib/i386-linux-gnu/"
+	elif [ -e "/usr/lib32" ]; then
+		lib32_dir="/usr/lib32/"
+	fi
+
+	NVIDIA_FILES="$(find /usr/ /etc/ -type f \
+	\( -name "${NVIDIA_FILES_LIST[*]}" -o -name "${NVIDIA_BINARIES_LIST[*]}" -o -name "${NVIDIA_CONF_LIST[*]}" \) -print 2> /dev/null || :)"
 	for nvidia_file in ${NVIDIA_FILES}; do
-		if printf "%s" "${nvidia_file}" | grep -Eq "x86_64-linux-gnu|i386-linux-gnu"; then
-			# Remove origin so we plug our own
-			dest_dir=$(printf "%s" "${nvidia_file}" |
-				sed "s|/usr/lib/x86_64-linux-gnu/|/usr/lib64/|g" |
-				sed "s|/usr/lib/i386-linux-gnu/|/usr/lib32/|g")
-		else
-			dest_dir="${nvidia_file}"
-		fi
-
-		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_file}" "${dest_dir}")
-	done
-
-	# Then we find all directories with nvidia in the name and just mount them
-	NVIDIA_DIRS="$(find /etc /usr -iname "*nvidia*" -type d 2> /dev/null || :)"
-	for nvidia_dir in ${NVIDIA_DIRS}; do
-		if printf "%s" "${nvidia_dir}" | grep -Eq "x86_64-linux-gnu|i386-linux-gnu"; then
-			# Remove origin so we plug our own
-			dest_dir=$(printf "%s" "${nvidia_dir}" |
-				sed "s|/usr/lib/x86_64-linux-gnu/|/usr/lib64/|g" |
-				sed "s|/usr/lib/i386-linux-gnu/|/usr/lib32/|g")
-		else
-			dest_dir="${nvidia_dir}"
-		fi
-
-		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_dir}" "${dest_dir}")
+		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_file}" "${nvidia_file}")
 	done
 
 	# Then we find all the ".so" libraries, they are searched separately
@@ -388,14 +382,10 @@ share_nvidia_driver(){
 	# /usr/lib64 is common in Arch or RPM based distros, while /usr/lib/x86_64-linux-gnu is
 	# common on Debian derivatives, so we need to adapt between the two nomenclatures.
 	NVIDIA_LIBS="$(find \
-		/usr/lib/i386-linux-gnu/ \
-		/usr/lib/x86_64-linux-gnu/ \
-		/usr/lib32/ \
-		/usr/lib64/ \
-        -iname "*nvidia*.so*" \
-		-o -iname "libcuda*.so*" \
-		-o -iname "libnvcuvid*.so*" \
-		-o -iname "libnvoptix*.so*" 2> /dev/null || :)"
+		"${lib32_dir}" \
+         "${lib64_dir}"\
+		-type f \
+		\( -name "${NVIDIA64_LIBS_LIST[*]}" -o -name "${NVIDIA32_LIBS_LIST[*]}" \) 2> /dev/null || :)"
 	for nvidia_lib in ${NVIDIA_LIBS}; do
 		if printf "%s" "$nvidia_lib" | grep -Eq "x86_64-linux-gnu|i386-linux-gnu"; then
 			# Remove origin so we plug our own
@@ -427,16 +417,11 @@ share_nvidia_driver(){
 		NVIDIA_DRIVER_BIND+=("--ro-bind-try"  "${nvidia_lib}" "${dest_dir}")
 	done
 
-	# Refresh ldconfig cache, also detect if there are empty files remaining
+# Refresh ldconfig cache, also detect if there are empty files remaining
 	# and clean them.
 	# This could happen when upgrading drivers and changing versions.
-	empty_libs="$(ldconfig 2>&1 | grep -Eo "File.*is empty" | cut -d' ' -f2)"
-	if [ -n "${empty_libs}" ]; then
-		# shellcheck disable=SC2086
-		find ${empty_libs} -delete 2> /dev/null || :
-		find /usr/ /etc/ -empty -iname "*nvidia*" -delete 2> /dev/null || :
-	fi
-
+	ldconfig 2>&1 | grep -Eo "File.*is empty" | cut -d' ' -f2 | xargs -r rm -f
+	find /usr/ -empty -iname "*nvidia*" -delete 2> /dev/null || :
 }
 
 
