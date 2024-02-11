@@ -1064,14 +1064,30 @@ bwrun() {
             check_nvidia_driver
     elif [[ "$UNSHARE_NVIDIA" != 1 && ! -n "$NVIDIA_DRIVER_BIND" ]]
         then
-            if [[ ! $(ldconfig -p | grep "/usr/lib/i386-linux-gnu/libGLX_nvidia.so") ]] || [[  $(ldconfig -p | grep "/usr/lib32/libGLX_nvidia.so") ]]
-                then
-                    warn_msg "Nvidia 32 bit drivers are not found in the system, forcibly download the drivers"
-                    check_nvidia_driver
+            missing_libs=()
+
+            # Check for missing 32-bit libraries
+            for lib in "${NVIDIA32_LIBS_LIST[@]}"; do
+                if ! ldconfig -p | grep -q "${lib32_dir}/$lib"; then
+                    missing_libs+=("$lib")
+                fi
+            done
+
+            # Check for missing 64-bit libraries
+            for lib in "${NVIDIA64_LIBS_LIST[@]}"; do
+                if ! ldconfig -p | grep -q "${lib64_dir}/$lib"; then
+                    missing_libs+=("$lib")
+                fi
+            done
+
+            if [ ${#missing_libs[@]} -gt 0 ]; then
+                warn_msg "Some NVIDIA drivers are missing in the system: ${missing_libs[*]}"
+                check_nvidia_driver
             else
                 share_nvidia_driver
             fi
     fi
+
     [ "$ADD_LD_CACHE" == 1 ] && \
         LD_CACHE_BIND=("--bind-try" \
             "$RUNCACHEDIR/ld.so.cache" "/etc/ld.so.cache") || \
