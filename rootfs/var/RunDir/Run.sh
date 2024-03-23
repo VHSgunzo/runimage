@@ -15,11 +15,13 @@ RESETCOLOR='\033[1;00m'
 export SYS_PATH="$PATH"
 export RUNPPID="$PPID"
 export RUNPID="$BASHPID"
-export BWINFFL="/tmp/.bwinf.$RUNPID"
-export EXECFLDIR="/tmp/.exec.$RUNPID"
-RPIDSFL="/tmp/.rpids.$RUNPID"
-UNPASSWDFL="/tmp/.passwd.$RUNPID"
-UNGROUPFL="/tmp/.group.$RUNPID"
+export RUNTMPDIR="/tmp/.r$EUID/run"
+export RUNPIDDIR="$RUNTMPDIR/$RUNPID"
+export BWINFFL="$RUNPIDDIR/bwinf"
+export EXECFLDIR="$RUNPIDDIR/exec"
+RPIDSFL="$RUNPIDDIR/rpids"
+UNPASSWDFL="$RUNPIDDIR/passwd"
+UNGROUPFL="$RUNPIDDIR/group"
 unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BUWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNSHARE_BIND \
@@ -433,7 +435,7 @@ mount_nvidia_driver_image() {
             [ ! -n "$nvidia_version" ] && \
                 nvidia_version="$(echo "$1"|sed 's|.nv.drv||g')"
             [ ! -n "$NVDRVMNT" ] && \
-                NVDRVMNT="/tmp/.mount_nv${nvidia_version}drv.$RUNPID"
+                NVDRVMNT="$RUNPIDDIR/mnt/nv${nvidia_version}drv"
             info_msg "Mounting the nvidia driver image: $(basename "$1")"
             try_mkdir "$NVDRVMNT"
             "$SQFUSE" -f "$1" "$NVDRVMNT" -o ro &>/dev/null &
@@ -460,10 +462,10 @@ check_nvidia_driver() {
         if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
             then
                 info_msg "Updating the nvidia library cache..."
-                if (ALLOW_BG=0 SANDBOX_NET=0 bwrun /usr/bin/ldconfig -C "/tmp/ld.so.cache" 2>/dev/null)
+                if (ALLOW_BG=0 SANDBOX_NET=0 bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null)
                     then
                         try_mkdir "$RUNCACHEDIR"
-                        if mv -f "/tmp/ld.so.cache" \
+                        if mv -f "$RUNPIDDIR/ld.so.cache" \
                             "$RUNCACHEDIR/ld.so.cache" 2>/dev/null
                             then
                                 echo "$RUNROOTFS_VERSION-$nvidia_version" > \
@@ -531,7 +533,7 @@ check_nvidia_driver() {
                             if [[ -n "$nvidia_version_inside" && "$nvidia_version_inside" != "*.*" ]]
                                 then
                                     nvidia_driver_image="$nvidia_version.nv.drv"
-                                    NVDRVMNT="/tmp/.mount_nv${nvidia_version}drv.$RUNPID"
+                                    NVDRVMNT="$RUNPIDDIR/mnt/nv${nvidia_version}drv"
                                     [ "$nvidia_version_inside" != "000.00.00" ] && \
                                         warn_msg "Nvidia driver version mismatch detected, trying to fix it"
                                     if [ ! -f "$NVIDIA_DRIVERS_DIR/$nvidia_version/64/nvidia_drv.so" ] && \
@@ -797,7 +799,7 @@ run_attach() {
     set_target() {
         unset NSU
         [ "$EUID" != 0 ] && NSU="-U"
-        for pid in $(cat "/tmp/.rpids.$1")
+        for pid in $(cat "$RUNTMPDIR/$1/rpids")
             do
                 for args in "-n -p" "-n" "-p" " "
                     do
@@ -855,7 +857,7 @@ run_attach() {
     unset runpid
     if [[ "$1" =~ ^[0-9]+$ ]]
         then
-            if [ -f "/tmp/.rpids.$1" ]
+            if [ -f "$RUNTMPDIR/$1/rpids" ]
                 then
                     local runpid="$1"
                     shift
@@ -865,29 +867,31 @@ run_attach() {
                     return 1
             fi
         else
-            rpids_num="$(ls -1 /tmp/.rpids.* 2>/dev/null|wc -l)"
+            rpids_num="$(ls -1 "$RUNTMPDIR"/*/rpids 2>/dev/null|wc -l)"
             if [ "$rpids_num" == 0 ]
                 then no_runimage_msg
             elif [ "$rpids_num" == 1 ]
                 then
-                    runpid="$(ls -1 /tmp/.rpids.* 2>/dev/null|head -1|cut -d'.' -f3)" \
+                    runpid="$(ls -1 "$RUNTMPDIR"/*/rpids 2>/dev/null|head -1|awk -F/ '{print$5}')" \
                     ns_attach "$@"
             else
                 while true
                     do
-                        local runpids=($(ls -1 /tmp/.rpids.* 2>/dev/null|cut -d'.' -f3))
+                        local runpids=($(ls -1 "$RUNTMPDIR"/*/rpids 2>/dev/null|awk -F/ '{print$5}'))
                         if [ -n "$runpids" ]
                             then
                                 info_msg "Specify the RunImage RUNPID!"
                                 for i in $(seq 0 $((${#runpids[@]}-1)))
                                     do
                                         local rpids=${runpids[$i]}
-                                        local rpidsfl="/tmp/.rpids.${runpids[$i]}"
+                                        local rpidsfl="$RUNTMPDIR/${runpids[$i]}/rpids"
                                         ps -p $(cat "$rpidsfl" 2>/dev/null) &>/dev/null && \
                                         echo "$((i+1)))" "$rpids"||rm -f "$rpidsfl"
-                                done
+                                done && echo "0) Exit"
                                 read -p 'Enter RUNPID number: ' runpid_choice
-                                if [[ "$runpid_choice" =~ ^[0-9]+$  && "$runpid_choice" -gt 0 && \
+                                if [ "$runpid_choice" == 0 ]
+                                    then exit
+                                elif [[ "$runpid_choice" =~ ^[0-9]+$  && "$runpid_choice" -gt 0 && \
                                     "$runpid_choice" -le ${#runpids[@]} ]]
                                     then
                                         runpid="${runpids[$(($runpid_choice-1))]}" \
@@ -909,7 +913,7 @@ run_attach() {
 force_kill() {
     unset SUCCKILL MOUNTPOINTS SUCCUMNT
     MOUNTPOINTS="$(grep -E "$([ -n "$RUNIMAGENAME" ] && \
-                   echo "$RUNIMAGENAME"||echo "$RUNIMAGEDIR")|/tmp/.mount_nv.*drv|unionfs.*$RUNIMAGEDIR" \
+                   echo "$RUNIMAGENAME"||echo "$RUNIMAGEDIR")|$RUNPIDDIR/mnt/nv.*drv|unionfs.*$RUNIMAGEDIR" \
                     /proc/self/mounts|grep -v "$RUNDIR"|awk '{print$2}')"
     if [ -n "$MOUNTPOINTS" ]
         then
@@ -917,7 +921,7 @@ force_kill() {
                 do try_unmount "$umnt"
             done) && SUCCUMNT=1
     fi
-    try_kill "$(cat /tmp/.rpids.* 2>/dev/null)" && \
+    try_kill "$(cat "$RUNTMPDIR"/*/rpids 2>/dev/null)" && \
         SUCCKILL=1
     [[ "$SUCCKILL" == 1 || "$SUCCUMNT" == 1 ]] && \
         info_msg "RunImage successfully killed!"
@@ -990,14 +994,8 @@ cleanup() {
                             rm -rf "$OVERFS_DIR" 2>/dev/null
                     fi
             fi
-            [ -f "$RPIDSFL" ] && \
-                rm -f "$RPIDSFL" 2>/dev/null
-            [ -f "$BWINFFL" ] && \
-                rm -f "$BWINFFL" 2>/dev/null
-            [ -f "$UNPASSWDFL" ] && \
-                rm -f "$UNPASSWDFL" 2>/dev/null
-            [ -f "$UNGROUPFL" ] && \
-                rm -f "$UNGROUPFL" 2>/dev/null
+            [ -d "$RUNPIDDIR" ] && \
+                rm -rf "$RUNPIDDIR" 2>/dev/null
         else
             warn_msg "Cleanup is disabled!"
     fi
@@ -1801,6 +1799,9 @@ if [ $(cat /proc/sys/kernel/pid_max 2>/dev/null) -lt 4194304 ]
         fi
 fi
 
+mkdir -p "$RUNPIDDIR"
+chmod go-rwx "$RUNTMPDIR"
+
 if [ -n "$AUTORUN" ] && \
    [[ "$RUNSRCNAME" == "Run"* || \
       "$RUNSRCNAME" == "runimage"* ]]
@@ -1895,7 +1896,7 @@ case "$RUNSRCNAME" in
                                 set_default_option
                                 OVERFS_MODE=0
                                 unset OVERFS_ID KEEP_OVERFS ;;
-            --run-procmon|--rPm) set_default_option
+            --run-procmon|--rPm) set_default_option ; TMP_HOME=1
                                  NO_RPIDSMON=1 ; QUIET_MODE=1 ;;
             --run-update |--rU) set_overfs_option upd ;;
         esac
@@ -2188,7 +2189,7 @@ fi
 if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$SQFUSE_REMOUNT" == 1 ]] # MangoHud and vkBasalt bug in DXVK mode
     then
         info_msg "Remounting RunImage with squashfuse..."
-        RO_MNT="/tmp/.mount_${RUNSRCNAME}.$RUNPID"
+        RO_MNT="$RUNPIDDIR/mnt/${RUNSRCNAME}"
         try_mkdir "$RO_MNT"
         "$SQFUSE" -f "$RUNIMAGE" "$RO_MNT" -o "ro,offset=$RUNOFFSET" &>/dev/null &
         FUSE_PID="$!"
@@ -2251,7 +2252,7 @@ if [ -d "$OVERFS_DIR" ]
     else
         [[ ! -n "$RUNIMAGE" && -w "$RUNIMAGEDIR" ]] && \
             export CRYPTFS_MNT="$RUNIMAGEDIR/rootfs" ||\
-            export CRYPTFS_MNT="/tmp/.mount_rootfs.$RUNPID"
+            export CRYPTFS_MNT="$RUNPIDDIR/mnt/rootfs"
         export CRYPTFS_DIR="$([ -n "$RO_MNT" ] && echo "$RO_MNT"||echo "$RUNDIR")/cryptfs"
 fi
 if [ ! -n "$CRYPTFS_PASSFILE" ]
@@ -2581,7 +2582,7 @@ fi
 
 if [ -d "$TMPDIR" ]
     then
-        NEWTMPDIR="/tmp/.TMPDIR"
+        NEWTMPDIR="$RUNPIDDIR/tmp"
         info_msg "Binding \$TMPDIR to: '$NEWTMPDIR'"
         TMPDIR_BIND+=("--dir" "$NEWTMPDIR" \
                       "--bind-try" "$TMPDIR" "$NEWTMPDIR" \
@@ -2626,7 +2627,7 @@ fi
 if [[ "$SANDBOX_NET" == 1 || "$NO_NET" == 1 ]] && [ "$UNSHARE_DBUS" != 1 ] && \
     [[ "$DBUS_SESSION_BUS_ADDRESS" =~ "unix:abstract" ]]
     then
-        DBUSP_SOCKET="/tmp/.rdbus.$RUNPID"
+        DBUSP_SOCKET="$RUNPIDDIR/rdbus"
         info_msg "Launching socat dbus proxy..."
         socat UNIX-LISTEN:"$DBUSP_SOCKET",reuseaddr,fork \
             ABSTRACT-CONNECT:"$(echo "$DBUS_SESSION_BUS_ADDRESS"|\

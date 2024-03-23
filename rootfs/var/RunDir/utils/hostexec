@@ -161,7 +161,7 @@ host_shell() {
     HOST_SHELL="$(hostexec echo '$SHELL')"
     if [ -n "$HOST_SHELL" ]
         then
-            SHELL_SOCKET="/tmp/.shell.$RUNPID"
+            SHELL_SOCKET="$RUNPIDDIR/shell"
             if [ -n "$1" ]
                 then
                     hostexec socat UNIX-LISTEN:"$SHELL_SOCKET" EXEC:"$HOST_SHELL",pty,stderr,setsid,sigint,sane &>/dev/null &

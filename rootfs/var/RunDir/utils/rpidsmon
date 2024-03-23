@@ -33,9 +33,9 @@ rpids_ps() {
 
 rpids_check() {
     if [ -n "$RPIDS" ]
-        then rpids_ps "$(for rpids in ${RPIDS[@]}; do echo "/tmp/.rpids.$rpids"; done)"
+        then rpids_ps "$(for rpids in ${RPIDS[@]}; do echo "$RUNPIDDIR/rpids"; done)"
         else
-            RPIDSFLS="$(ls /tmp/.rpids.* 2>/dev/null)"
+            RPIDSFLS="$(ls "$RUNTMPDIR"/*/rpids 2>/dev/null)"
             if [ -n "$RPIDSFLS" ]
                 then rpids_ps "$RPIDSFLS"
                 else green_msg "Waiting for RunImage containers..."
