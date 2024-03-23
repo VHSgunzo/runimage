@@ -539,13 +539,15 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [ptyspawn](https://github.com/VHSgunzo/ptyspawn)
 * [socat-static](https://github.com/VHSgunzo/socat-static)
 * [pacutils](https://github.com/andrewgregory/pacutils)
+* [shellsrv](https://github.com/VHSgunzo/shellsrv)
 
 ## Projects based on RunImage:
 
 * [Lux Wine](https://github.com/VHSgunzo/lux-wine)
 * [stable-diffusion](https://github.com/VHSgunzo/stable-diffusion)
-* [NitroWine](https://github.com/RusNor/NitroWine)
 * [PortArch](https://github.com/VHSgunzo/portarch)
+* [NitroWine](https://github.com/RusNor/NitroWine)
+* [StartWine-Launcher](https://github.com/RusNor/StartWine-Launcher)
 
 ## Similar projects:
 
