@@ -125,7 +125,6 @@ Environment variables to configure:
     BUILD_WITH_EXTENSION=1               Adds an extension when building (compression method and rootfs type)
     CMPRS_ALGO={zstd|xz|lz4}             Specifies the compression algo for runimage build
     ZSDT_CMPRS_LVL={1-22}                Specifies the compression ratio of the zstd algo for runimage build
-    NO_RUNDIR_BIND=1                     Disables binding RunDir to /var/RunDir
     RUN_SHELL="shell"                    Selects $SHELL in runimage
     NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
                                             you can also use /usr/bin/nocap in runimage
@@ -145,8 +144,8 @@ Environment variables to configure:
     SANDBOX_NET_TAPNAME=tap0             Specifies tap interface name in network sandbox (Def: eth0)
     SANDBOX_NET_MAC=B6:40:E0:8B:A6:D7    Specifies tap interface MAC in network sandbox (Def: random)
     SANDBOX_NET_MTU=65520                Specifies tap interface MTU in network sandbox (Def: 1500)
-    SANDBOX_NET_HOSTS="file"             Binds specified file to /etc/hosts in network sandbox
-    SANDBOX_NET_RESOLVCONF="file"        Binds specified file to /etc/resolv.conf in network sandbox
+    HOSTS_FILE="file"                    Binds specified file to /etc/hosts
+    RESOLVCONF_FILE="file"               Binds specified file to /etc/resolv.conf
     BUWRAP_ARGS+=()                       Array with Bubblewrap arguments (for config file)
     EXEC_ARGS+=()                        Array with Bubblewrap exec arguments (for config file)
     XORG_CONF="/path/xorg.conf"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
@@ -156,7 +155,7 @@ Environment variables to configure:
     XEPHYR_FULLSCREEN=1                  Starts runimage desktop in full screen mode
     UNSHARE_CLIPBOARD=1                  Disables clipboard synchronization for runimage desktop
 
-    SYS_BUWRAP=1                          Using system bwrap
+    SYS_BUWRAP=1                         Using system bwrap
     SYS_SQFUSE=1                         Using system squashfuse
     SYS_UNSQFS=1                         Using system unsquashfs
     SYS_MKSQFS=1                         Using system mksquashfs

@@ -1,6 +1,6 @@
-# v0.39.2
+# v0.40.1
 
-* Update `rootfs` v0.39.2 xx.xx.xx
+* Update `rootfs` v0.40.1 xx.xx.xx
 * Rename `*BWRAP*` other var to `*BUWRAP*`
 * Fix exit code for `rundesktop`
 * Add `/usr/bin/vendor_perl` to `PATH`
@@ -12,7 +12,7 @@
 * Minor fixes
 
 -----------------------------------------------------------------------------------------------------------------------------
-* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.39.2/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.39.2/pkg_list.txt)
+* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.40.1/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.40.1/pkg_list.txt)
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 ## sha256sum:
 ```
@@ -119,7 +119,7 @@ xxxxxxxxx  runimage
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 ## sha256sum:
 ```
-1e80356c35dc2f35cbd6f5f93325744bac4b531a2987ce1fa45084cbaa9c39e1  runimage
+2b9c9858d1bb6f714b3263ff1096e716f40689d60a72b221b3c91504987bc954  runimage
 ```
 
 **=======================================================================================**
