@@ -1,0 +1,169 @@
+#!/usr/bin/bash
+
+unset RUN_X
+RED='\033[1;91m'
+BLUE='\033[1;94m'
+GREEN='\033[1;92m'
+YELLOW='\033[1;33m'
+RESETCOLOR='\033[1;00m'
+DESKTOP_DISPLAY=1337
+export DESKTOP_KEY="$BASHPID"
+export SYS_DISPLAY="$DISPLAY"
+
+[ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
+    NOT_TERM=1
+
+nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
+
+error_msg() {
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    if [ "$NOT_TERM" == 1 ]
+        then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+    fi
+}
+
+info_msg() {
+    if [ "$QUIET_MODE" != 1 ]
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
+                then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+            fi
+    fi
+}
+
+warn_msg() {
+    if [[ "$QUIET_MODE" != 1 && "$NO_WARN" != 1 ]]
+        then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
+                then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+            fi
+    fi
+}
+
+is_exe_exist() { command -v "$@" &>/dev/null ; }
+
+is_not_ro() {
+    if [ ! -w "$RUNROOTFS" ]
+        then
+            error_msg "Unable to install dependencies. Read-only!"
+            exit 1
+    fi
+}
+
+[[ "$INSIDE_RUNIMAGE" == 1 && ! -d "$RUNROOTFS" ]] && \
+     RUNROOTFS='/'
+
+if is_exe_exist pacman
+    then
+        if [ "$(pacman -Qq xorg-server tk tcl xclip xfce4-session pavucontrol pulseaudio qt5ct 2>/dev/null|wc -l)" != "8" ] && is_not_ro
+            then
+                info_msg "Installing the necessary dependencies..."
+                pac -Syu --noconfirm && \
+                pac -S xorg tk tcl xclip xfce4 xfce4-goodies pavucontrol pulseaudio qt5ct --noconfirm||\
+                exit 1
+        fi
+elif is_exe_exist apt
+    then
+        if [ "$(dpkg --get-selections|awk '{print$1}'|\
+                grep -Ew '^xserver-xorg$|^xserver-xephyr$|^tk$|^tcl$|^xclip$|^xfce4-session$|^pavucontrol$|^pulseaudio$|^qt5ct$'|\
+                wc -l)" != "9" ] && is_not_ro
+            then
+                info_msg "Installing the necessary dependencies..."
+                sudo apt update && \
+                sudo apt upgrade -y && \
+                sudo apt install task-xfce-desktop xorg tk tcl xclip xfce4 \
+                    xfce4-goodies pavucontrol pulseaudio xserver-xephyr qt5ct -y||\
+                exit 1
+        fi
+else
+    error_msg "The package manager cannot be detected!"
+    exit 1
+fi
+
+# PID randomizer (UNSHARE_PIDS ICEauthority bug)
+[ "$UNSHARE_PIDS" == 1 ] && \
+    for _ in $(seq 0 $(echo $RANDOM|head -c 2)) ; do /usr/bin/true ; done
+
+while true
+    do
+        [ ! -f "/tmp/.X$DESKTOP_DISPLAY-lock" ] && \
+            break
+        DESKTOP_DISPLAY="$(( $DESKTOP_DISPLAY + 1 ))"
+done
+
+if [[ "$RUNTTY" =~ "tty" ]]
+    then
+        export DISPLAY=:$DESKTOP_DISPLAY
+        info_msg "Xorg DISPLAY=$DISPLAY"
+        unset XEPHYR XEPHYR_FULLSCREEN \
+              XEPHYR_SIZE XEPHYR_DISPLAY
+        if [ -x "/usr/lib/Xorg.wrap" ]
+            then XORG="/usr/lib/Xorg.wrap"
+        elif [ -x "/usr/bin/Xorg" ]
+            then XORG="/usr/bin/Xorg"
+        elif [ -x "/usr/bin/X" ]
+            then XORG="/usr/bin/X"
+        else XORG="/bin/Xorg"
+        fi
+        $XORG -nolisten tcp vt$XDG_VTNR $DISPLAY &
+        XORG_PID="$!"
+        sleep 0.01
+        [ -d "/proc/$XORG_PID" ] && \
+            RUN_X=1 || \
+            error_msg "Failed to start Xorg!"
+    else
+        [ -n "$DISPLAY" ] && \
+            XEPHYR=1
+fi
+
+if [[ "$XEPHYR" == 1 || "$XEPHYR_FULLSCREEN" == 1 ]] || \
+    [[ -n "$XEPHYR_SIZE" || -n "$XEPHYR_DISPLAY" ]]
+    then
+        [ ! -n "$XEPHYR_DISPLAY" ] && \
+            XEPHYR_DISPLAY=:$DESKTOP_DISPLAY
+        info_msg "Xephyr DISPLAY=$XEPHYR_DISPLAY"
+        if [ "$XEPHYR_FULLSCREEN" == 1 ]
+            then
+                info_msg "Xephyr in full-screen mode"
+        elif [ ! -n "$XEPHYR_SIZE" ]
+            then
+                XEPHYR_SIZE="1600x900"
+                info_msg "Xephyr screen resolution: 1600x900"
+        elif [ -n "$XEPHYR_SIZE" ]
+            then
+                XEPHYR_SIZE="$XEPHYR_SIZE"
+                info_msg "Xephyr screen resolution: $XEPHYR_SIZE"
+        fi
+        Xephyr $([ "$XEPHYR_FULLSCREEN" == 1 ] && echo "-fullscreen"||echo "-screen $XEPHYR_SIZE") \
+            -resizeable +extension GLX -br -title "RunImage Desktop [$XEPHYR_DISPLAY]" \
+            -once -ac -name 'RunImage' $XEPHYR_DISPLAY &>/dev/null &
+        XEPHYR_PID="$!"
+        sleep 0.01
+        if [ -d "/proc/$XEPHYR_PID" ]
+            then
+                export DISPLAY=$XEPHYR_DISPLAY
+                RUN_X=1
+            else
+                error_msg "Failed to start Xephyr!"
+        fi
+fi
+
+if [ "$RUN_X" == 1 ]
+    then
+        info_msg "Launching RunImage Desktop..."
+        xfwm4 &
+        XFWM_PID="$!"
+        if [[ -n "$SYS_DISPLAY" && "$UNSHARE_CLIPBOARD" != 1 ]]
+            then
+                xclipsync &
+                XCLIPSYNC_PID="$!"
+            else
+                warn_msg "Clipboard synchronization is disabled!"
+        fi
+        dbus-run-session bash /etc/xdg/xfce4/xinitrc
+        EXEC_STATUS="$?"
+        kill $XEPHYR_PID $XORG_PID $XFWM_PID $XCLIPSYNC_PID 2>/dev/null
+        kill $(pgrep -fa xclipfrom|grep "$DESKTOP_KEY"|awk '{print$1}') 2>/dev/null
+        rm -rf "/tmp/.X$DESKTOP_DISPLAY-lock" 2>/dev/null
+fi
+exit $EXEC_STATUS

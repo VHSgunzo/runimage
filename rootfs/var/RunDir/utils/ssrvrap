@@ -1,0 +1,3 @@
+#!/usr/bin/sh
+"$RUNSTATIC/shellsrv" -server -socket "unix:/tmp/.ssrv.$RUNPID.sock" &>/dev/null &
+exec "$@"

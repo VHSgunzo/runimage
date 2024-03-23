@@ -1,0 +1,77 @@
+#!/bin/bash
+shopt -s extglob
+
+RUNIMAGE_VERSION='v0.39.1'
+
+export NO_NVIDIA_CHECK=1
+
+if [[ ! -x 'runimage' && ! -x 'RunDir/Run' ]]
+    then
+        curl -LO "https://github.com/VHSgunzo/runimage/releases/download/$RUNIMAGE_VERSION/runimage"
+        chmod +x runimage
+fi
+
+if [ ! -x 'RunDir/Run' ]
+    then
+        rm -rf RunDir
+        ./runimage --runtime-extract
+fi
+
+if [ ! -x 'runshrink' ]
+    then
+        curl -LO "https://raw.githubusercontent.com/VHSgunzo/runimage/main/runshrink"
+        chmod +x runshrink
+fi
+
+rm -rf rootfs
+mkdir rootfs
+
+./RunDir/Run --rU
+./RunDir/Run sh -c "pac -S arch-install-scripts --noconfirm --needed && \
+                    sed -i 's|\$setup \"\$newroot\"|# &|' /bin/pacstrap"
+
+./RunDir/Run sudo pacstrap -P rootfs \
+    base runimage-mirrorlist fake-sudo-pkexec \
+    fake-systemd fake-nvidia-driver fakeroot fakechroot \
+    lib32-glibc lib32-fakeroot lib32-fakechroot \
+    chaotic-keyring chaotic-mirrorlist dbus less \
+    blackarch-keyring blackarch-mirrorlist which \
+    iptables-nft nftables openresolv iputils
+
+rm -rf new
+mkdir -p new/RunDir
+cp -r ./RunDir/!(rootfs) ./new/RunDir
+mv rootfs ./new/RunDir/
+
+(
+cd new
+
+[[ ! -f './RunDir/rootfs/etc/os-release' && -f './RunDir/rootfs/usr/lib/os-release' ]] && \
+    ln -sfr ./RunDir/rootfs/usr/lib/os-release ./RunDir/rootfs/etc/os-release
+
+./RunDir/Run sudo pacman -S Run-wrapper runimage-utils \
+    runimage-static --noconfirm --overwrite '*'
+
+echo 'LANG=C.UTF-8' >> ./RunDir/rootfs/etc/locale.conf
+./RunDir/Run pac -S glibc --noconfirm
+./RunDir/Run locale-gen
+
+rm -rf ./RunDir/rootfs/var/lib/pacman/local/filesystem-*
+echo 'nameserver 8.8.8.8' >> ./RunDir/rootfs/etc/resolv.conf
+./RunDir/static/bwrap --bind ./RunDir/rootfs / --proc /proc \
+    --dev-bind /dev /dev --bind /sys /sys --tmpfs /run \
+    --tmpfs /tmp pac -S runimage-rootfs --noconfirm
+
+# optional for shrink
+./RunDir/Run pac -Rsndd python perl --noconfirm
+
+# ./RunDir/Run pac -S pkg pkg ... --noconfirm
+
+# optional for shrink
+../runshrink
+
+rm -rf ./RunDir/rootfs/{dev,sys,proc,tmp,run}/*
+rm -f RunDir/rootfs/etc/pacman.d/gnupg/S.*
+
+./RunDir/Run --rB -zstd
+)

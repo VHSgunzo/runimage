@@ -1,0 +1,128 @@
+#!/usr/bin/bash
+
+HINTEG_DIR="$HOME/.local/share"
+ICONS_DIR='/usr/share/icons'
+APPS_DIR='/usr/share/applications'
+
+IGNORE_FILES=(
+    'mimeinfo.cache'
+    'icon-theme.cache'
+)
+INTEG_DIRS=(
+    "$APPS_DIR"
+    "$ICONS_DIR"/*.svg
+    "$ICONS_DIR"/*.png
+    "$ICONS_DIR/hicolor"
+    '/usr/share/desktop-directories'
+    '/etc/xdg/menus/applications-merged'
+)
+MIME_DIRS=(
+    '/usr/share/mime/packages'
+    '/usr/share/mime/inode'
+    '/usr/share/mime/text'
+    '/usr/share/mime/application'
+    '/usr/share/mime/model'
+    '/usr/share/mime/video'
+    '/usr/share/mime/font'
+    '/usr/share/mime/image'
+    '/usr/share/mime/audio'
+    '/usr/share/mime/multipart'
+    '/usr/share/mime/x-content'
+    '/usr/share/mime/message'
+    '/usr/share/mime/chemical'
+    '/usr/share/mime/x-epoc'
+)
+
+lsapps() { cat -n<<<"$(grep -m1 '^Name=' -nr "$APPS_DIR"|sed 's|.*:Name=||g;s|.*|"&"|g'|sort)" ; }
+
+find_fl() { find "$@" -type f 2>/dev/null|sort ; }
+
+upd_ddb() { update-desktop-database -q "$HINTEG_DIR/applications" &>/dev/null ; }
+
+upd_mdb() { update-mime-database "$HINTEG_DIR/mime" &>/dev/null ; }
+
+dinteg() {
+    case "$1" in
+        install|in|i) act=i ;;
+        remove|rm|r) act=r ;;
+        *) return 1 ;;
+    esac
+    while read -r file
+        do
+            [[ ! "${IGNORE_FILES[@]}" =~ "$(basename "$file")" ]]||\
+                continue
+            [ "${file:0:1}" == '/' ]||\
+                file="/${file}"
+            if [ -f "$file" ]
+                then
+                    unset postfix postfix_dir target exec_args
+                    target="$(awk -F/ '{print$4}'<<<"$file")"
+                    postfix="$(cut -d'/' -f4-<<<"$file"|sed 's|.desktop$|-rimg.desktop|i;s|.png$|-rimg.png|i;s|.svg$|-rimg.svg|i;s|.xml$|-rimg.xml|i')"
+                    postfix_dir="$(dirname "$postfix")"
+                    [ "$target" == 'menus' ] && \
+                        HINTEG_DIR="$HOME/.config"
+                    hinteg_file="${HINTEG_DIR}/${postfix}"
+                    hinteg_file_dir="${HINTEG_DIR}/${postfix_dir}"
+                    case "$act" in
+                        i)
+                            mkdir $verb -p "$hinteg_file_dir"
+                            cp $verb -f "$file" "$hinteg_file"
+
+                            if [[ "$hinteg_file" == *'.desktop' ]]
+                                then
+                                    exec_args="env "
+                                    [ -n "$OVERFS_ID" ] && \
+                                    exec_args+="OVERFS_ID='$OVERFS_ID' "
+                                    #if [[ "$RUNSRCNAME" == "Run"* || \
+                                    #      "$RUNSRCNAME" == "runimage"* ]]
+                                    #    then exec_args+="'$RUNSRC' "
+                                    #fi
+                                    exec_args+="'$RUNSRC' "
+
+                                    sed -i "s|^Icon.*|&-rimg|g;s|^Name.*|& [RunImage]|g;s|^Exec=|Exec=$exec_args|g;/^TryExec/d" "$hinteg_file"
+                            fi
+                        ;;
+                        r)
+                            [ -f "$hinteg_file" ] && \
+                                rm $verb -f "$hinteg_file"
+                        ;;
+                    esac
+            fi
+    done
+}
+
+verb='-v'
+case "$1" in
+    list|ls) lsapps ;;
+    app) shift
+        IFS=$'\n'
+        if [[ "$1" =~ ^[0-9]+$ ]]
+            then app_name="$(lsapps|awk '($1 == "'$1'")'|awk '{$1=""}1'|sed 's|"||g'|sed 's|^ ||g')"
+            else app_name="$1"
+        fi
+        integ_files=("$(grep -wm1 "^Name=$app_name$" -lr "$APPS_DIR"|head -1)")
+        icon_name="$(grep -m1 "^Icon=" "$integ_files"|sed 's|^Icon=||')"
+        integ_files+=($(find_fl "$ICONS_DIR" -name "${icon_name}.*"))
+        shift
+        for file in "${integ_files[@]}";do echo "$file";done|dinteg "$@"
+    ;;
+    all) shift
+        [ "$WITH_MIME" == 1 ] && \
+            INTEG_DIRS+=("${MIME_DIRS[@]}")
+        find_fl "${INTEG_DIRS[@]}"|dinteg "$@"
+        upd_ddb
+        [ "$WITH_MIME" == 1 ] && upd_mdb
+    ;;
+    mime) shift
+        find_fl "${MIME_DIRS[@]}"|dinteg "$@"
+        upd_mdb
+    ;;
+    hook) shift
+        unset verb
+        if [ "$DESKTOP_INTEGRATION" == 1 ]
+            then dinteg "$@"
+            else echo "Desktop integration is disabled!"
+        fi
+    ;;
+    *) exit 1 ;;
+esac
