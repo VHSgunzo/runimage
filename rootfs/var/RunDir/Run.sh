@@ -264,6 +264,7 @@ try_dl() {
             fi
             if is_url "$URL"
                 then
+                    WGET_ARGS=(-q --no-check-certificate --content-disposition -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME")
                     [ ! -d "$FILEDIR" ] && \
                         try_mkdir "$FILEDIR"
                     if [[ "$NOT_TERM" == 1 && "$NO_DL_GUI" != 1 ]] && \
@@ -287,25 +288,61 @@ try_dl() {
                                 else return 1
                                 fi
                             }
+                            dl_progress_pulsate() {
+                                local ret=1
+                                [[ "$URL" =~ '&key=' ]] && \
+                                    local URL="$(echo "$URL"|sed "s|\&key=.*||g")"
+                                [[ "$URL" =~ '&' && ! "$URL" =~ '&amp;' ]] && \
+                                    local URL="$(echo "$URL"|sed "s|\&|\&amp;|g")"
+                                if is_exe_exist yad
+                                    then
+                                        local yad_args=(
+                                            --progress --pulsate --text="Download:\t$FILENAME\n$URL"
+                                            --width=650 --height=40 --undecorated --skip-taskbar
+                                            --no-buttons --text-align center --auto-close --auto-kill
+                                            --center --fixed --on-top --no-escape --selectable-labels
+                                        )
+                                        "$@" &
+                                        local exec_pid="$!"
+                                        if [[ -n "$exec_pid" && -d "/proc/$exec_pid" ]]
+                                            then
+                                                (while [ -d "/proc/$exec_pid" ]
+                                                    do echo -e "#\n" ; sleep 0.1 2>/dev/null
+                                                done)|yad "${yad_args[@]}" &>/dev/null &
+                                                local yad_pid="$!"
+                                                wait "$exec_pid" &>/dev/null
+                                                ret="$?"
+                                                kill "$yad_pid" &>/dev/null
+                                        fi
+                                elif is_exe_exist zenity
+                                    then
+                                        "$@"|zenity --progress --pulsate --text="$URL" --width=650 --height=40 \
+                                            --auto-close --no-cancel --title="Download: $FILENAME"
+                                        ret="$?"
+                                fi
+                                return "$ret"
+                            }
                             if [ "$NO_ARIA2C" != 1 ] && \
                                 is_exe_exist aria2c
                                 then
-                                    aria2c -R -x 13 -s 13 --allow-overwrite --summary-interval=1 -o \
+                                    aria2c --no-conf -R -x 13 -s 13 --allow-overwrite --summary-interval=1 -o \
                                         "$FILENAME" -d "$FILEDIR" "$URL"|grep --line-buffered 'ETA'|\
                                         sed -u 's|(.*)| &|g;s|(||g;s|)||g;s|\[||g;s|\]||g'|\
                                         awk '{print$3"\n#Downloading at "$3,$2,$5,$6;system("")}'|\
-                                    dl_progress
-                            elif is_exe_exist wget
-                                then
-                                    wget --no-check-certificate --content-disposition -t 3 -T 5 \
-                                        -w 0.5 "$URL" -O "$FILEDIR/$FILENAME"|& tr '\r' '\n'|\
-                                        sed -u 's/.* \([0-9]\+%\)\ \+\([0-9,.]\+.\) \(.*\)/\1\n#Downloading at \1\ ETA: \3/; s/^20[0-9][0-9].*/#Done./'|\
                                     dl_progress
                             elif is_exe_exist curl
                                 then
                                     curl -R --progress-bar --insecure --fail -L "$URL" -o \
                                         "$FILEDIR/$FILENAME" |& tr '\r' '\n'|\
                                         sed -ur 's|[# ]+||g;s|.*=.*||g;s|.*|#Downloading at &\n&|g'|\
+                                    dl_progress
+                            elif is_exe_exist wget2
+                                then
+                                    dl_progress_pulsate wget2 "${WGET_ARGS[@]}"
+                            elif is_exe_exist wget
+                                then
+                                    wget "${WGET_ARGS[@]}"|& tr '\r' '\n'|\
+                                        sed -u 's/.* \([0-9]\+%\)\ \+\([0-9,.]\+.\) \(.*\)/\1\n#Downloading at \1\ ETA: \3/; s/^20[0-9][0-9].*/#Done./'|\
                                     dl_progress
                             else
                                 err_no_downloader
@@ -314,14 +351,16 @@ try_dl() {
                         else
                             if [ "$NO_ARIA2C" != 1 ] && is_exe_exist aria2c
                                 then
-                                    aria2c -R -x 13 -s 13 --allow-overwrite -d "$FILEDIR" -o "$FILENAME" "$URL"
-                            elif is_exe_exist wget
-                                then
-                                    wget -q --show-progress --no-check-certificate --content-disposition \
-                                        -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME"
+                                    aria2c --no-conf -R -x 13 -s 13 --allow-overwrite -d "$FILEDIR" -o "$FILENAME" "$URL"
                             elif is_exe_exist curl
                                 then
                                     curl -R --progress-bar --insecure --fail -L "$URL" -o "$FILEDIR/$FILENAME"
+                            elif is_exe_exist wget2
+                                then
+                                    wget2 --force-progress "${WGET_ARGS[@]}"
+                            elif is_exe_exist wget
+                                then
+                                    wget --show-progress "${WGET_ARGS[@]}"
                             else
                                 err_no_downloader
                             fi
@@ -352,16 +391,24 @@ get_nvidia_driver_image() {
             info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
             nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
             driver_url_list=(
+                "https://storage.yandexcloud.net/runimage/nvidia-drivers/$nvidia_driver_image"
                 "https://huggingface.co/runimage/nvidia-drivers/resolve/main/releases/$nvidia_driver_image"
                 "https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image"
                 "https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run"
                 "https://us.download.nvidia.com/tesla/${nvidia_version}/$nvidia_driver_run"
+                "https://developer.nvidia.com/downloads/vulkan-beta-${nvidia_version//.}-linux"
+                "https://developer.nvidia.com/vulkan-beta-${nvidia_version//.}-linux"
+                "https://developer.nvidia.com/linux-${nvidia_version//.}"
             )
             if try_dl "${driver_url_list[0]}" "$NVIDIA_DRIVERS_DIR"||\
-               try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"
+               try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"||\
+               try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"
                 then return 0
-            elif try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"||\
-                 try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"
+            elif try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"||\
+                 try_dl "${driver_url_list[4]}" "$NVIDIA_DRIVERS_DIR"||\
+                 try_dl "${driver_url_list[5]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
+                 try_dl "${driver_url_list[6]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
+                 try_dl "${driver_url_list[7]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"
                 then
                     binary_files="mkprecompiled nvidia-cuda-mps-control nvidia-cuda-mps-server \
                         nvidia-debugdump nvidia-installer nvidia-modprobe nvidia-ngx-updater tls_test \
