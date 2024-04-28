@@ -264,7 +264,7 @@ try_dl() {
             fi
             if is_url "$URL"
                 then
-                    WGET_ARGS=(-q --no-check-certificate --content-disposition -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME")
+                    WGET_ARGS=(--no-check-certificate --content-disposition -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME")
                     [ ! -d "$FILEDIR" ] && \
                         try_mkdir "$FILEDIR"
                     if [[ "$NOT_TERM" == 1 && "$NO_DL_GUI" != 1 ]] && \
@@ -357,10 +357,10 @@ try_dl() {
                                     curl -R --progress-bar --insecure --fail -L "$URL" -o "$FILEDIR/$FILENAME"
                             elif is_exe_exist wget2
                                 then
-                                    wget2 --force-progress "${WGET_ARGS[@]}"
+                                    wget2 -q --force-progress "${WGET_ARGS[@]}"
                             elif is_exe_exist wget
                                 then
-                                    wget --show-progress "${WGET_ARGS[@]}"
+                                    wget -q --show-progress "${WGET_ARGS[@]}"
                             else
                                 err_no_downloader
                             fi
