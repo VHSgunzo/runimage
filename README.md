@@ -66,10 +66,9 @@ chmod +x runimage
 
 ```
 ┌──[user@host]─[~]
-└──╼ $ runimage {bubblewrap args} {executable} {executable args}
+└──╼ $ runimage {executable} {executable args}
 
     --run-help   |--rH                    Show this usage info
-    --run-bwhelp |--rBwh                  Show Bubblewrap usage info
     --run-version|--rV                    Show runimage, rootfs, static, runtime version
     --run-pkglist|--rP                    Show packages installed in runimage
     --run-binlist|--rBin                  Show /usr/bin in runimage
@@ -104,7 +103,6 @@ Environment variables to configure:
     PORTABLE_HOME_DIR="/path/dir"        Specifies a portable home directory and uses it as $HOME
     PORTABLE_CONFIG=1                    Creates a portable config directory and uses it as $XDG_CONFIG_HOME
     NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
-    ALLOW_BG=1                           Allows you to run processes in the background
     UNSHARE_PIDS=1                       Unshares all host processes
     UNSHARE_USERS=1                      Don't bind-mount /etc/{passwd,group}
     SHARE_SYSTEMD=1                      Shares SystemD from the host
@@ -456,7 +454,6 @@ exit
 ## Troubleshooting and problem solving:
 
 * To start `SystemD` services with `systemctl` in `RunImage` `SystemD` replaced with [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package based on [docker-systemctl-replacement](https://github.com/gdraheim/docker-systemctl-replacement) with some modification. It's depend on `python3`
-* By default, all container processes running in the background will be killed after the container is closed, to allow background processes, use the environment variable `ALLOW_BG=1`
 * To start the `SSH server` you need to install patched [runimage-openssh](https://github.com/VHSgunzo/runimage-openssh) package from runimage [pacman repo](https://github.com/runimage/repo)
 ```
 pac -Sy runimage-openssh
@@ -480,7 +477,6 @@ systemctl start sshd    # systemctl depend on python3
 ```
 * When using `TMP_HOME`* you may run out of RAM, be careful with this.
 * It is also advisable to use `TMPDIR` when using `--runtime-extract-and-run` or `RUNTIME_EXTRACT_AND_RUN`, because by default, unpacking before starting will be carried out in `/tmp`, which may also lead to the end of RAM
-* With `UNSHARE_PIDS`, RunImage desktop does not start on TTY.
 * `Xephyr` does not support GL acceleration and Vulkan has performance issues (But this is not related to RunImage)
 * If you have problems with sound when running RunImage desktop on TTY, just restart pulseaudio.
 * Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
@@ -489,11 +485,6 @@ systemctl start sshd    # systemctl depend on python3
 ```
 * If you disable bubblewrap capabilities using `NO_CAP`, you will not be able to use `FUSE` inside the container.
 * In packed form for fix bug with `MangoHud` and `vkBasalt` in `DXVK` mode need remount container with `squashfuse` (see `SQFUSE_REMOUNT=1`). In `lwrun` it's enabled by default.
-* If `PID_MAX` is less then `4194304`, recommended to increase [PID_MAX](https://www.cyberciti.biz/tips/howto-linux-increase-pid-limits.html) to 4194304 for better stability:
-```
-sudo sh -c 'echo kernel.pid_max=4194304 >> /etc/sysctl.d/98-pid_max.conf'
-sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
-```
 
 ## Main used projects:
 
@@ -536,10 +527,9 @@ sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'
 * [util-linux-static](https://github.com/VHSgunzo/util-linux-static/releases)
 * [fakeroot](https://github.com/mackyle/fakeroot)
 * [fakechroot](https://github.com/dex4er/fakechroot)
-* [ptyspawn](https://github.com/VHSgunzo/ptyspawn)
 * [socat-static](https://github.com/VHSgunzo/socat-static)
 * [pacutils](https://github.com/andrewgregory/pacutils)
-* [shellsrv](https://github.com/VHSgunzo/shellsrv)
+* [ssrv](https://github.com/VHSgunzo/ssrv)
 
 ## Projects based on RunImage:
 

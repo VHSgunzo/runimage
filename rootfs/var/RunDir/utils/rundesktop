@@ -162,8 +162,10 @@ if [ "$RUN_X" == 1 ]
         fi
         dbus-run-session bash /etc/xdg/xfce4/xinitrc
         EXEC_STATUS="$?"
-        kill $XEPHYR_PID $XORG_PID $XFWM_PID $XCLIPSYNC_PID 2>/dev/null
+        kill $XCLIPSYNC_PID $XFWM_PID $XEPHYR_PID $XORG_PID 2>/dev/null
         kill $(pgrep -fa xclipfrom|grep "$DESKTOP_KEY"|awk '{print$1}') 2>/dev/null
         rm -rf "/tmp/.X$DESKTOP_DISPLAY-lock" 2>/dev/null
+        kill -0 $XORG_PID 2>/dev/null && kill -9 $XORG_PID 2>/dev/null
+        [ "$XORG_PID" ] && reset
 fi
 exit $EXEC_STATUS

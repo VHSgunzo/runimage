@@ -26,5 +26,5 @@ Target = etc/xdg/menus/applications-merged/*
 [Action]
 Description = Desktop integration install...
 When = PostTransaction
-Exec = /var/RunDir/utils/desktop-integration hook install
+Exec = /var/RunDir/utils/desktop-integration install hook
 NeedsTargets

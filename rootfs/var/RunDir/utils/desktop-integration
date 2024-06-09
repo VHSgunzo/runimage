@@ -1,6 +1,7 @@
 #!/usr/bin/bash
 
 HINTEG_DIR="$HOME/.local/share"
+HINTEG_APPS_DIR="$HINTEG_DIR/applications"
 ICONS_DIR='/usr/share/icons'
 APPS_DIR='/usr/share/applications'
 
@@ -33,20 +34,25 @@ MIME_DIRS=(
     '/usr/share/mime/x-epoc'
 )
 
-lsapps() { cat -n<<<"$(grep -m1 '^Name=' -nr "$APPS_DIR"|sed 's|.*:Name=||g;s|.*|"&"|g'|sort)" ; }
+lsapps() {
+    local apps="$(grep -m1 '^Name=' -nr "$APPS_DIR" 2>/dev/null|\
+                  sed 's|.*:Name=||g;s|.*|"&"|g'|sort)"
+    [ -n "$apps" ] && cat -n<<<"$apps"
+}
+
+lsintegapps() {
+    local apps="$(grep -m1 '^Name=.* \[RunImage\]' -nr "$HINTEG_APPS_DIR"/*-rimg.desktop 2>/dev/null|\
+                  sed 's|.*:Name=||g;s| \[RunImage\]$||g;s|.*|"&"|g'|sort)"
+    [ -n "$apps" ] && cat -n<<<"$apps"
+}
 
 find_fl() { find "$@" -type f 2>/dev/null|sort ; }
 
-upd_ddb() { update-desktop-database -q "$HINTEG_DIR/applications" &>/dev/null ; }
+upd_ddb() { update-desktop-database -q "$HINTEG_APPS_DIR" &>/dev/null ; }
 
 upd_mdb() { update-mime-database "$HINTEG_DIR/mime" &>/dev/null ; }
 
 dinteg() {
-    case "$1" in
-        install|in|i) act=i ;;
-        remove|rm|r) act=r ;;
-        *) return 1 ;;
-    esac
     while read -r file
         do
             [[ ! "${IGNORE_FILES[@]}" =~ "$(basename "$file")" ]]||\
@@ -80,49 +86,86 @@ dinteg() {
                                     exec_args+="'$RUNSRC' "
 
                                     sed -i "s|^Icon.*|&-rimg|g;s|^Name.*|& [RunImage]|g;s|^Exec=|Exec=$exec_args|g;/^TryExec/d" "$hinteg_file"
+                                    chmod +x "$hinteg_file"
                             fi
                         ;;
                         r)
                             [ -f "$hinteg_file" ] && \
                                 rm $verb -f "$hinteg_file"
                         ;;
+                        *) return 1 ;;
                     esac
             fi
     done
 }
 
-verb='-v'
+unset act ret
 case "$1" in
-    list|ls) lsapps ;;
-    app) shift
-        IFS=$'\n'
-        if [[ "$1" =~ ^[0-9]+$ ]]
-            then app_name="$(lsapps|awk '($1 == "'$1'")'|awk '{$1=""}1'|sed 's|"||g'|sed 's|^ ||g')"
-            else app_name="$1"
-        fi
-        integ_files=("$(grep -wm1 "^Name=$app_name$" -lr "$APPS_DIR"|head -1)")
-        icon_name="$(grep -m1 "^Icon=" "$integ_files"|sed 's|^Icon=||')"
-        integ_files+=($(find_fl "$ICONS_DIR" -name "${icon_name}.*"))
-        shift
-        for file in "${integ_files[@]}";do echo "$file";done|dinteg "$@"
-    ;;
-    all) shift
-        [ "$WITH_MIME" == 1 ] && \
-            INTEG_DIRS+=("${MIME_DIRS[@]}")
-        find_fl "${INTEG_DIRS[@]}"|dinteg "$@"
-        upd_ddb
-        [ "$WITH_MIME" == 1 ] && upd_mdb
-    ;;
-    mime) shift
-        find_fl "${MIME_DIRS[@]}"|dinteg "$@"
-        upd_mdb
-    ;;
-    hook) shift
-        unset verb
-        if [ "$DESKTOP_INTEGRATION" == 1 ]
-            then dinteg "$@"
-            else echo "Desktop integration is disabled!"
-        fi
-    ;;
-    *) exit 1 ;;
+    list|ls|l) shift
+            ret=1
+            case "$1" in
+                install|in|i) lsintegapps ;;
+                *) lsapps ;;
+            esac
+            if [ "$?" == 0 ]
+                then ret=0
+                else echo "No apps found!"
+            fi
+            exit $ret
+        ;;
+    install|in|i) shift ; act=i ;;
+    remove|rm|r) shift ; act=r ;;
+    *) echo "Unknown argument!" ; exit 1 ;;
 esac
+
+if [ -n "$1" ]
+    then
+        verb='-v'
+        case "$1" in
+            hook) shift
+                unset verb
+                if [ "$DESKTOP_INTEGRATION" == 1 ]
+                    then dinteg
+                    else echo "Desktop integration is disabled!"
+                fi
+            ;;
+            all) shift
+                [ "$WITH_MIME" == 1 ] && \
+                    INTEG_DIRS+=("${MIME_DIRS[@]}")
+                find_fl "${INTEG_DIRS[@]}"|dinteg
+                upd_ddb
+                [ "$WITH_MIME" == 1 ] && upd_mdb
+            ;;
+            mime) shift
+                find_fl "${MIME_DIRS[@]}"|dinteg
+                upd_mdb
+            ;;
+            *)  IFS=$'\n'
+                app_list="$(case "$act" in
+                    i) lsapps ;;
+                    r) lsintegapps ;;
+                esac)"
+                for app in "$@"
+                    do
+                        (if [[ "$app" =~ ^[0-9]+$ ]]
+                            then app_name="$(awk '($1 == "'$app'")'<<<"$app_list"|awk '{$1=""}1'|sed 's|"||g'|sed 's|^ ||g')"
+                            else app_name="$app"
+                        fi
+                        integ_files=("$(grep -wm1 "^Name=$app_name$" -lr "$APPS_DIR" 2>/dev/null|head -1)")
+                        if [ -n "$integ_files" ]
+                            then
+                                echo "[ $app_name ]:"
+                                icon_name="$(grep -m1 "^Icon=" "$integ_files" 2>/dev/null|sed 's|^Icon=||')"
+                                integ_files+=($(find_fl "$ICONS_DIR" -name "${icon_name}.*" 2>/dev/null))
+                                for file in "${integ_files[@]}";do echo "$file";done|dinteg
+                            else
+                                echo "The app was not found!"
+                                exit 1
+                        fi)
+                done
+            ;;
+        esac
+    else
+        echo "Specify the name or number of the app!"
+        exit 1
+fi

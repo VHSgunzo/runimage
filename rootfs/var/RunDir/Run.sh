@@ -15,10 +15,15 @@ RESETCOLOR='\033[1;00m'
 export SYS_PATH="$PATH"
 export RUNPPID="$PPID"
 export RUNPID="$BASHPID"
-export RUNTMPDIR="/tmp/.r$EUID/run"
+export REUIDDIR="/tmp/.r$EUID"
+export RUNTMPDIR="$REUIDDIR/run"
 export RUNPIDDIR="$RUNTMPDIR/$RUNPID"
 export BWINFFL="$RUNPIDDIR/bwinf"
 export EXECFLDIR="$RUNPIDDIR/exec"
+export SSRV_CPIDS_DIR="$RUNPIDDIR/cpids"
+export SSRV_NOSEP_CPIDS=1
+export SSRV_ENV='SSRV_PID'
+export SSRV_PID_FILE="$RUNPIDDIR/ssrv.pid"
 RPIDSFL="$RUNPIDDIR/rpids"
 UNPASSWDFL="$RUNPIDDIR/passwd"
 UNGROUPFL="$RUNPIDDIR/group"
@@ -100,22 +105,9 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
         fi
 fi
 
-[ ! -n "$RUNTTY" ] && \
-    export RUNTTY="$(tty|grep -v 'not a')"
-[ ! -n "$(echo "$RUNTTY"|grep -Eo 'tty|pts')" ] && \
+export RUNTTY="$(tty|grep -v 'not a')"
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
     NOT_TERM=1||NOT_TERM=0
-
-[ "$NOT_TERM" != 1 ] && \
-    SETSID_RUN=("ptyspawn")||\
-    SETSID_RUN=("setsid" "--wait")
-
-if [[ "$RUNSETSID" != 1 && ! "$RUNTTY" =~ "tty" && "$ALLOW_BG" != 1 ]]
-    then
-        RUNSETSID=1 "${SETSID_RUN[@]}" "$RUNSTATIC/bash" \
-            "$(realpath -s "$0" 2>/dev/null)" "$@"
-        exit $?
-fi
-unset RUNSETSID
 
 export RUNROOTFS="$RUNDIR/rootfs"
 export RUNCACHEDIR="$RUNIMAGEDIR/cache"
@@ -169,7 +161,7 @@ mount_exist() {
         do
             if [ "$wait_time" -le "$time_out" ]
                 then
-                    if [[ -d "/proc/$1" && -n "$(ls -A "$2" 2>/dev/null)" ]]
+                    if is_pid "$1" && [ -n "$(ls -A "$2" 2>/dev/null)" ]
                         then
                             return 0
                         else
@@ -267,13 +259,13 @@ try_dl() {
                             FILEDIR="$(dirname "$2")"
                             FILENAME="$(basename "$2")"
                     fi
-                    [ -n "$3" ] && FILENAME="$3"
                 else
                     FILEDIR="."
                     FILENAME="$(basename "$1")"
             fi
             if is_url "$URL"
                 then
+                    WGET_ARGS=(--no-check-certificate --content-disposition -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME")
                     [ ! -d "$FILEDIR" ] && \
                         try_mkdir "$FILEDIR"
                     if [[ "$NOT_TERM" == 1 && "$NO_DL_GUI" != 1 ]] && \
@@ -297,25 +289,61 @@ try_dl() {
                                 else return 1
                                 fi
                             }
+                            dl_progress_pulsate() {
+                                local ret=1
+                                [[ "$URL" =~ '&key=' ]] && \
+                                    local URL="$(echo "$URL"|sed "s|\&key=.*||g")"
+                                [[ "$URL" =~ '&' && ! "$URL" =~ '&amp;' ]] && \
+                                    local URL="$(echo "$URL"|sed "s|\&|\&amp;|g")"
+                                if is_exe_exist yad
+                                    then
+                                        local yad_args=(
+                                            --progress --pulsate --text="Download:\t$FILENAME\n$URL"
+                                            --width=650 --height=40 --undecorated --skip-taskbar
+                                            --no-buttons --text-align center --auto-close --auto-kill
+                                            --center --fixed --on-top --no-escape --selectable-labels
+                                        )
+                                        "$@" &
+                                        local exec_pid="$!"
+                                        if is_pid "$exec_pid"
+                                            then
+                                                (while is_pid "$exec_pid"
+                                                    do echo -e "#\n" ; sleep 0.1 2>/dev/null
+                                                done)|yad "${yad_args[@]}" &>/dev/null &
+                                                local yad_pid="$!"
+                                                wait "$exec_pid" &>/dev/null
+                                                ret="$?"
+                                                kill "$yad_pid" &>/dev/null
+                                        fi
+                                elif is_exe_exist zenity
+                                    then
+                                        "$@"|zenity --progress --pulsate --text="$URL" --width=650 --height=40 \
+                                            --auto-close --no-cancel --title="Download: $FILENAME"
+                                        ret="$?"
+                                fi
+                                return "$ret"
+                            }
                             if [ "$NO_ARIA2C" != 1 ] && \
                                 is_exe_exist aria2c
                                 then
-                                    aria2c -R -x 13 -s 13 --allow-overwrite --summary-interval=1 -o \
+                                    aria2c --no-conf -R -x 13 -s 13 --allow-overwrite --summary-interval=1 -o \
                                         "$FILENAME" -d "$FILEDIR" "$URL"|grep --line-buffered 'ETA'|\
                                         sed -u 's|(.*)| &|g;s|(||g;s|)||g;s|\[||g;s|\]||g'|\
                                         awk '{print$3"\n#Downloading at "$3,$2,$5,$6;system("")}'|\
-                                    dl_progress
-                            elif is_exe_exist wget
-                                then
-                                    wget --no-check-certificate --content-disposition -t 3 -T 5 \
-                                        -w 0.5 "$URL" -O "$FILEDIR/$FILENAME"|& tr '\r' '\n'|\
-                                        sed -u 's/.* \([0-9]\+%\)\ \+\([0-9,.]\+.\) \(.*\)/\1\n#Downloading at \1\ ETA: \3/; s/^20[0-9][0-9].*/#Done./'|\
                                     dl_progress
                             elif is_exe_exist curl
                                 then
                                     curl -R --progress-bar --insecure --fail -L "$URL" -o \
                                         "$FILEDIR/$FILENAME" |& tr '\r' '\n'|\
                                         sed -ur 's|[# ]+||g;s|.*=.*||g;s|.*|#Downloading at &\n&|g'|\
+                                    dl_progress
+                            elif is_exe_exist wget2
+                                then
+                                    dl_progress_pulsate wget2 "${WGET_ARGS[@]}"
+                            elif is_exe_exist wget
+                                then
+                                    wget "${WGET_ARGS[@]}"|& tr '\r' '\n'|\
+                                        sed -u 's/.* \([0-9]\+%\)\ \+\([0-9,.]\+.\) \(.*\)/\1\n#Downloading at \1\ ETA: \3/; s/^20[0-9][0-9].*/#Done./'|\
                                     dl_progress
                             else
                                 err_no_downloader
@@ -324,14 +352,16 @@ try_dl() {
                         else
                             if [ "$NO_ARIA2C" != 1 ] && is_exe_exist aria2c
                                 then
-                                    aria2c -R -x 13 -s 13 --allow-overwrite -d "$FILEDIR" -o "$FILENAME" "$URL"
-                            elif is_exe_exist wget
-                                then
-                                    wget -q --show-progress --no-check-certificate --content-disposition \
-                                        -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME"
+                                    aria2c --no-conf -R -x 13 -s 13 --allow-overwrite -d "$FILEDIR" -o "$FILENAME" "$URL"
                             elif is_exe_exist curl
                                 then
                                     curl -R --progress-bar --insecure --fail -L "$URL" -o "$FILEDIR/$FILENAME"
+                            elif is_exe_exist wget2
+                                then
+                                    wget2 -q --force-progress "${WGET_ARGS[@]}"
+                            elif is_exe_exist wget
+                                then
+                                    wget -q --show-progress "${WGET_ARGS[@]}"
                             else
                                 err_no_downloader
                             fi
@@ -362,6 +392,7 @@ get_nvidia_driver_image() {
             info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
             nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
             driver_url_list=(
+                "https://storage.yandexcloud.net/runimage/nvidia-drivers/$nvidia_driver_image"
                 "https://huggingface.co/runimage/nvidia-drivers/resolve/main/releases/$nvidia_driver_image"
                 "https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image"
                 "https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run"
@@ -371,15 +402,16 @@ get_nvidia_driver_image() {
                 "https://developer.nvidia.com/linux-${nvidia_version//.}"
             )
             if try_dl "${driver_url_list[0]}" "$NVIDIA_DRIVERS_DIR"||\
-               try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"
+               try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"||\
+               try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"
                 then return 0
-            elif try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"||\
-                 try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"||\
-                 try_dl "${driver_url_list[4]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
+            elif try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"||\
+                 try_dl "${driver_url_list[4]}" "$NVIDIA_DRIVERS_DIR"||\
                  try_dl "${driver_url_list[5]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
-                 try_dl "${driver_url_list[6]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"
+                 try_dl "${driver_url_list[6]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
+                 try_dl "${driver_url_list[7]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"
                 then
-                    binary_files="mkprecompiled nvidia-cuda-mps-control nvidia-cuda-mps-server \
+                    binary_files="mkprecompiled nvidia-cuda-mps-control nvidia-cuda-mps-srv \
                         nvidia-debugdump nvidia-installer nvidia-modprobe nvidia-ngx-updater tls_test \
                         nvidia-persistenced nvidia-powerd nvidia-settings nvidia-smi nvidia-xconfig"
                     trash_libs="libEGL.so* libGLdispatch.so* *.swidtag libnvidia-egl-wayland.so* \
@@ -462,7 +494,7 @@ check_nvidia_driver() {
         if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
             then
                 info_msg "Updating the nvidia library cache..."
-                if (ALLOW_BG=0 SANDBOX_NET=0 bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null)
+                if (SANDBOX_NET=0 bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null)
                     then
                         try_mkdir "$RUNCACHEDIR"
                         if mv -f "$RUNPIDDIR/ld.so.cache" \
@@ -760,8 +792,7 @@ try_unmount() {
                         then DORM=1
                     elif umount -l "$1" 2>/dev/null
                         then DORM=1
-                    elif [ "$ALLOW_BG" != 1 ] && \
-                        kill -2 $FUSE_PIDS 2>/dev/null
+                    elif kill -2 $FUSE_PIDS 2>/dev/null
                         then DORM=1
                     else
                         error_msg "Failed to unmount: '$1'"
@@ -796,107 +827,50 @@ try_mkdir() {
 }
 
 run_attach() {
-    set_target() {
-        unset NSU
-        [ "$EUID" != 0 ] && NSU="-U"
-        for pid in $(cat "$RUNTMPDIR/$1/rpids")
-            do
-                for args in "-n -p" "-n" "-p" " "
-                    do
-                        if nsenter --preserve-credentials $NSU -m $args \
-                            -t $pid /usr/bin/true &>/dev/null
-                            then
-                                target="$pid"
-                                target_args="$args"
-                                return 0
-                        fi
-                done
-        done
-        return 1
-    }
-    ns_attach() {
-        unset WAITRPIDS
-        if set_target "$runpid"
-            then
-                info_msg "Attaching to RunImage RUNPID: $runpid"
-                (while [[ -d "/proc/$target" && -d "/proc/$RUNPID" ]]
-                    do sleep 0.5 2>/dev/null
-                done
-                cleanup force) &
-                if [[ "$ALLOW_BG" == 1 || "$RUNTTY" =~ "tty" ]]
-                    then
-                        (wait_rpids=100
-                        while [[ "$wait_rpids" -gt 0 && ! -n "$(ps -o pid= -p \
-                            $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null)" ]]
-                            do
-                                wait_rpids="$(( $wait_rpids - 1 ))"
-                                sleep 0.01 2>/dev/null
-                        done; sleep 1) &
-                        WAITRPIDS=$!
-                fi
-                local attach=(
-                    importenv $target nsenter --preserve-credentials
-                    --wd=/proc/$target/cwd $NSU -m $target_args -t $target
-                )
-                if [ -n "$1" ]
-                    then "${attach[@]}" "$@"
-                    else "${attach[@]}" "${RUN_SHELL[@]}"
-                fi
-                EXEC_STATUS=$?
-                [ -n "$WAITRPIDS" ] && \
-                    wait "$WAITRPIDS"
-                return $EXEC_STATUS
-        fi
-        error_msg "Failed to attach to RunImage container!"
-        return 1
+    get_sock() { find "$RUNTMPDIR"/$1 -name '*sock' 2>/dev/null ; }
+    get_sock_runpid() { awk -F'/' '{print $(NF-1)}'<<<"$1" 2>/dev/null ; }
+    attach_exec() {
+        info_msg "Attaching to RunImage RUNPID: $1"
+        export SSRV_ENV="$UNENV"
+        export SSRV_SOCK="unix:$(get_sock "$1")"
+        shift
+        exec ssrv "$@"
     }
     no_runimage_msg() {
         error_msg "No running RunImage containers found!"
         return 1
     }
-    unset runpid
     if [[ "$1" =~ ^[0-9]+$ ]]
         then
-            if [ -f "$RUNTMPDIR/$1/rpids" ]
-                then
-                    local runpid="$1"
-                    shift
-                    ns_attach "$@"
+            if [ -e "$(get_sock "$1")" ]
+                then attach_exec "$@"
                 else
                     error_msg "RunImage container not found by RUNPID: $1"
                     return 1
             fi
         else
-            rpids_num="$(ls -1 "$RUNTMPDIR"/*/rpids 2>/dev/null|wc -l)"
-            if [ "$rpids_num" == 0 ]
+            local sockets="$(get_sock '*')"
+            local sock_num="$(sed '/^$/d'<<<"$sockets"|wc -l)"
+            if [ "$sock_num" == 0 ]
                 then no_runimage_msg
-            elif [ "$rpids_num" == 1 ]
-                then
-                    runpid="$(ls -1 "$RUNTMPDIR"/*/rpids 2>/dev/null|head -1|awk -F/ '{print$5}')" \
-                    ns_attach "$@"
+            elif [ "$sock_num" == 1 ]
+                then attach_exec "$(get_sock_runpid "$sockets")" "$@"
             else
                 while true
                     do
-                        local runpids=($(ls -1 "$RUNTMPDIR"/*/rpids 2>/dev/null|awk -F/ '{print$5}'))
+                        local runpids=($(get_sock_runpid "$sockets"))
                         if [ -n "$runpids" ]
                             then
                                 info_msg "Specify the RunImage RUNPID!"
                                 for i in $(seq 0 $((${#runpids[@]}-1)))
-                                    do
-                                        local rpids=${runpids[$i]}
-                                        local rpidsfl="$RUNTMPDIR/${runpids[$i]}/rpids"
-                                        ps -p $(cat "$rpidsfl" 2>/dev/null) &>/dev/null && \
-                                        echo "$((i+1)))" "$rpids"||rm -f "$rpidsfl"
-                                done && echo "0) Exit"
+                                    do echo "$((i+1)))" "${runpids[$i]}"
+                                done; echo "0) Exit"
                                 read -p 'Enter RUNPID number: ' runpid_choice
                                 if [ "$runpid_choice" == 0 ]
                                     then exit
                                 elif [[ "$runpid_choice" =~ ^[0-9]+$  && "$runpid_choice" -gt 0 && \
                                     "$runpid_choice" -le ${#runpids[@]} ]]
-                                    then
-                                        runpid="${runpids[$(($runpid_choice-1))]}" \
-                                        ns_attach "$@"
-                                        return $?
+                                    then attach_exec "${runpids[$(($runpid_choice-1))]}" "$@"
                                     else
                                         error_msg "Invalid number!"
                                         sleep 1
@@ -921,7 +895,7 @@ force_kill() {
                 do try_unmount "$umnt"
             done) && SUCCUMNT=1
     fi
-    try_kill "$(cat "$RUNTMPDIR"/*/rpids 2>/dev/null)" && \
+    try_kill "$(cat "$RUNTMPDIR"/*/rpids 2>/dev/null ; ls "$RUNTMPDIR"/*/cpids 2>/dev/null)" && \
         SUCCKILL=1
     [[ "$SUCCKILL" == 1 || "$SUCCUMNT" == 1 ]] && \
         info_msg "RunImage successfully killed!"
@@ -934,7 +908,7 @@ try_kill() {
             for pid in $1
                 do
                     trykillnum=0
-                    while [[ -n "$pid" && -d "/proc/$pid" ]]
+                    while is_pid "$pid"
                         do
                             if [[ "$trykillnum" -lt 1 ]]
                                 then
@@ -965,149 +939,256 @@ cleanup() {
                 QUIET_MODE=1
             if [ -n "$FUSE_PIDS" ]
                 then
-                    if [ "$ALLOW_BG" != 1 ]
-                        then
-                            [ "$KEEP_CRYPTFS" != 1 ] && \
-                                try_unmount "$CRYPTFS_MNT"
-                            [ "$KEEP_OVERFS" != 1 ] && \
-                                try_unmount "$OVERFS_MNT"
-                    fi
-                    [[ "$ALLOW_BG" == 1 && -d "$OVERFS_MNT" ]] ||\
-                        try_unmount "$RO_MNT"
+                    [ "$KEEP_CRYPTFS" != 1 ] && \
+                        try_unmount "$CRYPTFS_MNT"
+                    [ "$KEEP_OVERFS" != 1 ] && \
+                        try_unmount "$OVERFS_MNT"
+                    try_unmount "$RO_MNT"
                     try_unmount "$NVDRVMNT"
             fi
             [ -d "$EXECFLDIR" ] && \
                 rm -rf "$EXECFLDIR" 2>/dev/null
-            if [[ "$ALLOW_BG" != 1 || "$1" == "force" ]]
+            kill -2 $FUSE_PIDS 2>/dev/null
+            if [ -n "$DBUSP_PID" ]
                 then
-                    kill -2 $FUSE_PIDS 2>/dev/null
-                    if [ -n "$DBUSP_PID" ]
-                        then
-                            kill $DBUSP_PID 2>/dev/null
-                            [ -S "$DBUSP_SOCKET" ] && \
-                                rm -f "$DBUSP_SOCKET" 2>/dev/null
-                    fi
-                    try_kill "$(cat "$RPIDSFL" 2>/dev/null)"
-                    if [[ -d "$OVERFS_DIR" && "$KEEP_OVERFS" != 1 ]]
-                        then
-                            info_msg "Removing OverlayFS..."
-                            rm -rf "$OVERFS_DIR" 2>/dev/null
-                    fi
+                    kill $DBUSP_PID 2>/dev/null
+                    [ -S "$DBUSP_SOCKET" ] && \
+                        rm -f "$DBUSP_SOCKET" 2>/dev/null
+            fi
+            try_kill "$(cat "$RPIDSFL" 2>/dev/null)"
+            if [[ -d "$OVERFS_DIR" && "$KEEP_OVERFS" != 1 ]]
+                then
+                    info_msg "Removing OverlayFS..."
+                    rm -rf "$OVERFS_DIR" 2>/dev/null
+                    rmdir "$RUNOVERFSDIR" 2>/dev/null
             fi
             [ -d "$RUNPIDDIR" ] && \
-                rm -rf "$RUNPIDDIR" 2>/dev/null
+                rm -rf "$RUNPIDDIR" 2>/dev/null && \
+                rmdir "$RUNTMPDIR" 2>/dev/null && \
+                rmdir "$REUIDDIR" 2>/dev/null
         else
             warn_msg "Cleanup is disabled!"
     fi
 }
 
+child_pids_walk() {
+    echo "$1"
+    for i in ${child_pids[$1]}
+        do child_pids_walk "$i"
+    done
+}
 get_child_pids() {
-    if [[ -n "$1" && -d "/proc/$1" ]]
+    if [ -n "$1" ]
         then
-            local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
-            ps -o user=,pid=,cmd= -p $child_pids 2>/dev/null|grep "^$RUNUSER"|\
-            grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|\
-            grep -wv "$RUNPPID"|awk '{print$2}'|sort -nu
-        else
-            return 1
+            declare -A child_pids
+            while read pid ppid
+                do child_pids[$ppid]+=" $pid"
+            done < <(ps -eo user=,pid=,ppid=,cmd= 2>/dev/null|grep "^$RUNUSER"|\
+                     grep -v "bash $RUNDIR/Run.sh"|grep -wv "$RUNPPID"|\
+                     grep -Pv '\d+ sleep \d+'|awk '{print$2,$3}'|sort -nu)
+            for i in "$@"; do ps -o pid= -p $(child_pids_walk "$i") 2>/dev/null|grep -v "$i"; done
+        else return 1
+    fi
+}
+
+is_pid() { [[ -n "$1" && -d "/proc/$1" ]]; }
+
+is_valis_ipv4() {
+    [[ "$1" =~ ^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$ ]] && \
+        return 0||return 1
+}
+
+wait_exist() {
+    if [ -n "$1" ]
+        then
+            local wait_time=300
+            while is_pid "$RUNPID" && [ "$wait_time" -gt 0 ]
+                do
+                    if [ -e "$1" ]
+                        then return 0
+                        else
+                            wait_time="$(( $wait_time - 1 ))"
+                            sleep 0.01 2>/dev/null
+                    fi
+            done
+    fi
+    return 1
+}
+
+export_ssrv_pid() {
+    if [ "$UNSHARE_PIDS" == 1 ]
+        then export SSRV_PID="$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')"
+        else export SSRV_PID="$(cat "$SSRV_PID_FILE" 2>/dev/null)"
+    fi
+}
+
+is_sandbox_net() { [[ "$SANDBOX_NET" == 1 && "$NO_NET" != 1 ]]; }
+
+create_sandbox_net() {
+    if is_pid "$SSRV_PID"
+        then
+            info_msg "Creating a network sandbox..."
+            mkfifo "$SREADYFL"
+            "$SLIRP" --configure --ready-fd=8 \
+                $([ "$SANDBOX_NET_SHARE_HOST" == 1 ] || echo "--disable-host-loopback")  \
+                $([ -n "$SANDBOX_NET_CIDR" ] && echo "--cidr=$SANDBOX_NET_CIDR") \
+                $([ -n "$SANDBOX_NET_MTU" ] && echo "--mtu=$SANDBOX_NET_MTU") \
+                $([ -n "$SANDBOX_NET_MAC" ] && echo "--macaddress=$SANDBOX_NET_MAC") \
+                "$SSRV_PID" \
+                $([ -n "$SANDBOX_NET_TAPNAME" ] && echo "$SANDBOX_NET_TAPNAME"||echo 'eth0') \
+                8>"$SREADYFL" &
+            SLIRP_PID="$!"
+            SLIRP_READY="$(cat "$SREADYFL" 2>/dev/null)"
+            rm -f "$SREADYFL"
+    fi
+    if ! (is_pid "$SLIRP_PID" && [ "$SLIRP_READY" == 1 ])
+        then
+            echo
+            error_msg "Failed to create a network sandbox!"
+            try_kill $SSRV_PID
+            cleanup force
+            exit 1
+    fi
+    if [ -n "$CHANGE_TAPIP" ]
+        then
+            info_msg "Changing a sandbox network tap IP: $SANDBOX_NET_TAPIP"
+            ssrv sh -c "$CHANGE_TAPIP"
+    fi
+    if [[ "$SANDBOX_NET_DROP_CIDRS" == 1 && -n "$DROP_CIDRS" ]]
+        then
+            info_msg "Dropping local CIDRs for a network sandbox..."
+            ssrv sh -c "$DROP_CIDRS"
     fi
 }
 
 bwrun() {
-    unset WAITBWPID
     if [ "$NO_NVIDIA_CHECK" == 1 ]
-        then
-            warn_msg "Nvidia driver check is disabled!"
+        then warn_msg "Nvidia driver check is disabled!"
     elif [[ "$NO_NVIDIA_CHECK" != 1 && ! -n "$NVIDIA_DRIVER_BIND" ]]
-        then
-            check_nvidia_driver
+        then check_nvidia_driver</dev/null
     fi
     [ "$ADD_LD_CACHE" == 1 ] && \
         LD_CACHE_BIND=("--bind-try" \
             "$RUNCACHEDIR/ld.so.cache" "/etc/ld.so.cache") || \
         unset LD_CACHE_BIND
-    if [[ "$SANDBOX_NET" == 1 && "$NO_NET" != 1 ]]
+    [[ ! -n "$SSRV_SOCK" || "$SSRV_SOCK" != 'unix:/'* ]] && \
+        export SSRV_SOCK="unix:$RUNPIDDIR/sock"
+    export SSRV_SOCK_PATH="$(sed "s|^unix:||"<<<"$SSRV_SOCK")"
+    if [ ! -e "$SSRV_SOCK_PATH" ]
         then
-            unset SLEEP_EXEC
-            [ "$ALLOW_BG" == 1 ] && \
-                SLEEP_EXEC=("sleep-exec" "0.05")
-            (while [[ -d "/proc/$RUNPID" && ! -f "$BWINFFL" ]]
-                do sleep 0.01 2>/dev/null
-            done
-            unset bwchildpid
-            while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" && \
-                ! -n "$bwchildpid" ]] && ! kill -0 "$bwchildpid" 2>/dev/null
-                do
-                    bwchildpid="$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')"
-                    sleep 0.01 2>/dev/null
-            done
-            info_msg "Creating a network sandbox..."
-            "$SLIRP" --configure \
-                $([ "$SANDBOX_NET_SHARE_HOST" == 1 ] || echo "--disable-host-loopback")  \
-                $([ -n "$SANDBOX_NET_CIDR" ] && echo "--cidr=$SANDBOX_NET_CIDR") \
-                $([ -n "$SANDBOX_NET_MTU" ] && echo "--mtu=$SANDBOX_NET_MTU") \
-                $([ -n "$SANDBOX_NET_MAC" ] && echo "--macaddress=$SANDBOX_NET_MAC") \
-                "$bwchildpid" \
-                $([ -n "$SANDBOX_NET_TAPNAME" ] && echo "$SANDBOX_NET_TAPNAME"||echo 'eth0') &
-            SLIRP_PID=$!
-            sleep 0.2
-            if [[ -n "$SLIRP_PID" && -d "/proc/$SLIRP_PID" ]]
+            BUWRAP_EXEC=(
+                "$BUWRAP"
+                --bind-try "$RUNROOTFS" /
+                --info-fd 8
+                --proc /proc
+                --bind-try /sys /sys
+                --dev-bind-try /dev /dev
+                "${HOSTNAME_BIND[@]}"
+                "${LOCALTIME_BIND[@]}" "${NSS_BIND[@]}"
+                "${MODULES_BIND[@]}" "${DEF_MOUNTS_BIND[@]}"
+                "${USERS_BIND[@]}" "${RUNDIR_BIND[@]}"
+                "${VAR_BIND[@]}" "${MACHINEID_BIND[@]}"
+                "${NVIDIA_DRIVER_BIND[@]}" "${TMP_BIND[@]}"
+                "${NETWORK_BIND[@]}" "${XDG_RUN_BIND[@]}"
+                "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}"
+                "${UNSHARE_BIND[@]}" "${HOME_BIND[@]}"
+                "${XORG_CONF_BIND[@]}" "${BUWRAP_CAP[@]}"
+                --setenv INSIDE_RUNIMAGE '1'
+                --setenv RUNPID "$RUNPID"
+                --setenv PATH "$BIN_PATH"
+                --setenv FAKEROOTDONTTRYCHOWN "true"
+                --setenv LD_LIBRARY_PATH "$LIB_PATH"
+                --setenv XDG_CONFIG_DIRS "/etc/xdg:$XDG_CONFIG_DIRS"
+                --setenv XDG_DATA_DIRS "/usr/local/share:/usr/share:$XDG_DATA_DIRS"
+                "${SETENV_ARGS[@]}" "${BUWRAP_ARGS[@]}"
+                tini -s -p SIGTERM -g --
+            )
+            if is_sandbox_net
                 then
-                    if [ "$ALLOW_BG" != 1 ]
+                    unset CHANGE_TAPIP DROP_CIDRS
+                    export SREADYFL="$RUNPIDDIR/sready"
+                    [ ! -n "$SANDBOX_NET_TAPNAME" ] && \
+                        export SANDBOX_NET_TAPNAME="eth0"
+                    if [ -n "$SANDBOX_NET_TAPIP" ]
                         then
-                            while [[ -d "/proc/$RUNPID" && -f "$BWINFFL" ]]
-                                do sleep 0.5 2>/dev/null
-                            done
-                            try_kill "$SLIRP_PID"
+                            if is_valis_ipv4 "$SANDBOX_NET_TAPIP"
+                                then
+                                    export SANDBOX_NET_CIDR="$(rev<<<"$SANDBOX_NET_TAPIP"|cut -d'.' -f2-|rev).0/24"
+                                    export CHANGE_TAPIP="ip route del default via ${SANDBOX_NET_CIDR/0\/24/2} dev $SANDBOX_NET_TAPNAME ;\
+                                        ip addr del ${SANDBOX_NET_CIDR/0\/24/100}/24 broadcast ${SANDBOX_NET_CIDR/0\/24/255} dev $SANDBOX_NET_TAPNAME ;\
+                                        ip addr add $SANDBOX_NET_TAPIP/24 broadcast ${SANDBOX_NET_CIDR/0\/24/255} dev $SANDBOX_NET_TAPNAME ;\
+                                        ip route add default via ${SANDBOX_NET_CIDR/0\/24/2} dev $SANDBOX_NET_TAPNAME"
+                                else
+                                    warn_msg "The IP address of the TAP interface is not valid!"
+                            fi
                     fi
+                    if [ "$SANDBOX_NET_DROP_CIDRS" == 1 ]
+                        then
+                            DROP_CIDRS=
+                            for cidr in $(ip -o -4 a|grep -wv lo|awk '{print$4}')
+                                do DROP_CIDRS+="iptables -A OUTPUT -d $cidr -j DROP ; "
+                            done
+                    fi
+            fi
+            if [[ "$RUNTTY" =~ 'tty' ]] || [[ "$RUNTTY" =~ 'pts' && "$IN_SAME_PTY" == 1 ]]
+                then
+                    bwin() {
+                        unfbwin() { unset -f bwin wait_exist is_pid is_sandbox_net ; }
+                        [[ "$A_EXEC_ARGS" =~ ^declare ]] && \
+                        eval "$A_EXEC_ARGS" && unset A_EXEC_ARGS
+                        [[ "$A_BWRUNARGS" =~ ^declare ]] && \
+                        eval "$A_BWRUNARGS" && unset A_BWRUNARGS
+                        (unfbwin ; exec setsid ssrv -srv -env all &>/dev/null) &
+                        wait_exist "$SSRV_PID_FILE"
+                        is_sandbox_net && sleep 0.05
+                        unfbwin
+                        export SSRV_PID="$(cat "$SSRV_PID_FILE" 2>/dev/null)"
+                        if [[ "$RUNTTY" =~ 'tty' && "$RUNTTY_ALLOC_PTY" == 1 ]]
+                            then ssrv "${EXEC_ARGS[@]}" "${BWRUNARGS[@]}"
+                            else "${EXEC_ARGS[@]}" "${BWRUNARGS[@]}"
+                        fi
+                        EXEC_STATUS="$?"
+                        kill $SSRV_PID 2>/dev/null
+                        [ -e "$SSRV_SOCK_PATH" ] && \
+                            rm -f "$SSRV_SOCK_PATH" 2>/dev/null
+                        return $EXEC_STATUS
+                    }
+                    BWRUNARGS=("$@")
+                    [ -n "$NO_NET" ] && export NO_NET
+                    [ -n "$SANDBOX_NET" ] && export SANDBOX_NET
+                    export A_EXEC_ARGS="$(declare -p EXEC_ARGS 2>/dev/null)"
+                    export A_BWRUNARGS="$(declare -p BWRUNARGS 2>/dev/null)"
+                    export -f bwin wait_exist is_pid is_sandbox_net
+                    if is_sandbox_net
+                        then
+                            (wait_exist "$BWINFFL"
+                            unset SSRV_PID
+                            while is_pid "$RUNPID" && ! is_pid "$SSRV_PID"
+                                do
+                                    export_ssrv_pid
+                                    sleep 0.01 2>/dev/null
+                            done
+                            create_sandbox_net
+                            while is_pid "$SSRV_PID"
+                                do sleep 0.5
+                            done; try_kill "$SLIRP_PID") &
+                    fi
+                    "${BUWRAP_EXEC[@]}" sh -c bwin 8>"$BWINFFL"
+                    [ -f "$BWINFFL" ] && rm -f "$BWINFFL" 2>/dev/null
+                    return $?
                 else
-                    error_msg "Failed to create a network sandbox!"
-                    sleep 1
-                    cleanup force
-                    exit 1
-            fi) &
-            sleep 0.05
+                    "${BUWRAP_EXEC[@]}" ssrv -srv -env all 8>"$BWINFFL" &>/dev/null &
+                    wait_exist "$SSRV_PID_FILE"
+                    export_ssrv_pid
+                    is_sandbox_net && create_sandbox_net
+            fi
     fi
-    if [[ "$ALLOW_BG" == 1 || "$RUNTTY" =~ "tty" ]]
-        then
-            (wait_bwrap=100
-            while [[ "$wait_bwrap" -gt 0 && ! -f "$BWINFFL" ]]
-                do
-                    wait_bwrap="$(( $wait_bwrap - 1 ))"
-                    sleep 0.01 2>/dev/null
-            done; sleep 1) &
-            WAITBWPID=$!
-    fi
-    "$BUWRAP" --bind-try "$RUNROOTFS" / \
-        --info-fd 8 \
-        --proc /proc \
-        --bind-try /sys /sys \
-        --dev-bind-try /dev /dev \
-        "${HOSTNAME_BIND[@]}" \
-        "${LOCALTIME_BIND[@]}" "${NSS_BIND[@]}" \
-        "${MODULES_BIND[@]}" "${DEF_MOUNTS_BIND[@]}" \
-        "${USERS_BIND[@]}" "${RUNDIR_BIND[@]}" \
-        "${VAR_BIND[@]}" "${MACHINEID_BIND[@]}" \
-        "${NVIDIA_DRIVER_BIND[@]}" "${TMP_BIND[@]}" \
-        "${NETWORK_BIND[@]}" "${XDG_RUN_BIND[@]}" \
-        "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}" \
-        "${UNSHARE_BIND[@]}" "${HOME_BIND[@]}" \
-        "${XORG_CONF_BIND[@]}" "${BUWRAP_CAP[@]}" \
-        --setenv INSIDE_RUNIMAGE '1' \
-        --setenv RUNPID "$RUNPID" \
-        --setenv PATH "$BIN_PATH" \
-        --setenv FAKEROOTDONTTRYCHOWN "true" \
-        --setenv LD_LIBRARY_PATH "$LIB_PATH" \
-        --setenv XDG_CONFIG_DIRS "/etc/xdg:$XDG_CONFIG_DIRS" \
-        --setenv XDG_DATA_DIRS "/usr/local/share:/usr/share:$XDG_DATA_DIRS" \
-        "${SETENV_ARGS[@]}" "${BUWRAP_ARGS[@]}" "${SLEEP_EXEC[@]}" \
-        "${SSRV_EXEC[@]}" "${EXEC_ARGS[@]}" \
-        "$@" 8>$BWINFFL
-    EXEC_STATUS=$?
-    [ -n "$WAITBWPID" ] && \
-        wait "$WAITBWPID"
-    [ -f "$BWINFFL" ] && \
-        rm -f "$BWINFFL"
+    ssrv "${EXEC_ARGS[@]}" "$@"
+    EXEC_STATUS="$?"
+    [ -f "$BWINFFL" ] && rm -f "$BWINFFL" 2>/dev/null
+    kill $SSRV_PID 2>/dev/null
+    [ -e "$SSRV_SOCK_PATH" ] && \
+        rm -f "$SSRV_SOCK_PATH" 2>/dev/null
     return $EXEC_STATUS
 }
 
@@ -1213,8 +1294,6 @@ pkg_list() (
     fi
 )
 
-bwrap_help() { NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun --help ; }
-
 bin_list() {
     NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun /usr/bin/find /usr/bin/ \
     -executable -type f -maxdepth 1 2>/dev/null|sed 's|/usr/bin/||g'
@@ -1230,7 +1309,7 @@ print_version() {
 
 run_update() {
     info_msg "RunImage update"
-    NO_NVIDIA_CHECK=1 QUIET_MODE=1 ALLOW_BG=0 \
+    NO_NVIDIA_CHECK=1 QUIET_MODE=1 \
         bwrun runupdate
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
@@ -1367,17 +1446,27 @@ decrypt_rootfs() {
 
 run_build() { "$RUNSTATIC/bash" "$RUNUTILS/runbuild" "$@" ; }
 
+check_unshare_tmp() {
+    if [ "$UNSHARE_TMP" == 1 ]
+        then
+            warn_msg "Host /tmp is unshared!"
+            TMP_BIND+=("--tmpfs" "/tmp" "--bind-try" "$REUIDDIR" "$REUIDDIR")
+        else TMP_BIND+=("--bind-try" "/tmp" "/tmp")
+    fi
+}
+
 disable_sandbox_net() {
     warn_msg "SANDBOX_NET is disabled for now!"
     unset SANDBOX_NET_CIDR SANDBOX_NET_MAC \
-        SANDBOX_NET_MTU SANDBOX_NET_TAPNAME
+        SANDBOX_NET_MTU SANDBOX_NET_TAPNAME \
+        SANDBOX_NET_TAPIP SANDBOX_NET_SHARE_HOST \
+        SANDBOX_NET_DROP_CIDRS
     SANDBOX_NET=0
 }
 
 set_default_option() {
     NO_WARN=1
     TMP_HOME=0
-    ALLOW_BG=0
     XORG_CONF=0
     SANDBOX_NET=0
     TMP_HOME_DL=0
@@ -1414,10 +1503,9 @@ print_help() {
 ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
     ${RED}Usage:
         $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-        $RED└──╼ \$$GREEN $([ -n "$ARGV0" ] && echo "$ARGV0"||echo "$0")$YELLOW {bubblewrap args} $GREEN{executable} $YELLOW{executable args}
+        $RED└──╼ \$$GREEN $([ -n "$ARGV0" ] && echo "$ARGV0"||echo "$0") $GREEN{executable} $YELLOW{executable args}
 
         ${BLUE}--run-help   ${RED}|${BLUE}--rH$GREEN                    Show this usage info
-        ${BLUE}--run-bwhelp ${RED}|${BLUE}--rBwh$GREEN                  Show Bubblewrap usage info
         ${BLUE}--run-version${RED}|${BLUE}--rV$GREEN                    Show runimage, rootfs, static, runtime version
         ${BLUE}--run-pkglist${RED}|${BLUE}--rP$GREEN                    Show packages installed in runimage
         ${BLUE}--run-binlist${RED}|${BLUE}--rBin$GREEN                  Show /usr/bin in runimage
@@ -1452,7 +1540,6 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}PORTABLE_HOME_DIR$GREEN=\"/path/dir\"        Specifies a portable home directory and uses it as ${YELLOW}\$HOME
         ${YELLOW}PORTABLE_CONFIG$GREEN=1                    Creates a portable config directory and uses it as ${YELLOW}\$XDG_CONFIG_HOME
         ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
-        ${YELLOW}ALLOW_BG$GREEN=1                           Allows you to run processes in the background
         ${YELLOW}UNSHARE_PIDS$GREEN=1                       Unshares all host processes
         ${YELLOW}UNSHARE_USERS$GREEN=1                      Don't bind-mount /etc/{passwd,group}
         ${YELLOW}SHARE_SYSTEMD$GREEN=1                      Shares SystemD from the host
@@ -1774,6 +1861,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
     $RESETCOLOR" >&2
 }
 
+trap cleanup EXIT
+
 if [[ "$EUID" == 0 && "$ALLOW_ROOT" != 1 ]]
     then
         error_msg "root user is not allowed!"
@@ -1782,25 +1871,6 @@ if [[ "$EUID" == 0 && "$ALLOW_ROOT" != 1 ]]
         echo -e "If you really need to run it as root set the ${YELLOW}ALLOW_ROOT${GREEN}=1 ${RED}environment variable.$RESETCOLOR"
         exit 1
 fi
-
-if [ $(cat /proc/sys/kernel/pid_max 2>/dev/null) -lt 4194304 ]
-    then
-        warn_msg "PID_MAX is less than 4194304!"
-        if [ "$EUID" == 0 ]
-            then
-                info_msg "Increasing PID_MAX to 4194304..."
-                echo kernel.pid_max=4194304 >> /etc/sysctl.d/98-pid_max.conf
-                echo 4194304 > /proc/sys/kernel/pid_max
-            else
-                console_info_notify
-                echo -e "${YELLOW}For better stability, recommended to increase PID_MAX to 4194304:"
-                echo -e "${RED}# ${GREEN}sudo sh -c 'echo kernel.pid_max=4194304 >> /etc/sysctl.d/98-pid_max.conf'"
-                echo -e "${RED}# ${GREEN}sudo sh -c 'echo 4194304 > /proc/sys/kernel/pid_max'$RESETCOLOR"
-        fi
-fi
-
-mkdir -p "$RUNPIDDIR"
-chmod go-rwx "$RUNTMPDIR"
 
 if [ -n "$AUTORUN" ] && \
    [[ "$RUNSRCNAME" == "Run"* || \
@@ -1815,9 +1885,9 @@ fi
 
 if [[ -n "$1" && ! -n "$AUTORUN" ]]
     then
-        case $1 in
+        case "$1" in
             --*) : ;;
-            *) RUNSRCNAME="$(basename "$1")"
+            *) RUNSRCNAME="$(basename "$1" 2>/dev/null)"
             ;;
         esac
 fi
@@ -1875,9 +1945,29 @@ if [ "$RUNIMAGE_CONFIG" != 0 ]
         warn_msg "RunImage config is disabled!"
 fi
 
+UNENV="all-:SHELL,DISPLAY,XDG_DATA_DIRS,\
+XDG_CONFIG_DIRS,XDG_RUNTIME_DIR,DBUS_SESSION_BUS_ADDRESS"
+
+if [ "$RUN_IN_ONE" == 1 ]
+    then
+        RUNIMAGEDIR_SUM=($(sha1sum<<<"$RUNIMAGEDIR"))
+        SSRV_SOCK_PATH="$RUNPIDDIR/${RUNIMAGEDIR_SUM}.sock"
+        SSRV_RUNPID="$(ls -1 "$RUNTMPDIR"/*/"${RUNIMAGEDIR_SUM}.sock" 2>/dev/null|head -1|awk -F'/' '{print $(NF-1)}')"
+        if [ -n "$SSRV_RUNPID" ]
+            then
+                if is_pid "$SSRV_RUNPID"
+                    then SSRV_SOCK_PATH="${RUNTMPDIR}/${SSRV_RUNPID}/${RUNIMAGEDIR_SUM}.sock"
+                    else rm -f "${RUNTMPDIR}/${SSRV_RUNPID}.${RUNIMAGEDIR_SUM}.sock"
+                fi
+        fi
+        export SSRV_SOCK="unix:$SSRV_SOCK_PATH"
+        [ -e "$SSRV_SOCK_PATH" ] && \
+        SSRV_ENV="$UNENV" exec ssrv "$@"
+fi
+
 case "$RUNSRCNAME" in
     Run*|runimage*|$RUNROOTFSTYPE)
-        case $1 in
+        case "$1" in
             --decrypt-rootfs|--dR) set_overfs_option crypt ;;
             --encrypt-rootfs|--eR|\
             --passwd-cryptfs|--pC) DONT_MOUNT_CRYPTFS=1
@@ -1888,19 +1978,19 @@ case "$RUNSRCNAME" in
             --run-build  |--rB) set_default_option ;;
             --run-kill   |--rK|\
             --run-help   |--rH|\
-            --run-bwhelp |--rBwh|\
             --overfs-list|--oL|\
             --overfs-rm  |--oR) DONT_MOUNT_CRYPTFS=1 ;
                                 set_default_option ;;
-            --run-attach |--rA) DONT_MOUNT_CRYPTFS=1
-                                set_default_option
-                                OVERFS_MODE=0
-                                unset OVERFS_ID KEEP_OVERFS ;;
+            --run-attach |--rA) shift ; run_attach "$@" ; exit $? ;;
             --run-procmon|--rPm) set_default_option ; TMP_HOME=1
+                                 export SSRV_SOCK="unix:$RUNPIDDIR/rmp"
                                  NO_RPIDSMON=1 ; QUIET_MODE=1 ;;
             --run-update |--rU) set_overfs_option upd ;;
         esac
 esac
+
+mkdir -p "$RUNPIDDIR"
+chmod go-rwx "$REUIDDIR"/{,/run}
 
 if logname &>/dev/null
     then
@@ -1970,7 +2060,7 @@ XDG_DBUS=(
 if [ "$UNSHARE_PIDS" == 1 ]
     then
         warn_msg "Host PIDs are unshared!"
-        UNSHARE_BIND+=("--unshare-pid")
+        UNSHARE_BIND+=("--unshare-pid" "--as-pid-1")
         [ "$UNSHARE_DBUS" != 1 ] && \
             runbinds+=(
                 "/run/dbus"
@@ -1980,6 +2070,8 @@ if [ "$UNSHARE_PIDS" == 1 ]
             "$XDG_RUNTIME_DIR/pulse"
             "$XDG_RUNTIME_DIR/pipewire-0"
             "$XDG_RUNTIME_DIR/pipewire-0.lock"
+            "$XDG_RUNTIME_DIR/pipewire-0-manager"
+            "$XDG_RUNTIME_DIR/pipewire-0-manager.lock"
         )
     else
         runbinds+=("/run/utmp")
@@ -2011,7 +2103,7 @@ if [ "$UNSHARE_LOCALTIME" != 1 ]
     else warn_msg "Host '/etc/localtime' is unshared!"
 fi
 
-if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
+if [ "$NO_RPIDSMON" != 1 ]
     then
         (wait_rpids=15
         while [[ ! -n "$oldrpids" && "$wait_rpids" -gt 0 ]]
@@ -2033,14 +2125,12 @@ if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
                         fi
                         break
                     else
-                        if [ -n "$newrpids" ]
+                        if [[ -n "$(echo -e "$newrpids\n$oldrpids"|\
+                            sort -n|uniq -u)" || ! -f "$RPIDSFL" ]]
                             then
-                                if [[ -n "$(echo -e "$newrpids\n$oldrpids"|\
-                                    sort -n|uniq -u)" || ! -f "$RPIDSFL" ]]
-                                    then
-                                        echo "$newrpids" > "$RPIDSFL"
-                                        oldrpids="$newrpids"
-                                fi
+                                [ -d "$(dirname "$RPIDSFL")" ] && \
+                                echo "$newrpids" > "$RPIDSFL"
+                                oldrpids="$newrpids"
                         fi
                 fi
                 sleep 0.5 2>/dev/null
@@ -2139,24 +2229,32 @@ if [ "$EUID" != 0 ]
                 error_msg "unprivileged_userns_clone is disabled!"
                 console_info_notify
                 echo -e "${YELLOW}You need to enable unprivileged_userns_clone:"
-                echo -e "${RED}# ${GREEN}sudo sh -c 'echo kernel.unprivileged_userns_clone=1 >> /etc/sysctl.d/98-userns.conf'"
-                echo -e "${RED}# ${GREEN}sudo sh -c 'echo 1 > /proc/sys/kernel/unprivileged_userns_clone'$RESETCOLOR"
+                echo -e "${RED}# ${GREEN}sudo tee /etc/sysctl.d/98-unprivileged-userns-clone.conf <<<kernel.unprivileged_userns_clone=1"
+                echo -e "${RED}# ${GREEN}sudo tee /proc/sys/kernel/unprivileged_userns_clone <<<1$RESETCOLOR"
                 exit 1
         elif [ "$(cat '/proc/sys/user/max_user_namespaces' 2>/dev/null)" == 0 ]
             then
                 error_msg "max_user_namespaces is disabled!"
                 console_info_notify
                 echo -e "${YELLOW}You need to enable max_user_namespaces:"
-                echo -e "${RED}# ${GREEN}sudo sh -c 'echo user.max_user_namespaces=10000 >> /etc/sysctl.d/98-userns.conf'"
-                echo -e "${RED}# ${GREEN}sudo sh -c 'echo 10000 > /proc/sys/user/max_user_namespaces'$RESETCOLOR"
+                echo -e "${RED}# ${GREEN}sudo tee /etc/sysctl.d/98-max-user-namespaces.conf <<<user.max_user_namespaces=10000"
+                echo -e "${RED}# ${GREEN}sudo tee /proc/sys/user/max_user_namespaces <<<10000$RESETCOLOR"
                 exit 1
         elif [ "$(cat '/proc/sys/kernel/userns_restrict' 2>/dev/null)" == 1 ]
             then
                 error_msg "userns_restrict is enabled!"
                 console_info_notify
-                echo -e "${YELLOW}You need to disabled userns_restrict:"
-                echo -e "${RED}# ${GREEN}sudo sh -c 'echo kernel.userns_restrict=0 >> /etc/sysctl.d/98-userns.conf'"
-                echo -e "${RED}# ${GREEN}sudo sh -c 'echo 0 > /proc/sys/kernel/userns_restrict'$RESETCOLOR"
+                echo -e "${YELLOW}You need to disable userns_restrict:"
+                echo -e "${RED}# ${GREEN}sudo tee /etc/sysctl.d/98-userns.conf <<<kernel.userns_restrict=0"
+                echo -e "${RED}# ${GREEN}sudo tee /proc/sys/kernel/userns_restrict <<<0$RESETCOLOR"
+                exit 1
+        elif [ "$(cat '/proc/sys/kernel/apparmor_restrict_unprivileged_userns' 2>/dev/null)" == 1 ]
+            then
+                error_msg "apparmor_restrict_unprivileged_userns is enabled!"
+                console_info_notify
+                echo -e "${YELLOW}You need to disable apparmor_restrict_unprivileged_userns:"
+                echo -e "${RED}# ${GREEN}sudo tee /etc/sysctl.d/98-apparmor-unuserns.conf <<<kernel.apparmor_restrict_unprivileged_userns=0"
+                echo -e "${RED}# ${GREEN}sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns <<<0$RESETCOLOR"
                 exit 1
         fi
 fi
@@ -2314,7 +2412,7 @@ if [ -n "$AUTORUN" ]
     then
         AUTORUN0ARG=($AUTORUN)
         info_msg "Autorun mode: ${AUTORUN[@]}"
-        if NO_NVIDIA_CHECK=1 QUIET_MODE=1 ALLOW_BG=0 SANDBOX_NET=0 bwrun \
+        if NO_NVIDIA_CHECK=1 QUIET_MODE=1 SANDBOX_NET=0 bwrun \
             /usr/bin/sh -c "[ -x '/usr/bin/$AUTORUN0ARG' ]"
             then
                 RUNSRCNAME="$AUTORUN0ARG"
@@ -2554,46 +2652,53 @@ if [[ ! -n "$XAUTHORITY" || "$SET_HOME_DIR" == 1 || \
         fi
 fi
 
-if [ -d "/tmp/.X11-unix" ] # Gamecope X11 sockets bug
+if [[ -d "/tmp/.X11-unix" && "$UNSHARE_TMP" != 1 ]]
     then
-        if [ -L "/tmp/.X11-unix" ] # WSL
+        if [  "$UNSHARE_TMPX11UNIX" != 1 ] # Gamecope X11 sockets bug
             then
-                TMP_BIND+=("--tmpfs" "/tmp" \
-                           "--dir" "/tmp/.X11-unix")
-                for i_tmp in /tmp/* /tmp/.[a-zA-Z0-9]*
-                    do
-                        [ "$i_tmp" != "/tmp/.X11-unix" ] && \
-                            TMP_BIND+=("--bind-try" "$i_tmp" "$i_tmp")
-                done
+                if [ -L "/tmp/.X11-unix" ] # WSL
+                    then
+                        TMP_BIND+=("--tmpfs" "/tmp" "--dir" "/tmp/.X11-unix")
+                        for i_tmp in /tmp/* /tmp/.[a-zA-Z0-9]*
+                            do
+                                [ "$i_tmp" != "/tmp/.X11-unix" ] && \
+                                    TMP_BIND+=("--bind-try" "$i_tmp" "$i_tmp")
+                        done
+                    else
+                        check_unshare_tmp
+                        TMP_BIND+=("--tmpfs" "/tmp/.X11-unix")
+                fi
+                if [ -n "$(ls -A /tmp/.X11-unix 2>/dev/null)" ]
+                    then
+                        for x_socket in /tmp/.X11-unix/X*
+                            do TMP_BIND+=("--bind-try" "$x_socket" "$x_socket")
+                        done
+                fi
             else
-                TMP_BIND+=("--bind-try" "/tmp" "/tmp" \
-                           "--tmpfs" "/tmp/.X11-unix")
+                warn_msg "Host /tmp/.X11-unix is unshared!"
+                check_unshare_tmp
+                TMP_BIND+=("--tmpfs" "/tmp/.X11-unix")
         fi
-        if [ -n "$(ls -A /tmp/.X11-unix 2>/dev/null)" ]
-            then
-                for x_socket in /tmp/.X11-unix/X*
-                    do
-                        TMP_BIND+=("--bind-try" "$x_socket" "$x_socket")
-                done
-        fi
-    else
-        TMP_BIND+=("--bind-try" "/tmp" "/tmp")
+    else check_unshare_tmp
 fi
 
 if [ -d "$TMPDIR" ]
     then
         NEWTMPDIR="$RUNPIDDIR/tmp"
         info_msg "Binding \$TMPDIR to: '$NEWTMPDIR'"
-        TMPDIR_BIND+=("--dir" "$NEWTMPDIR" \
-                      "--bind-try" "$TMPDIR" "$NEWTMPDIR" \
-                      "--setenv" "TMPDIR" "$NEWTMPDIR")
+        TMPDIR_BIND+=(
+            "--dir" "$NEWTMPDIR"
+            "--bind-try" "$TMPDIR" "$NEWTMPDIR"
+            "--setenv" "TMPDIR" "$NEWTMPDIR"
+        )
     else
         unset TMPDIR
 fi
 
 [[ -n "$SANDBOX_NET_CIDR" || -n "$SANDBOX_NET_MTU" ||\
    -n "$SANDBOX_NET_TAPNAME" || -n "$SANDBOX_NET_MAC" ||\
-   "$SANDBOX_NET_SHARE_HOST" == 1 ]] && \
+   "$SANDBOX_NET_SHARE_HOST" == 1 || -n "$SANDBOX_NET_TAPIP" ||\
+   "$SANDBOX_NET_DROP_CIDRS" == 1 ]] && \
    SANDBOX_NET=1
 
 [[ "$SANDBOX_NET" == 1 && "$SUID_BUWRAP" == 1 ]] && \
@@ -2632,9 +2737,9 @@ if [[ "$SANDBOX_NET" == 1 || "$NO_NET" == 1 ]] && [ "$UNSHARE_DBUS" != 1 ] && \
         socat UNIX-LISTEN:"$DBUSP_SOCKET",reuseaddr,fork \
             ABSTRACT-CONNECT:"$(echo "$DBUS_SESSION_BUS_ADDRESS"|\
                                 sed 's|unix:abstract=||g;s|,guid=.*$||g')" &
-        DBUSP_PID=$!
+        DBUSP_PID="$!"
         sleep 0.05
-        if [[ -n "$DBUSP_PID" && -d "/proc/$DBUSP_PID" && -S "$DBUSP_SOCKET" ]]
+        if is_pid "$DBUSP_PID" && [ -S "$DBUSP_SOCKET" ]
             then
                 SETENV_ARGS+=("--setenv" "DBUS_SESSION_BUS_ADDRESS" "unix:path=$DBUSP_SOCKET")
             else
@@ -2726,7 +2831,7 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
         mkdir -p "$EXECFLDIR" 2>/dev/null
         mkfifo "$JOBNUMFL" 2>/dev/null
         unset jobnum
-        while [[ -d "/proc/$RUNPID" && -d "$EXECFLDIR" ]]
+        while is_pid "$RUNPID" && [ -d "$EXECFLDIR" ]
             do
                 jobnum=$(( $jobnum + 1 ))
                 execjobdir="$EXECFLDIR/$jobnum"
@@ -2741,7 +2846,7 @@ if [ "$ENABLE_HOSTEXEC" == 1 ]
                 if [ -e "$execjobfl" ]
                     then
                         (cat "$execjobfl" 2>/dev/null|"$RUNSTATIC/bash" &>"$execjoboutfl" &
-                        execjobpid=$!
+                        execjobpid="$!"
                         tee <<<"$execjobpid" "$execjobstatfl" &>/dev/null
                         wait $execjobpid 2>/dev/null
                         execstat=$?
@@ -2765,9 +2870,12 @@ VAR_BIND+=(
     "--bind-try" "/var/mnt" "/var/mnt"
     "--bind-try" "/var/home" "/var/home"
     "--bind-try" "/var/roothome" "/var/roothome"
-    "--bind-try" "/var/log/wtmp" "/var/log/wtmp"
-    "--bind-try" "/var/log/lastlog" "/var/log/lastlog"
 )
+[ -e '/var/log/wtmp' ] && \
+VAR_BIND+=("--bind-try" "/var/log/wtmp" "/var/log/wtmp")
+[ -e '/var/log/lastlog' ] && \
+VAR_BIND+=("--bind-try" "/var/log/lastlog" "/var/log/lastlog")
+
 if [ ! -w "$RUNROOTFS" ]
     then
         VAR_BIND+=(
@@ -2832,10 +2940,7 @@ if [ "$UNSHARE_MODULES" != 1 ]
         warn_msg "Kernel modules are unshared!"
 fi
 
-SSRV_EXEC=(ssrvrap)
-
 ##############################################################################
-trap 'cleanup' EXIT SIGINT SIGTERM
 if [ -n "$AUTORUN" ]
     then
         [ "$1" != "$(basename "$RUNSRC")" ] && [[ "$1" == "$AUTORUN0ARG" ||\
@@ -2849,7 +2954,8 @@ if [ -n "$AUTORUN" ]
     else
         if [ ! -n "$1" ]
             then
-                print_help
+                info_msg "To show usage, run with ${BLUE}--run-help"
+                bwrun "${RUN_SHELL[@]}"
             else
                 case $1 in
                     --encrypt-rootfs|--eR) shift ; encrypt_rootfs "$@" ;;
@@ -2859,7 +2965,6 @@ if [ -n "$AUTORUN" ]
                     --run-kill   |--rK) force_kill ;;
                     --run-help   |--rH) print_help ;;
                     --run-binlist|--rBin) bin_list ;;
-                    --run-bwhelp |--rBwh) bwrap_help ;;
                     --run-version|--rV) print_version ;;
                     --overfs-list|--oL) overlayfs_list ;;
                     --run-attach |--rA) shift ; run_attach "$@" ;;

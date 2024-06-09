@@ -25,5 +25,5 @@ Target = etc/xdg/menus/applications-merged/*
 [Action]
 Description = Desktop integration remove...
 When = PreTransaction
-Exec = /var/RunDir/utils/desktop-integration hook remove
+Exec = /var/RunDir/utils/desktop-integration remove hook
 NeedsTargets
