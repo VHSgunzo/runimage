@@ -17,8 +17,8 @@ error_msg() {
 }
 
 get_child_pids() {
-    local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
-    echo -e "$1\n$(ps -o pid=,cmd= -p $child_pids 2>/dev/null|sort -n|\
+    local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p "$1" 2>/dev/null) 2>/dev/null)"
+    echo -e "$1\n$(ps -o pid=,cmd= -p "$child_pids" 2>/dev/null|sort -n|\
     sed "0,/$1/d" 2>/dev/null|grep -Pv '\d+ sleep \d+'|awk '{print$1}')"|sort -nu
 }
 
@@ -33,20 +33,20 @@ try_kill() {
                         do
                             if [[ "$trykillnum" -le 3 ]]
                                 then
-                                    kill -2 $pid 2>/dev/null
+                                    kill -2 "$pid" 2>/dev/null
                                     ret=$?
                                     sleep 0.05
                                 else
-                                    kill -9 $pid 2>/dev/null
+                                    kill -9 "$pid" 2>/dev/null
                                     ret=$?
-                                    wait $pid &>/dev/null
+                                    wait "$pid" &>/dev/null
                                     wait_pid "$pid"
                             fi
                             trykillnum="$(( $trykillnum + 1 ))"
                     done
             done
     fi
-    return $ret
+    return "$ret"
 }
 
 wait_pid() {
@@ -228,7 +228,7 @@ if [[ -d "$EXECFLDIR" && -e "$JOBNUMFL" ]]
                 execstat="$(cat "$execjobstatfl" 2>/dev/null)"
         fi
         [ -n "$execstat" ]||execstat=1
-        exit $execstat
+        exit "$execstat"
     else
         error_msg "EXECFLDIR is not configured!"
         exit 1

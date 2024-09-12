@@ -431,9 +431,9 @@ get_nvidia_driver_image() {
                         [ -n "$(ls *nvngx.dll 2>/dev/null)" ] && try_mkdir wine && mv *nvngx.dll wine
                         try_mkdir json && mv *.json json
                         try_mkdir conf && mv *.conf *.icd conf
-                        for lib in $trash_libs ; do rm -f $lib 32/$lib ; done
+                        for lib in $trash_libs ; do rm -f "$lib" 32/"$lib" ; done
                         try_mkdir bin && mv *.sh bin
-                        for binary in $binary_files ; do [ -f "$binary" ] && mv $binary bin ; done
+                        for binary in $binary_files ; do [ -f "$binary" ] && mv "$binary" bin ; done
                         try_mkdir 64 && mv *.so* 64
                         [ -d "tls" ] && mv tls/* 64 && rm -rf tls
                         [ -d "32/tls" ] && mv 32/tls/* 32 && rm -rf 32/tls)
@@ -792,7 +792,7 @@ try_unmount() {
                     elif umount -l "$1" 2>/dev/null
                         then DORM=1
                     elif [ "$ALLOW_BG" != 1 ] && \
-                        kill -2 $FUSE_PIDS 2>/dev/null
+                        kill -2 "$FUSE_PIDS" 2>/dev/null
                         then DORM=1
                     else
                         error_msg "Failed to unmount: '$1'"
@@ -834,8 +834,8 @@ run_attach() {
             do
                 for args in "-n -p" "-n" "-p" " "
                     do
-                        if nsenter --preserve-credentials $NSU -m $args \
-                            -t $pid /usr/bin/true &>/dev/null
+                        if nsenter --preserve-credentials $NSU -m "$args" \
+                            -t "$pid" /usr/bin/true &>/dev/null
                             then
                                 target="$pid"
                                 target_args="$args"
@@ -866,8 +866,8 @@ run_attach() {
                         done; sleep 1) &
                         WAITRPIDS=$!
                 fi
-                importenv $target nsenter --preserve-credentials \
-                    --wd=/proc/$target/cwd $NSU -m $target_args -t $target "$@"
+                importenv "$target" nsenter --preserve-credentials \
+                    --wd=/proc/"$target"/cwd $NSU -m "$target_args" -t "$target" "$@"
                 EXEC_STATUS=$?
                 [ -n "$WAITRPIDS" ] && \
                     wait "$WAITRPIDS"
@@ -937,16 +937,16 @@ try_kill() {
                         do
                             if [[ "$trykillnum" -lt 1 ]]
                                 then
-                                    kill -2 $pid 2>/dev/null
+                                    kill -2 "$pid" 2>/dev/null
                                     ret=$?
                                     sleep 0.05 2>/dev/null
                             elif [[ "$trykillnum" -lt 2 ]]
                                 then
-                                    kill -15 $pid 2>/dev/null
+                                    kill -15 "$pid" 2>/dev/null
                                     ret=$?
                                     sleep 0.05 2>/dev/null
                             else
-                                kill -9 $pid 2>/dev/null
+                                kill -9 "$pid" 2>/dev/null
                                 ret=$?
                                 break
                             fi
@@ -974,10 +974,10 @@ cleanup() {
                 rm -rf "$EXECFLDIR" 2>/dev/null
             if [[ "$ALLOW_BG" != 1 || "$1" == "force" ]]
                 then
-                    kill -2 $FUSE_PIDS 2>/dev/null
+                    kill -2 "$FUSE_PIDS" 2>/dev/null
                     if [ -n "$DBUSP_PID" ]
                         then
-                            kill $DBUSP_PID 2>/dev/null
+                            kill "$DBUSP_PID" 2>/dev/null
                             [ -S "$DBUSP_SOCKET" ] && \
                                 rm -f "$DBUSP_SOCKET" 2>/dev/null
                     fi
@@ -1004,8 +1004,8 @@ cleanup() {
 get_child_pids() {
     if [[ -n "$1" && -d "/proc/$1" ]]
         then
-            local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
-            ps -o user=,pid=,cmd= -p $child_pids 2>/dev/null|grep "^$RUNUSER"|\
+            local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p "$1" 2>/dev/null) 2>/dev/null)"
+            ps -o user=,pid=,cmd= -p "$child_pids" 2>/dev/null|grep "^$RUNUSER"|\
             grep -v "bash $RUNDIR/Run.sh"|grep -Pv '\d+ sleep \d+'|\
             grep -wv "$RUNPPID"|awk '{print$2}'|sort -nu
         else
@@ -1805,7 +1805,7 @@ elif [[ ! -n "$DISPLAY" && ! -n "$WAYLAND_DISPLAY" && -n "$XDG_SESSION_TYPE" ]]
                           grep -om1 '(.*)$'|sed 's/(//;s/)//')"
 fi
 
-xhost +si:localuser:$RUNUSER &>/dev/null
+xhost +si:localuser:"$RUNUSER" &>/dev/null
 [[ "$EUID" == 0 && "$RUNUSER" != "root" ]] && \
     xhost +si:localuser:root &>/dev/null
 
@@ -1901,7 +1901,7 @@ if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
                 wait_rpids="$(( $wait_rpids - 1 ))"
                 sleep 0.01 2>/dev/null
         done
-        while ps -o pid= -p $oldrpids &>/dev/null
+        while ps -o pid= -p "$oldrpids" &>/dev/null
             do
                 newrpids="$(get_child_pids "$RUNPID")"
                 if [ ! -n "$newrpids" ]
@@ -2102,7 +2102,7 @@ if [ "$OVERFS_MODE" != 0 ] && [[ "$OVERFS_MODE" == 1 || "$KEEP_OVERFS" == 1 || -
         export OVERFS_MNT="$OVERFS_DIR/mnt"
         BRUNDIR="$OVERFS_MNT"
         "$UNIONFS" -f -o max_files=$(ulimit -n -H),hide_meta_files,cow,noatime \
-                      -o $([ "$EUID" != 0 ] && echo relaxed_permissions),uid=$EUID,gid=$EGID \
+                      -o $([ "$EUID" != 0 ] && echo relaxed_permissions),uid=$EUID,gid="$EGID" \
                       -o dirs="$OVERFS_DIR/layers"=RW:"$([ -n "$RO_MNT" ] && echo "$RO_MNT"||\
                          echo "$RUNDIR")"=RO "$OVERFS_MNT" &>/dev/null &
         UNIONFS_PID="$!"
@@ -2589,7 +2589,7 @@ if [ -n "$AUTORUN" ]
           "$1" == "$(basename "${RUNIMAGE_INTERNAL_CONFIG%.rcfg}")" ]] && \
             shift
         if [ "${#AUTORUN[@]}" == 1 ]
-            then bwrun /usr/bin/$AUTORUN "$@"
+            then bwrun /usr/bin/"$AUTORUN" "$@"
             else bwrun /usr/bin/"${AUTORUN[@]}" "$@"
         fi
     else
