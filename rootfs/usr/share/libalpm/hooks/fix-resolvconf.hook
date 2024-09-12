@@ -7,4 +7,4 @@ Target = usr/bin/resolvconf
 [Action]
 Description = Updating resolvconf...
 When = PostTransaction
-Exec = /usr/bin/sh -c 'sed -i "s|warn \"could not detect a useable init system\"|# &|g" /usr/bin/resolvconf'
+Exec = /usr/bin/sh -c 'sed -i "s|warn \"could not detect a usable init system\"|# &|g" /usr/bin/resolvconf'

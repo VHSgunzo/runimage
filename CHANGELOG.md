@@ -299,7 +299,7 @@ The `superlite` version includes all the necessary libraries to run 32-64 bit ap
 * Add launching `socat` `dbus` proxy if `*_NET*` and `DBUS_SESSION_BUS_ADDRESS` =~ `unix:abstract`
 * Add `RUNPPID` Parent PID of `Run.sh` script
 * Fix sometimes killing parent PID on container exit if `PID_MAX` is too small
-* Add warning and recomendation if `PID_MAX` is less than `4194304`
+* Add warning and recommendation if `PID_MAX` is less than `4194304`
 * Remove `headpid`
 * Add [ptyspawn](https://github.com/VHSgunzo/ptyspawn)
 * Update [bubblewrap](https://github.com/VHSgunzo/bubblewrap-static/releases/tag/v0.7.0.r8) v0.7.0.r8

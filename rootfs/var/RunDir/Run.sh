@@ -1310,7 +1310,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
 
     ${RED}Only for not extracted (RunImage runtime options):
         ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
-        ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run runimage afer extraction without using FUSE
+        ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run runimage after extraction without using FUSE
         ${BLUE}--runtime-help$GREEN                       Show runimage runtime help (Shown in this help)
         ${BLUE}--runtime-mount$GREEN                      Mount embedded filesystem image and print
         ${BLUE}--runtime-offset$GREEN                     Print byte offset to start of embedded
@@ -1359,7 +1359,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
         ${YELLOW}NO_WARN$GREEN=1                            Disables all warning runimage messages
         ${YELLOW}DONT_NOTIFY$GREEN=1                        Disables all non-error runimage notification
-        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run runimage afer extraction without using FUSE
+        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run runimage after extraction without using FUSE
         ${YELLOW}TMPDIR$GREEN=\"/path/{TMPDIR}\"              Used for extract and run options
         ${YELLOW}RUNIMAGE_CONFIG$GREEN=\"/path/{config}\"     runimage сonfiguration file (0 to disable)
         ${YELLOW}ENABLE_HOSTEXEC$GREEN=1                    Enables the ability to execute commands at the host level

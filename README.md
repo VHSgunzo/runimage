@@ -85,7 +85,7 @@ chmod +x runimage
 
 Only for not extracted (RunImage runtime options):
     --runtime-extract {pattern}          Extract content from embedded filesystem image
-    --runtime-extract-and-run {args}     Run runimage afer extraction without using FUSE
+    --runtime-extract-and-run {args}     Run runimage after extraction without using FUSE
     --runtime-help                       Show runimage runtime help (Shown in this help)
     --runtime-mount                      Mount embedded filesystem image and print
     --runtime-offset                     Print byte offset to start of embedded
@@ -134,7 +134,7 @@ Environment variables to configure:
     QUIET_MODE=1                         Disables all non-error runimage messages
     NO_WARN=1                            Disables all warning runimage messages
     DONT_NOTIFY=1                        Disables all non-error runimage notification
-    RUNTIME_EXTRACT_AND_RUN=1            Run runimage afer extraction without using FUSE
+    RUNTIME_EXTRACT_AND_RUN=1            Run runimage after extraction without using FUSE
     TMPDIR="/path/{TMPDIR}"              Used for extract and run options
     RUNIMAGE_CONFIG="/path/{config}"     runimage сonfiguration file (0 to disable)
     ENABLE_HOSTEXEC=1                    Enables the ability to execute commands at the host level
