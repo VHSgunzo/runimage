@@ -11,7 +11,7 @@ GREEN='\033[1;92m'
 YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 
-[ ! -n "$SYS_PATH" ] && \
+[ -z "$SYS_PATH" ] && \
 export SYS_PATH="$PATH"
 export RUNPPID="$PPID"
 export RUNPID="$BASHPID"
@@ -33,7 +33,7 @@ unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
 
 which_exe() { command -v "$@" ; }
 
-[[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
+[[ -z "$LANG" || "$LANG" =~ "UTF8" ]] && \
     export LANG=en_US.UTF-8
 
 if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
@@ -42,7 +42,7 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
         [ "$SYS_TOOLS" == 1 ] && \
             export PATH="$SYS_PATH:$RUNSTATIC"||\
             export PATH="$RUNSTATIC:$SYS_PATH"
-        if [ ! -n "$RUNIMAGE" ] # KDE Neon, CachyOS, Puppy Linux bug
+        if [ -z "$RUNIMAGE" ] # KDE Neon, CachyOS, Puppy Linux bug
             then
                 if [ -x "$(realpath "$ARGV0" 2>/dev/null)" ]
                     then
@@ -73,7 +73,7 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
             export PATH="$SYS_PATH:$RUNSTATIC"||\
             export PATH="$RUNSTATIC:$SYS_PATH"
         export RUNIMAGEDIR="$(realpath "$RUNDIR/../" 2>/dev/null)"
-        if [ ! -n "$RUNSRC" ]
+        if [ -z "$RUNSRC" ]
             then
                 if [ -x "$(realpath -s "$0" 2>/dev/null)" ]
                     then
@@ -87,9 +87,9 @@ if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
         fi
 fi
 
-[ ! -n "$RUNTTY" ] && \
+[ -z "$RUNTTY" ] && \
     export RUNTTY="$(tty|grep -v 'not a')"
-[ ! -n "$(echo "$RUNTTY"|grep -Eo 'tty|pts')" ] && \
+[ -z "$(echo "$RUNTTY"|grep -Eo 'tty|pts')" ] && \
     NOT_TERM=1||NOT_TERM=0
 
 [ "$NOT_TERM" != 1 ] && \
@@ -196,7 +196,7 @@ yn_case() {
 check_url_stat_code() { curl -sL -o /dev/null --insecure -I -w "%{http_code}" "$@" 2>/dev/null ; }
 
 is_url() {
-    [ ! -n "$1" ] && \
+    [ -z "$1" ] && \
         return 1
     if [ -n "$2" ]
         then [ "$(check_url_stat_code "$1")" == "$2" ]
@@ -379,13 +379,13 @@ try_dl() {
 get_nvidia_driver_image() {
     (if [[ -n "$1" || -n "$nvidia_version" ]]
         then
-            [ ! -n "$nvidia_version" ] && \
+            [ -z "$nvidia_version" ] && \
                 nvidia_version="$1"
             [[ -d "$2" && ! -n "$NVIDIA_DRIVERS_DIR" ]] && \
                 export NVIDIA_DRIVERS_DIR="$2"
             [[ ! -d "$2" && ! -n "$NVIDIA_DRIVERS_DIR" ]] && \
                 export NVIDIA_DRIVERS_DIR="."
-            [ ! -n "$nvidia_driver_image" ] && \
+            [ -z "$nvidia_driver_image" ] && \
                 nvidia_driver_image="$nvidia_version.nv.drv"
             try_mkdir "$NVIDIA_DRIVERS_DIR"
             info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
@@ -463,9 +463,9 @@ get_nvidia_driver_image() {
 mount_nvidia_driver_image() {
     if [[ -n "$1" && -n "$(echo "$1"|grep -o "\.nv\.drv$")" ]]
         then
-            [ ! -n "$nvidia_version" ] && \
+            [ -z "$nvidia_version" ] && \
                 nvidia_version="$(echo "$1"|sed 's|.nv.drv||g')"
-            [ ! -n "$NVDRVMNT" ] && \
+            [ -z "$NVDRVMNT" ] && \
                 NVDRVMNT="/tmp/.mount_nv${nvidia_version}drv.$RUNPID"
             info_msg "Mounting the nvidia driver image: $(basename "$1")"
             try_mkdir "$NVDRVMNT"
@@ -537,7 +537,7 @@ check_nvidia_driver() {
         grep -owm1 nvidia /proc/modules &>/dev/null
         then
             unset nvidia_driver_dir
-            [ ! -n "$NVIDIA_DRIVERS_DIR" ] && \
+            [ -z "$NVIDIA_DRIVERS_DIR" ] && \
                 export NVIDIA_DRIVERS_DIR="$RUNIMAGEDIR/nvidia-drivers"
             if [ -e '/sys/module/nvidia/version' ]
                 then
@@ -760,7 +760,7 @@ check_nvidia_driver() {
 add_lib_pth() {
     if [ -n "$LIB_PATH" ]
         then
-            if [ ! -n "$(echo "$LIB_PATH"|grep -ow "$1" 2>/dev/null)" ]
+            if [ -z "$(echo "$LIB_PATH"|grep -ow "$1" 2>/dev/null)" ]
                 then
                     LIB_PATH="${1}:${LIB_PATH}"
             fi
@@ -772,7 +772,7 @@ add_lib_pth() {
 add_bin_pth() {
     if [ -n "$BIN_PATH" ]
         then
-            if [ ! -n "$(echo "$BIN_PATH"|grep -ow "$1" 2>/dev/null)" ]
+            if [ -z "$(echo "$BIN_PATH"|grep -ow "$1" 2>/dev/null)" ]
                 then
                     BIN_PATH="${1}:${BIN_PATH}"
             fi
@@ -1799,7 +1799,7 @@ export RUNGROUP="$(id -gn 2>/dev/null)"
 if [[ "$DISPLAY" == "wayland-"* ]]
     then
         export DISPLAY=":$(echo "$DISPLAY"|sed 's|wayland-||g')"
-elif [[ ! -n "$DISPLAY" && ! -n "$WAYLAND_DISPLAY" && -n "$XDG_SESSION_TYPE" ]]
+elif [[ -z "$DISPLAY" && ! -n "$WAYLAND_DISPLAY" && -n "$XDG_SESSION_TYPE" ]]
     then
         export DISPLAY="$(who|grep "$RUNUSER"|grep -v "ttyS"|\
                           grep -om1 '(.*)$'|sed 's/(//;s/)//')"
@@ -1823,7 +1823,7 @@ if [ "$UNSHARE_DEF_MOUNTS" != 1 ]
         unset runbinds
 fi
 
-[[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" ]] && \
+[[ -z "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" ]] && \
     export XDG_RUNTIME_DIR="/run/user/$EUID"
 XDG_RUN_BIND=(
     "--tmpfs" "/run"
@@ -1895,7 +1895,7 @@ fi
 if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
     then
         (wait_rpids=15
-        while [[ ! -n "$oldrpids" && "$wait_rpids" -gt 0 ]]
+        while [[ -z "$oldrpids" && "$wait_rpids" -gt 0 ]]
             do
                 oldrpids="$(get_child_pids "$RUNPID")"
                 wait_rpids="$(( $wait_rpids - 1 ))"
@@ -1904,7 +1904,7 @@ if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
         while ps -o pid= -p "$oldrpids" &>/dev/null
             do
                 newrpids="$(get_child_pids "$RUNPID")"
-                if [ ! -n "$newrpids" ]
+                if [ -z "$newrpids" ]
                     then
                         if [ "$wait_rpids" -gt 0 ]
                             then
@@ -1928,7 +1928,7 @@ if [[ "$NO_RPIDSMON" != 1 && "$ALLOW_BG" != 1 ]]
         done) &
 fi
 
-if [ ! -n "$DBUS_SESSION_BUS_ADDRESS" ]
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]
     then
         if [ -S "$XDG_RUNTIME_DIR/bus" ]
             then export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
@@ -1991,7 +1991,7 @@ if [ "$EUID" != 0 ]
         if [ ! -f '/proc/self/ns/user' ]
             then
                 SYS_BUWRAP=1
-                [ ! -n "$(echo "$PATH"|grep -wo '^/usr/bin:')" ] && \
+                [ -z "$(echo "$PATH"|grep -wo '^/usr/bin:')" ] && \
                     export PATH="/usr/bin:$PATH"
                 if [ ! -x "$(find "$(which_exe bwrap)" -perm -u=s 2>/dev/null)" ]
                     then
@@ -2078,7 +2078,7 @@ fi
 
 if [ "$OVERFS_MODE" != 0 ] && [[ "$OVERFS_MODE" == 1 || "$KEEP_OVERFS" == 1 || -n "$OVERFS_ID" ]]
     then
-        if [ ! -n "$OVERFS_ID" ]
+        if [ -z "$OVERFS_ID" ]
             then
                 export OVERFS_ID=0
                 while true
@@ -2131,7 +2131,7 @@ if [ -n "$AUTORUN" ]
         fi
 fi
 
-if [ ! -n "$RUN_SHELL" ]
+if [ -z "$RUN_SHELL" ]
     then
         if [ -x "$RUNROOTFS/usr/bin/fish" ]
             then
@@ -2196,7 +2196,7 @@ elif [[ "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" == 1 || -d "$SANDBOX_HOME_DIR
                             "--dir" "$NEW_HOME")
         fi
         HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
-        [ ! -n "$SANDBOX_HOME_DIR" ] && \
+        [ -z "$SANDBOX_HOME_DIR" ] && \
             SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
         if [[ "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" == 1 ]] && \
             [ ! -d "$SANDBOX_HOME_DIR" ]
@@ -2308,7 +2308,7 @@ fi
 [ -n "$XAUTHORITY" ] && \
     SYS_XAUTHORITY="$XAUTHORITY"
 
-if [[ ! -n "$XAUTHORITY" || "$SET_HOME_DIR" == 1 || \
+if [[ -z "$XAUTHORITY" || "$SET_HOME_DIR" == 1 || \
     "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 || \
     "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" ]]
     then
@@ -2593,7 +2593,7 @@ if [ -n "$AUTORUN" ]
             else bwrun /usr/bin/"${AUTORUN[@]}" "$@"
         fi
     else
-        if [ ! -n "$1" ]
+        if [ -z "$1" ]
             then
                 print_help
             else

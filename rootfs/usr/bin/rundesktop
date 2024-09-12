@@ -10,7 +10,7 @@ DESKTOP_DISPLAY=1337
 export DESKTOP_KEY="$BASHPID"
 export SYS_DISPLAY="$DISPLAY"
 
-[ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
+[ -z "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
     NOT_TERM=1
 
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
@@ -119,13 +119,13 @@ fi
 if [[ "$XEPHYR" == 1 || "$XEPHYR_FULLSCREEN" == 1 ]] || \
     [[ -n "$XEPHYR_SIZE" || -n "$XEPHYR_DISPLAY" ]]
     then
-        [ ! -n "$XEPHYR_DISPLAY" ] && \
+        [ -z "$XEPHYR_DISPLAY" ] && \
             XEPHYR_DISPLAY=:$DESKTOP_DISPLAY
         info_msg "Xephyr DISPLAY=$XEPHYR_DISPLAY"
         if [ "$XEPHYR_FULLSCREEN" == 1 ]
             then
                 info_msg "Xephyr in full-screen mode"
-        elif [ ! -n "$XEPHYR_SIZE" ]
+        elif [ -z "$XEPHYR_SIZE" ]
             then
                 XEPHYR_SIZE="1600x900"
                 info_msg "Xephyr screen resolution: 1600x900"

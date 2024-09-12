@@ -37,7 +37,7 @@ warn_msg() {
 
 is_zstd_cmprs_valid() { [[ "$1" =~ ^[0-9]+$ && "$1" -ge 1 && "$1" -le 22 ]] ; }
 
-[ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
+[ -z "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
     NOT_TERM=1
 
 info_msg "RunImage build"
@@ -95,7 +95,7 @@ elif [[ "$1" == '-xz' || "$2" == '-xz' || "$CMPRS_ALGO" == "xz" ]]
           info_msg "Compression method: xz"
 fi
 
-if [[ ! -n "$CMPRS_MTHD" || "$1" == '-lz4' || "$2" == '-lz4' || "$CMPRS_ALGO" == "lz4" ]]
+if [[ -z "$CMPRS_MTHD" || "$1" == '-lz4' || "$2" == '-lz4' || "$CMPRS_ALGO" == "lz4" ]]
      then
           CMPRS_MTHD="256K -comp lz4 -Xhc"
           info_msg "Compression method: lz4"
