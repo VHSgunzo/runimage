@@ -11,35 +11,71 @@ GREEN='\033[1;92m'
 YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 
-[ ! -n "$SYS_PATH" ] && \
-export SYS_PATH="$PATH"
 export RUNPPID="$PPID"
 export RUNPID="$BASHPID"
 export REUIDDIR="/tmp/.r$EUID"
 export RUNTMPDIR="$REUIDDIR/run"
 export RUNPIDDIR="$RUNTMPDIR/$RUNPID"
 export BWINFFL="$RUNPIDDIR/bwinf"
-export EXECFLDIR="$RUNPIDDIR/exec"
+export RIMENVFL="$RUNPIDDIR/rimenv"
 export SSRV_CPIDS_DIR="$RUNPIDDIR/cpids"
+export SSRV_PID_FILE="$RUNPIDDIR/ssrv.pid"
 export SSRV_NOSEP_CPIDS=1
 export SSRV_ENV='SSRV_PID'
-export SSRV_PID_FILE="$RUNPIDDIR/ssrv.pid"
-RPIDSFL="$RUNPIDDIR/rpids"
-UNPASSWDFL="$RUNPIDDIR/passwd"
 UNGROUPFL="$RUNPIDDIR/group"
-unset RO_MNT RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
+UNPASSWDFL="$RUNPIDDIR/passwd"
+[ ! -n "$SYS_PATH" ] && \
+export SYS_PATH="$(sed "s|$SHARUN_DIR/bin:||g"<<<"$PATH")"
+unset RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BUWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNSHARE_BIND \
-      NETWORK_BIND SET_HOME_DIR SET_CONF_DIR HOME_BIND BUWRAP_ARGS \
-      LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND EXEC_ARGS \
+      NETWORK_BIND SET_HOME_DIR SET_CONF_DIR RIM_BUWRAP_ARGS \
+      LD_CACHE_BIND ADD_LD_CACHE NEW_HOME TMPDIR_BIND RIM_EXEC_ARGS \
       FUSE_PIDS XDG_RUN_BIND XORG_CONF_BIND SUID_BUWRAP OVERFS_MNT \
       SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG OVERFS_DIR \
       RUNRUNTIME RUNSTATIC UNLIM_WAIT SETENV_ARGS SLIRP RUNDIR_BIND \
-      SANDBOX_HOME_DIR MACHINEID_BIND MODULES_BIND DEF_MOUNTS_BIND \
-      LOCALTIME_BIND CRYPTFS_DIR KEEP_CRYPTFS DONT_MOUNT_CRYPTFS \
-      NSS_BIND USERS_BIND HOSTNAME_BIND
+      RIM_SANDBOX_HOME_DIR MACHINEID_BIND MODULES_BIND DEF_MOUNTS_BIND \
+      LOCALTIME_BIND CRYPTFS_DIR KEEP_CRYPTFS NO_CRYPTFS_MOUNT \
+      NSS_BIND USERS_BIND HOSTNAME_BIND POSIXLY_CORRECT LD_PRELOAD ENV \
+      BOVERLAY_SRC
 
 which_exe() { command -v "$@" ; }
+
+is_exe() { [[ -x "$1" && -f "$1" ]] ; }
+
+export_rusp() {
+    export RUNUTILS="$RUNDIR/utils"
+    export RUNSTATIC="$RUNDIR/static"
+    [ "$RIM_SYS_TOOLS" == 1 ] && \
+        export PATH="$SYS_PATH:$RUNSTATIC:$RUNUTILS"||\
+        export PATH="$RUNSTATIC:$RUNUTILS:$SYS_PATH"
+}
+
+export_rimg() {
+    local rpth="$(realpath "$1" 2>/dev/null)"
+    local wrpth="$(realpath "$(which_exe "$1")" 2>/dev/null)"
+    if is_exe "$rpth"
+        then export RUNIMAGE="$rpth"
+    elif is_exe "$wrpth"
+        then export RUNIMAGE="$wrpth"
+    else [ -n "$2" ] && \
+        export RUNIMAGE="$2"||\
+        export RUNIMAGE="$1"
+    fi
+}
+
+export_rsrc() {
+    local rspth="$(realpath -s "$1" 2>/dev/null)"
+    local wrspth="$(realpath -s "$(which_exe "$1")" 2>/dev/null)"
+    if is_exe "$rspth"
+        then export RUNSRC="$rspth"
+    elif is_exe "$wrspth"
+        then export RUNSRC="$wrspth"
+    else [ -n "$2" ] && \
+        export RUNSRC="$2"||\
+        export RUNSRC="$1"
+    fi
+}
 
 export_rootfs_info() {
     export RUNROOTFS_VERSION="$(cat "$RUNROOTFS/.version" \
@@ -52,57 +88,21 @@ export_rootfs_info() {
 [[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
     export LANG=en_US.UTF-8
 
-if [[ -n "$RUNOFFSET" && -n "$ARGV0" ]]
+if [[ -n "$RUNOFFSET" && -n "$ARG0" ]]
     then
-        export RUNUTILS="$RUNDIR/utils"
-        export RUNSTATIC="$RUNDIR/static"
-        [ "$SYS_TOOLS" == 1 ] && \
-            export PATH="$SYS_PATH:$RUNSTATIC:$RUNUTILS"||\
-            export PATH="$RUNSTATIC:$RUNUTILS:$SYS_PATH"
-        if [ ! -n "$RUNIMAGE" ] # KDE Neon, CachyOS, Puppy Linux bug
-            then
-                if [ -x "$(realpath "$ARGV0" 2>/dev/null)" ]
-                    then
-                        export RUNIMAGE="$(realpath "$ARGV0" 2>/dev/null)"
-                elif [ -x "$(realpath "$(which_exe "$ARGV0")" 2>/dev/null)" ]
-                    then
-                        export RUNIMAGE="$(realpath "$(which_exe "$ARGV0")" 2>/dev/null)"
-                else
-                    export RUNIMAGE="$ARGV0"
-                fi
-        fi
-        if [ -x "$(realpath -s "$ARGV0" 2>/dev/null)" ]
-            then
-                RUNSRC="$(realpath -s "$ARGV0" 2>/dev/null)"
-        elif [ -x "$(realpath -s "$(which_exe "$ARGV0")" 2>/dev/null)" ]
-            then
-                RUNSRC="$(realpath -s "$(which_exe "$ARGV0")" 2>/dev/null)"
-        else
-            RUNSRC="$RUNIMAGE"
-        fi
+        export_rusp
+        [ ! -n "$RUNIMAGE" ] && \
+        export_rimg "$ARG0" # KDE Neon, CachyOS, Puppy Linux bug
+        export_rsrc "$ARG0" "$RUNIMAGE"
         export RUNIMAGEDIR="$(dirname "$RUNIMAGE" 2>/dev/null)"
         RUNIMAGENAME="$(basename "$RUNIMAGE" 2>/dev/null)"
     else
         [ ! -d "$RUNDIR" ] && \
-            export RUNDIR="$(dirname "$(realpath "$0" 2>/dev/null)" 2>/dev/null)"
-        export RUNUTILS="$RUNDIR/utils"
-        export RUNSTATIC="$RUNDIR/static"
-        [ "$SYS_TOOLS" == 1 ] && \
-            export PATH="$SYS_PATH:$RUNSTATIC:$RUNUTILS"||\
-            export PATH="$RUNSTATIC:$RUNUTILS:$SYS_PATH"
+        export RUNDIR="$(dirname "$(realpath "$0" 2>/dev/null)" 2>/dev/null)"
+        export_rusp
         export RUNIMAGEDIR="$(realpath "$RUNDIR/../" 2>/dev/null)"
-        if [ ! -n "$RUNSRC" ]
-            then
-                if [ -x "$(realpath -s "$0" 2>/dev/null)" ]
-                    then
-                        RUNSRC="$(realpath -s "$0" 2>/dev/null)"
-                elif [ -x "$(realpath -s "$(which_exe "$0")" 2>/dev/null)" ]
-                    then
-                        RUNSRC="$(realpath -s "$(which_exe "$0")" 2>/dev/null)"
-                else
-                    RUNSRC="$RUNDIR/Run"
-                fi
-        fi
+        [ ! -n "$RUNSRC" ] && \
+        export_rsrc "$0" "$RUNDIR/Run"
 fi
 
 export RUNTTY="$(tty|grep -v 'not a')"
@@ -110,17 +110,16 @@ export RUNTTY="$(tty|grep -v 'not a')"
     NOT_TERM=1||NOT_TERM=0
 
 export RUNROOTFS="$RUNDIR/rootfs"
-export RUNCACHEDIR="$RUNIMAGEDIR/cache"
+export RUNRUNTIME="$RUNSTATIC/uruntime"
 export RUNCONFIGDIR="$RUNIMAGEDIR/config"
 export RUNOVERFSDIR="$RUNIMAGEDIR/overlayfs"
-export RUNRUNTIME="$RUNSTATIC/runtime-fuse2-all"
 export SANDBOXHOMEDIR="$RUNIMAGEDIR/sandbox-home"
 export PORTABLEHOMEDIR="$RUNIMAGEDIR/portable-home"
 export RUNSRCNAME="$(basename "$RUNSRC" 2>/dev/null)"
 OVERFSLIST="$(ls -A "$RUNOVERFSDIR" 2>/dev/null)"
 export RUNSTATIC_VERSION="$(cat "$RUNSTATIC/.version" 2>/dev/null)"
 export_rootfs_info
-export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version|& awk '{print$2}')"
+export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version)"
 
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
@@ -132,18 +131,18 @@ error_msg() {
 }
 
 info_msg() {
-    if [ "$QUIET_MODE" != 1 ]
+    if [ "$RIM_QUIET_MODE" != 1 ]
         then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
                 then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }
 
 warn_msg() {
-    if [[ "$QUIET_MODE" != 1 && "$NO_WARN" != 1 ]]
+    if [[ "$RIM_QUIET_MODE" != 1 && "$RIM_NO_WARN" != 1 ]]
         then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
                 then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
@@ -392,7 +391,6 @@ get_nvidia_driver_image() {
             info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
             nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
             driver_url_list=(
-                "https://storage.yandexcloud.net/runimage/nvidia-drivers/$nvidia_driver_image"
                 "https://huggingface.co/runimage/nvidia-drivers/resolve/main/releases/$nvidia_driver_image"
                 "https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image"
                 "https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run"
@@ -402,14 +400,13 @@ get_nvidia_driver_image() {
                 "https://developer.nvidia.com/linux-${nvidia_version//.}"
             )
             if try_dl "${driver_url_list[0]}" "$NVIDIA_DRIVERS_DIR"||\
-               try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"||\
-               try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"
+               try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"
                 then return 0
-            elif try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"||\
-                 try_dl "${driver_url_list[4]}" "$NVIDIA_DRIVERS_DIR"||\
+            elif try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"||\
+                 try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"||\
+                 try_dl "${driver_url_list[4]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
                  try_dl "${driver_url_list[5]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
-                 try_dl "${driver_url_list[6]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
-                 try_dl "${driver_url_list[7]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"
+                 try_dl "${driver_url_list[6]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"
                 then
                     binary_files="mkprecompiled nvidia-cuda-mps-control nvidia-cuda-mps-srv \
                         nvidia-debugdump nvidia-installer nvidia-modprobe nvidia-ngx-updater tls_test \
@@ -472,7 +469,7 @@ mount_nvidia_driver_image() {
             try_mkdir "$NVDRVMNT"
             "$SQFUSE" -f "$1" "$NVDRVMNT" -o ro &>/dev/null &
             FUSE_PID="$!"
-            export FUSE_PIDS="$FUSE_PID $FUSE_PIDS"
+            FUSE_PIDS="$FUSE_PID $FUSE_PIDS"
             if mount_exist "$FUSE_PID" "$NVDRVMNT"
                 then
                     nvidia_driver_dir="$NVDRVMNT"
@@ -494,7 +491,7 @@ check_nvidia_driver() {
         if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
             then
                 info_msg "Updating the nvidia library cache..."
-                if (SANDBOX_NET=0 bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null)
+                if (RIM_SANDBOX_NET=0 RIM_NO_NET=0 bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null)
                     then
                         try_mkdir "$RUNCACHEDIR"
                         if mv -f "$RUNPIDDIR/ld.so.cache" \
@@ -538,8 +535,7 @@ check_nvidia_driver() {
         grep -owm1 nvidia /proc/modules &>/dev/null
         then
             unset nvidia_driver_dir
-            [ ! -n "$NVIDIA_DRIVERS_DIR" ] && \
-                export NVIDIA_DRIVERS_DIR="$RUNIMAGEDIR/nvidia-drivers"
+            export NVIDIA_DRIVERS_DIR="${RIM_NVIDIA_DRIVERS_DIR:=$RUNIMAGEDIR/nvidia-drivers}"
             if [ -e '/sys/module/nvidia/version' ]
                 then
                     nvidia_version="$(cat /sys/module/nvidia/version 2>/dev/null)"
@@ -575,7 +571,7 @@ check_nvidia_driver() {
                                         [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/nvidia_drv.so" ] && \
                                         [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_driver_image" ]
                                         then
-                                            if DONT_NOTIFY=0 QUIET_MODE=0 get_nvidia_driver_image
+                                            if RIM_DONT_NOTIFY=0 RIM_QUIET_MODE=0 get_nvidia_driver_image
                                                 then
                                                     mount_nvidia_driver_image "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image"
                                                 else
@@ -761,24 +757,18 @@ check_nvidia_driver() {
 add_lib_pth() {
     if [ -n "$LIB_PATH" ]
         then
-            if [ ! -n "$(echo "$LIB_PATH"|grep -ow "$1" 2>/dev/null)" ]
-                then
-                    LIB_PATH="${1}:${LIB_PATH}"
-            fi
-        else
-            LIB_PATH="${1}"
+            [ ! -n "$(grep -ow "$1" 2>/dev/null<<<"$LIB_PATH")" ] && \
+                LIB_PATH="${1}:${LIB_PATH}"
+        else LIB_PATH="${1}"
     fi
 }
 
 add_bin_pth() {
     if [ -n "$BIN_PATH" ]
         then
-            if [ ! -n "$(echo "$BIN_PATH"|grep -ow "$1" 2>/dev/null)" ]
-                then
-                    BIN_PATH="${1}:${BIN_PATH}"
-            fi
-        else
-            BIN_PATH="${1}"
+            [ ! -n "$(grep -ow "$1" 2>/dev/null<<<"$BIN_PATH")" ] && \
+                BIN_PATH="${1}:${BIN_PATH}"
+        else BIN_PATH="${1}"
     fi
 }
 
@@ -801,7 +791,7 @@ try_unmount() {
             elif [ -d "$1" ]
                 then DORM=1
             fi
-            if [[ "$UNDORM" != 1 && "$DORM" == 1 && -w "$1" ]]
+            if [[ "$DORM" == 1 && -w "$1" ]]
                 then
                     if ! rm -rf "$1" 2>/dev/null
                         then
@@ -826,24 +816,43 @@ try_mkdir() {
     fi
 }
 
+
 run_attach() {
-    get_sock() { find "$RUNTMPDIR"/$1 -name '*sock' 2>/dev/null ; }
     get_sock_runpid() { awk -F'/' '{print $(NF-1)}'<<<"$1" 2>/dev/null ; }
-    attach_exec() {
-        info_msg "Attaching to RunImage RUNPID: $1"
-        export SSRV_ENV="$UNENV"
-        export SSRV_SOCK="unix:$(get_sock "$1")"
-        shift
-        exec ssrv "$@"
+    get_sock() {
+        if [ "$act" == "portfw" ]
+            then find "$RUNTMPDIR"/$1 -name 'portfw' 2>/dev/null
+            else find "$RUNTMPDIR"/$1 -name '*sock' 2>/dev/null
+        fi
+    }
+    attach_act() {
+        if [ "$act" == "portfw" ]
+            then
+                info_msg "Port forwarding RunImage RUNPID: $1"
+                RUNPORTFW="$(get_sock "$1")"
+                shift
+                exec chisel client "unix:$RUNPORTFW" "$@"
+            else
+                info_msg "Exec RunImage RUNPID: $1"
+                export SSRV_SOCK="unix:$(get_sock "$1")"
+                export SSRV_ENV="all-:$(tr ' ' ','<<<"${!RIM_@}")"
+                export SSRV_ENV_PIDS="$(get_child_pids "$(cat "$RUNTMPDIR/$1/ssrv.pid" 2>/dev/null)"|head -1)"
+                shift
+                exec ssrv "$@"
+        fi
     }
     no_runimage_msg() {
-        error_msg "No running RunImage containers found!"
+        error_msg "RunImage container socket not found!"
         return 1
     }
+    case "$1" in
+        exec) shift ; local act=exec ;;
+        portfw) shift ; local act=portfw ;;
+    esac
     if [[ "$1" =~ ^[0-9]+$ ]]
         then
             if [ -e "$(get_sock "$1")" ]
-                then attach_exec "$@"
+                then attach_act "$@"
                 else
                     error_msg "RunImage container not found by RUNPID: $1"
                     return 1
@@ -854,7 +863,7 @@ run_attach() {
             if [ "$sock_num" == 0 ]
                 then no_runimage_msg
             elif [ "$sock_num" == 1 ]
-                then attach_exec "$(get_sock_runpid "$sockets")" "$@"
+                then attach_act "$(get_sock_runpid "$sockets")" "$@"
             else
                 while true
                     do
@@ -870,7 +879,7 @@ run_attach() {
                                     then exit
                                 elif [[ "$runpid_choice" =~ ^[0-9]+$  && "$runpid_choice" -gt 0 && \
                                     "$runpid_choice" -le ${#runpids[@]} ]]
-                                    then attach_exec "${runpids[$(($runpid_choice-1))]}" "$@"
+                                    then attach_act "${runpids[$(($runpid_choice-1))]}" "$@"
                                     else
                                         error_msg "Invalid number!"
                                         sleep 1
@@ -933,21 +942,18 @@ try_kill() {
 }
 
 cleanup() {
-    if [[ "$NO_CLEANUP" != 1 || "$1" == "force" ]]
+    if [[ "$RIM_NO_CLEANUP" != 1 || "$1" == "force" ]]
         then
             [ "$1" == "force" ] && \
-                QUIET_MODE=1
+                RIM_QUIET_MODE=1
             if [ -n "$FUSE_PIDS" ]
                 then
                     [ "$KEEP_CRYPTFS" != 1 ] && \
                         try_unmount "$CRYPTFS_MNT"
-                    [ "$KEEP_OVERFS" != 1 ] && \
+                    [ "$RIM_KEEP_OVERFS" != 1 ] && \
                         try_unmount "$OVERFS_MNT"
-                    try_unmount "$RO_MNT"
                     try_unmount "$NVDRVMNT"
             fi
-            [ -d "$EXECFLDIR" ] && \
-                rm -rf "$EXECFLDIR" 2>/dev/null
             kill -2 $FUSE_PIDS 2>/dev/null
             if [ -n "$DBUSP_PID" ]
                 then
@@ -956,9 +962,10 @@ cleanup() {
                         rm -f "$DBUSP_SOCKET" 2>/dev/null
             fi
             try_kill "$(cat "$RPIDSFL" 2>/dev/null)"
-            if [[ -d "$OVERFS_DIR" && "$KEEP_OVERFS" != 1 ]]
+            if [[ -d "$OVERFS_DIR" && "$RIM_KEEP_OVERFS" != 1 ]]
                 then
                     info_msg "Removing OverlayFS..."
+                    chmod 777 -R "${OVERFS_DIR}/workdir" 2>/dev/null
                     rm -rf "$OVERFS_DIR" 2>/dev/null
                     rmdir "$RUNOVERFSDIR" 2>/dev/null
             fi
@@ -986,7 +993,9 @@ get_child_pids() {
             done < <(ps -eo user=,pid=,ppid=,cmd= 2>/dev/null|grep "^$RUNUSER"|\
                      grep -v "bash $RUNDIR/Run.sh"|grep -wv "$RUNPPID"|\
                      grep -Pv '\d+ sleep \d+'|awk '{print$2,$3}'|sort -nu)
-            for i in "$@"; do ps -o pid= -p $(child_pids_walk "$i") 2>/dev/null|grep -v "$i"; done
+            for i in "$@"
+                do ps -o pid= -p $(child_pids_walk "$i") 2>/dev/null|grep -v "$i"
+            done|sed 's|^[[:space:]]*||g'
         else return 1
     fi
 }
@@ -1016,13 +1025,29 @@ wait_exist() {
 }
 
 export_ssrv_pid() {
-    if [ "$UNSHARE_PIDS" == 1 ]
-        then export SSRV_PID="$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')"
+    if [ "$RIM_UNSHARE_PIDS" == 1 ]
+        then
+            export SSRV_PID="$(ps -opid=,cmd= -p $(get_child_pids \
+                "$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')") \
+                    2>/dev/null|grep 'ssrv -srv'|awk 'NR==1{print$1}')"
+            echo "$SSRV_PID" > "$SSRV_PID_FILE"
         else export SSRV_PID="$(cat "$SSRV_PID_FILE" 2>/dev/null)"
     fi
 }
 
-is_sandbox_net() { [[ "$SANDBOX_NET" == 1 && "$NO_NET" != 1 ]]; }
+is_snet() { [[ "$RIM_SANDBOX_NET" == 1 && "$RIM_NO_NET" != 1 ]]; }
+
+is_nonet() { [ "$RIM_NO_NET" == 1 ]; }
+
+enable_portfw() {
+    if [[ -n "$RIM_SNET_PORTFW" && "$RIM_SNET_PORTFW" != 0 ]]
+        then
+            info_msg "Enable port forwarding..."
+            ssrv chisel server -usock "$RUNPORTFW" -socks5 -reverse &>/dev/null &
+            chisel client "unix:$RUNPORTFW" $RIM_SNET_PORTFW &>/dev/null &
+            CHISEL_PID="$!"
+    fi
+}
 
 create_sandbox_net() {
     if is_pid "$SSRV_PID"
@@ -1030,12 +1055,12 @@ create_sandbox_net() {
             info_msg "Creating a network sandbox..."
             mkfifo "$SREADYFL"
             "$SLIRP" --configure --ready-fd=8 \
-                $([ "$SANDBOX_NET_SHARE_HOST" == 1 ] || echo "--disable-host-loopback")  \
-                $([ -n "$SANDBOX_NET_CIDR" ] && echo "--cidr=$SANDBOX_NET_CIDR") \
-                $([ -n "$SANDBOX_NET_MTU" ] && echo "--mtu=$SANDBOX_NET_MTU") \
-                $([ -n "$SANDBOX_NET_MAC" ] && echo "--macaddress=$SANDBOX_NET_MAC") \
+                $([ "$RIM_SNET_SHARE_HOST" == 1 ] || echo "--disable-host-loopback")  \
+                $([ -n "$RIM_SNET_CIDR" ] && echo "--cidr=$RIM_SNET_CIDR") \
+                $([ -n "$RIM_SNET_MTU" ] && echo "--mtu=$RIM_SNET_MTU") \
+                $([ -n "$RIM_SNET_MAC" ] && echo "--macaddress=$RIM_SNET_MAC") \
                 "$SSRV_PID" \
-                $([ -n "$SANDBOX_NET_TAPNAME" ] && echo "$SANDBOX_NET_TAPNAME"||echo 'eth0') \
+                $([ -n "$RIM_SNET_TAPNAME" ] && echo "$RIM_SNET_TAPNAME"||echo 'eth0') \
                 8>"$SREADYFL" &
             SLIRP_PID="$!"
             SLIRP_READY="$(cat "$SREADYFL" 2>/dev/null)"
@@ -1051,20 +1076,21 @@ create_sandbox_net() {
     fi
     if [ -n "$CHANGE_TAPIP" ]
         then
-            info_msg "Changing a sandbox network tap IP: $SANDBOX_NET_TAPIP"
+            info_msg "Changing a sandbox network tap IP: $RIM_SNET_TAPIP"
             ssrv sh -c "$CHANGE_TAPIP"
     fi
-    if [[ "$SANDBOX_NET_DROP_CIDRS" == 1 && -n "$DROP_CIDRS" ]]
+    if [[ "$RIM_SNET_DROP_CIDRS" == 1 && -n "$DROP_CIDRS" ]]
         then
-            info_msg "Dropping local CIDRs for a network sandbox..."
+            info_msg "Dropping local CIDRs..."
             ssrv sh -c "$DROP_CIDRS"
     fi
+    enable_portfw
 }
 
 bwrun() {
-    if [ "$NO_NVIDIA_CHECK" == 1 ]
+    if [ "$RIM_NO_NVIDIA_CHECK" == 1 ]
         then warn_msg "Nvidia driver check is disabled!"
-    elif [[ "$NO_NVIDIA_CHECK" != 1 && ! -n "$NVIDIA_DRIVER_BIND" ]]
+    elif [[ "$RIM_NO_NVIDIA_CHECK" != 1 && ! -n "$NVIDIA_DRIVER_BIND" ]]
         then check_nvidia_driver</dev/null
     fi
     [ "$ADD_LD_CACHE" == 1 ] && \
@@ -1076,14 +1102,27 @@ bwrun() {
     export SSRV_SOCK_PATH="$(sed "s|^unix:||"<<<"$SSRV_SOCK")"
     if [ ! -e "$SSRV_SOCK_PATH" ]
         then
-            BUWRAP_EXEC=(
-                "$BUWRAP"
-                --bind-try "$RUNROOTFS" /
+            BUWRAP_EXEC=("$BUWRAP")
+            [ "$RIM_ROOT" == 1 ] && \
+                BUWRAP_EXEC+=(--uid 0 --gid 0)
+            if [[ -d "$OVERFS_DIR" && -d "$BOVERLAY_SRC" && "$RIM_NO_BUWRAP_OVERLAY" != 1 ]]
+                then
+                    BUWRAP_EXEC+=(
+                        --overlay-src "$BOVERLAY_SRC"
+                        --overlay "${OVERFS_DIR}/bwrap/rootfs"
+                        "${OVERFS_DIR}/workdir"
+                    )
+                else
+                    BUWRAP_EXEC+=(--bind "$RUNROOTFS")
+            fi
+            BUWRAP_EXEC+=(/
+                "${RIM_BUWRAP_ARGS[@]}"
                 --info-fd 8
                 --proc /proc
                 --bind-try /sys /sys
                 --dev-bind-try /dev /dev
-                "${HOSTNAME_BIND[@]}"
+                "${SETENV_ARGS[@]}" "${HOST_TOOLS_BIND[@]}"
+                "${BUWRAP_CAP[@]}" "${HOSTNAME_BIND[@]}"
                 "${LOCALTIME_BIND[@]}" "${NSS_BIND[@]}"
                 "${MODULES_BIND[@]}" "${DEF_MOUNTS_BIND[@]}"
                 "${USERS_BIND[@]}" "${RUNDIR_BIND[@]}"
@@ -1092,37 +1131,41 @@ bwrun() {
                 "${NETWORK_BIND[@]}" "${XDG_RUN_BIND[@]}"
                 "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}"
                 "${UNSHARE_BIND[@]}" "${HOME_BIND[@]}"
-                "${XORG_CONF_BIND[@]}" "${BUWRAP_CAP[@]}"
+                "${XORG_CONF_BIND[@]}" "${BUWRAP_BIND[@]}"
                 --setenv INSIDE_RUNIMAGE '1'
                 --setenv RUNPID "$RUNPID"
                 --setenv PATH "$BIN_PATH"
-                --setenv FAKEROOTDONTTRYCHOWN "true"
-                --setenv LD_LIBRARY_PATH "$LIB_PATH"
+                --setenv FAKEROOTDONTTRYCHOWN 'true'
                 --setenv XDG_CONFIG_DIRS "/etc/xdg:$XDG_CONFIG_DIRS"
                 --setenv XDG_DATA_DIRS "/usr/local/share:/usr/share:$XDG_DATA_DIRS"
-                "${SETENV_ARGS[@]}" "${BUWRAP_ARGS[@]}"
-                tini -s -p SIGTERM -g --
             )
-            if is_sandbox_net
+            [ -n "$LIB_PATH" ] && \
+                BUWRAP_EXEC+=(--setenv LD_LIBRARY_PATH "$LIB_PATH")
+            BUWRAP_EXEC+=(tini -s -p SIGTERM -g --)
+            if is_snet
                 then
                     unset CHANGE_TAPIP DROP_CIDRS
                     export SREADYFL="$RUNPIDDIR/sready"
-                    [ ! -n "$SANDBOX_NET_TAPNAME" ] && \
-                        export SANDBOX_NET_TAPNAME="eth0"
-                    if [ -n "$SANDBOX_NET_TAPIP" ]
+                    [ ! -n "$RIM_SNET_TAPNAME" ] && \
+                        export RIM_SNET_TAPNAME="eth0"
+                    if [ -n "$RIM_SNET_TAPIP" ]
                         then
-                            if is_valis_ipv4 "$SANDBOX_NET_TAPIP"
+                            if is_valis_ipv4 "$RIM_SNET_TAPIP"
                                 then
-                                    export SANDBOX_NET_CIDR="$(rev<<<"$SANDBOX_NET_TAPIP"|cut -d'.' -f2-|rev).0/24"
-                                    export CHANGE_TAPIP="ip route del default via ${SANDBOX_NET_CIDR/0\/24/2} dev $SANDBOX_NET_TAPNAME ;\
-                                        ip addr del ${SANDBOX_NET_CIDR/0\/24/100}/24 broadcast ${SANDBOX_NET_CIDR/0\/24/255} dev $SANDBOX_NET_TAPNAME ;\
-                                        ip addr add $SANDBOX_NET_TAPIP/24 broadcast ${SANDBOX_NET_CIDR/0\/24/255} dev $SANDBOX_NET_TAPNAME ;\
-                                        ip route add default via ${SANDBOX_NET_CIDR/0\/24/2} dev $SANDBOX_NET_TAPNAME"
+                                    prefix=24
+                                    if [ -n "$RIM_SNET_CIDR" ]
+                                        then prefix="$(cut -d'/' -f2-<<<"$RIM_SNET_CIDR")"
+                                        else export RIM_SNET_CIDR="$(rev<<<"$RIM_SNET_TAPIP"|cut -d'.' -f2-|rev).0/${prefix}"
+                                    fi
+                                    CHANGE_TAPIP="ip route del default via ${RIM_SNET_CIDR/0\/${prefix}/2} dev $RIM_SNET_TAPNAME ;\
+                                        ip addr del ${RIM_SNET_CIDR/0\/${prefix}/100}/${prefix} broadcast ${RIM_SNET_CIDR/0\/${prefix}/255} dev $RIM_SNET_TAPNAME ;\
+                                        ip addr add $RIM_SNET_TAPIP/${prefix} broadcast ${RIM_SNET_CIDR/0\/${prefix}/255} dev $RIM_SNET_TAPNAME ;\
+                                        ip route add default via ${RIM_SNET_CIDR/0\/${prefix}/2} dev $RIM_SNET_TAPNAME"
                                 else
                                     warn_msg "The IP address of the TAP interface is not valid!"
                             fi
                     fi
-                    if [ "$SANDBOX_NET_DROP_CIDRS" == 1 ]
+                    if [ "$RIM_SNET_DROP_CIDRS" == 1 ]
                         then
                             DROP_CIDRS=
                             for cidr in $(ip -o -4 a|grep -wv lo|awk '{print$4}')
@@ -1130,62 +1173,72 @@ bwrun() {
                             done
                     fi
             fi
-            if [[ "$RUNTTY" =~ 'tty' ]] || [[ "$RUNTTY" =~ 'pts' && "$IN_SAME_PTY" == 1 ]]
+            if [[ "$RUNTTY" =~ 'tty' ]] || [[ "$RUNTTY" =~ 'pts' && "$RIM_IN_SAME_PTY" == 1 ]]
                 then
+                    wait_ssrv_pid() {
+                        wait_exist "$BWINFFL"
+                        unset SSRV_PID
+                        while is_pid "$RUNPID" && ! is_pid "$SSRV_PID"
+                            do
+                                export_ssrv_pid
+                                sleep 0.01 2>/dev/null
+                        done
+                    }
+                    configure_net() {
+                        wait_ssrv_pid
+                        "$@"
+                        while is_pid "$RUNPID" && is_pid "$SSRV_PID"
+                            do sleep 0.5
+                        done; try_kill "$SLIRP_PID $CHISEL_PID"
+                    }
                     bwin() {
-                        unfbwin() { unset -f bwin wait_exist is_pid is_sandbox_net ; }
+                        unfbwin() { unset -f bwin wait_exist is_pid is_snet ; }
                         [[ "$A_EXEC_ARGS" =~ ^declare ]] && \
                         eval "$A_EXEC_ARGS" && unset A_EXEC_ARGS
                         [[ "$A_BWRUNARGS" =~ ^declare ]] && \
                         eval "$A_BWRUNARGS" && unset A_BWRUNARGS
-                        (unfbwin ; exec setsid ssrv -srv -env all &>/dev/null) &
-                        wait_exist "$SSRV_PID_FILE"
-                        is_sandbox_net && sleep 0.05
+                        (unfbwin ; unset "${!RIM_@}" ; exec setsid ssrv -srv -env all &>/dev/null) &
                         unfbwin
-                        export SSRV_PID="$(cat "$SSRV_PID_FILE" 2>/dev/null)"
-                        if [[ "$RUNTTY" =~ 'tty' && "$RUNTTY_ALLOC_PTY" == 1 ]]
-                            then ssrv "${EXEC_ARGS[@]}" "${BWRUNARGS[@]}"
-                            else "${EXEC_ARGS[@]}" "${BWRUNARGS[@]}"
+                        if [[ "$RUNTTY" =~ 'tty' && "$RIM_TTY_ALLOC_PTY" == 1 ]]
+                            then ssrv "${RIM_EXEC_ARGS[@]}" "${BWRUNARGS[@]}"
+                            else (unset "${!RIM_@}" "${!SSRV_@}" ; "${RIM_EXEC_ARGS[@]}" "${BWRUNARGS[@]}")
                         fi
                         EXEC_STATUS="$?"
-                        kill $SSRV_PID 2>/dev/null
                         [ -e "$SSRV_SOCK_PATH" ] && \
                             rm -f "$SSRV_SOCK_PATH" 2>/dev/null
                         return $EXEC_STATUS
                     }
                     BWRUNARGS=("$@")
-                    [ -n "$NO_NET" ] && export NO_NET
-                    [ -n "$SANDBOX_NET" ] && export SANDBOX_NET
-                    export A_EXEC_ARGS="$(declare -p EXEC_ARGS 2>/dev/null)"
+                    [ -n "$RIM_NO_NET" ] && export RIM_NO_NET
+                    [ -n "$RIM_SANDBOX_NET" ] && export RIM_SANDBOX_NET
+                    export A_EXEC_ARGS="$(declare -p RIM_EXEC_ARGS 2>/dev/null)"
                     export A_BWRUNARGS="$(declare -p BWRUNARGS 2>/dev/null)"
-                    export -f bwin wait_exist is_pid is_sandbox_net
-                    if is_sandbox_net
-                        then
-                            (wait_exist "$BWINFFL"
-                            unset SSRV_PID
-                            while is_pid "$RUNPID" && ! is_pid "$SSRV_PID"
-                                do
-                                    export_ssrv_pid
-                                    sleep 0.01 2>/dev/null
-                            done
-                            create_sandbox_net
-                            while is_pid "$SSRV_PID"
-                                do sleep 0.5
-                            done; try_kill "$SLIRP_PID") &
+                    export -f bwin wait_exist is_pid is_snet
+                    wait_ssrv_pid &
+                    if is_snet
+                        then (configure_net create_sandbox_net) &
+                    elif is_nonet
+                        then (configure_net enable_portfw) &
                     fi
                     "${BUWRAP_EXEC[@]}" sh -c bwin 8>"$BWINFFL"
                     [ -f "$BWINFFL" ] && rm -f "$BWINFFL" 2>/dev/null
                     return $?
                 else
+                    SSRV_UENV="$(tr ' ' ','<<<"${!RIM_@}")" \
                     "${BUWRAP_EXEC[@]}" ssrv -srv -env all 8>"$BWINFFL" &>/dev/null &
                     wait_exist "$SSRV_PID_FILE"
                     export_ssrv_pid
-                    is_sandbox_net && create_sandbox_net
+                    if is_snet
+                        then create_sandbox_net
+                    elif is_nonet
+                        then enable_portfw
+                    fi
             fi
     fi
-    ssrv "${EXEC_ARGS[@]}" "$@"
+    ssrv "${RIM_EXEC_ARGS[@]}" "$@"
     EXEC_STATUS="$?"
-    [ -f "$BWINFFL" ] && rm -f "$BWINFFL" 2>/dev/null
+    [ -f "$BWINFFL" ] && \
+        rm -f "$BWINFFL" 2>/dev/null
     kill $SSRV_PID 2>/dev/null
     [ -e "$SSRV_SOCK_PATH" ] && \
         rm -f "$SSRV_SOCK_PATH" 2>/dev/null
@@ -1199,8 +1252,10 @@ overlayfs_list() {
             for overfs_id in $OVERFSLIST
                 do
                     LSTOVERFS_DIR="$RUNOVERFSDIR/$overfs_id"
-                    echo -e "${BLUE}$(du --exclude="$LSTOVERFS_DIR/mnt" \
-                        --exclude="$LSTOVERFS_DIR/rootfs" -sh \
+                    echo -e "${BLUE}$(du -sh \
+                        --exclude="$LSTOVERFS_DIR/mnt" \
+                        --exclude="$LSTOVERFS_DIR/rootfs" \
+                        --exclude="$LSTOVERFS_DIR/workdir" \
                         "$LSTOVERFS_DIR")\t\t${overfs_id}${RESETCOLOR}"
             done
         else
@@ -1212,20 +1267,22 @@ overlayfs_list() {
 overlayfs_rm() {
     if [[ -n "$OVERFSLIST" || "$1" == 'all' ]]
         then
-            if [[ -n "$1" || -n "$OVERFS_ID" ]]
+            if [[ -n "$1" || -n "$RIM_OVERFS_ID" ]]
                 then
                     overfsrm() {
                         info_msg "Removing OverlayFS: $overfs_id"
                         if [ "$1" == 'force' ]
                             then
-                                try_kill "$(lsof -n "$RMOVERFS_MNT"|sed 1d|awk '{print$2}'|sort -u)"
+                                try_kill "$(lsof -n "$RMOVERFS_MNT" 2>/dev/null|sed 1d|awk '{print$2}'|sort -u)"
                                 try_unmount "$RMOVERFS_MNT"
                         fi
-                        rm -rf "$RMOVERFS_DIR"
+                        chmod 777 -R "${RMOVERFS_DIR}/workdir" 2>/dev/null
+                        rm -rf "$RMOVERFS_DIR" 2>/dev/null
+                        rmdir "$RUNOVERFSDIR" 2>/dev/null
                         [ ! -d "$RMOVERFS_DIR" ] && \
                             info_msg "Removing completed!"
                     }
-                    for overfs_id in $([ "$1" == 'all' ] && echo "$OVERFSLIST"||echo "$@ $OVERFS_ID")
+                    for overfs_id in $([ "$1" == 'all' ] && echo "$OVERFSLIST"||echo "$@ $RIM_OVERFS_ID")
                         do
                             RMOVERFS_DIR="$RUNOVERFSDIR/$overfs_id"
                             if [ -d "$RMOVERFS_DIR" ]
@@ -1281,13 +1338,17 @@ try_mkhome() {
 }
 
 pkg_list() (
-    QUIET_MODE=1
-    SANDBOX_NET=0
-    NO_NVIDIA_CHECK=1
+    RIM_QUIET_MODE=1
+    RIM_SANDBOX_NET=0
+    RIM_NO_NVIDIA_CHECK=1
     if bwrun which pacman &>/dev/null
-        then bwrun /usr/bin/pacman -Q 2>/dev/null
+        then bwrun pacman -Q 2>/dev/null
     elif bwrun which apt &>/dev/null
-        then bwrun /usr/bin/apt list --installed 2>/dev/null
+        then bwrun apt list --installed 2>/dev/null
+    elif bwrun which apk &>/dev/null
+        then bwrun apk list --installed 2>/dev/null
+    elif bwrun which xbps-query &>/dev/null
+        then bwrun xbps-query --list-pkgs 2>/dev/null
     else
         error_msg "The package manager cannot be detected!"
         exit 1
@@ -1295,8 +1356,8 @@ pkg_list() (
 )
 
 bin_list() {
-    NO_NVIDIA_CHECK=1 QUIET_MODE=1 bwrun /usr/bin/find /usr/bin/ \
-    -executable -type f -maxdepth 1 2>/dev/null|sed 's|/usr/bin/||g'
+    RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 bwrun find /usr/bin/ /bin/ \
+    -executable -type f -maxdepth 1 2>/dev/null|sed 's|/usr/bin/||g;s|/bin/||g'|sort -u
 }
 
 print_version() {
@@ -1309,13 +1370,15 @@ print_version() {
 
 run_update() {
     info_msg "RunImage update"
-    NO_NVIDIA_CHECK=1 QUIET_MODE=1 \
+    RIM_ROOT=1 RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 \
         bwrun runupdate
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
         then
             if [ -n "$(ls -A "$RUNROOTFS/var/cache/pacman/pkg/" 2>/dev/null)" ]||\
-               [ -n "$(ls -A "$RUNROOTFS/var/cache/apt/archives"/*.deb 2>/dev/null)" ]
+               [ -n "$(ls -A "$RUNROOTFS/var/cache/apt/archives"/*.deb 2>/dev/null)" ]||\
+               [ -n "$(ls -A "$RUNROOTFS/var/cache/apk/" 2>/dev/null)" ]||\
+               [ -n "$(ls -A "$RUNROOTFS/var/cache/xbps/" 2>/dev/null)" ]
                 then
                     try_rebuild_runimage "$@" && \
                         UPDATE_STATUS="$?"
@@ -1331,9 +1394,9 @@ run_update() {
 }
 
 add_unshared_user() {
-    if grep -qo ".*:x:$EUID:" "$1"
-        then sed -i "s|.*:x:$EUID:.*|$RUNUSER:x:$EUID:0:[^_^]:$HOME:/usr/bin/bash|g" "$1"
-        else echo "$RUNUSER:x:$EUID:0:[^_^]:$HOME:/usr/bin/bash" >> "$1"
+    if grep -qo ".*:x:$EUID:" "$1" &>/dev/null
+        then sed -i "s|.*:x:$EUID:.*|$RUNUSER:x:$EUID:0:[^_^]:$HOME:/bin/sh|g" "$1"
+        else echo "$RUNUSER:x:$EUID:0:[^_^]:$HOME:/bin/sh" >> "$1"
     fi
 }
 
@@ -1345,14 +1408,17 @@ add_unshared_group() {
 }
 
 try_rebuild_runimage() {
-    if [ -n "$1" ]||[[ -n "$RUNIMAGE" && "$REBUILD_RUNIMAGE" == 1 ]]
+    if [ -n "$1" ]||[[ -n "$RUNIMAGE" && "$RIM_REBUILD_RUNIMAGE" == 1 ]]
         then
             (cd "$RUNIMAGEDIR" && \
             run_build "$@")
     fi
 }
 
-is_cryptfs() { [ -f "$CRYPTFS_DIR/gocryptfs.conf" ] ; }
+is_cryptfs() {
+    [[ -d "$CRYPTFS_DIR" && -f "$CRYPTFS_DIR/gocryptfs.conf" ]]||\
+    [[ -d "$OVERFS_DIR" && -f "$OVERFS_DIR/layers/cryptfs/gocryptfs.conf" ]]
+}
 
 passwd_cryptfs() {
     if is_cryptfs
@@ -1377,10 +1443,10 @@ encrypt_rootfs() {
         then
             info_msg "Creating GoCryptFS rootfs directory..."
             try_mkdir "$CRYPTFS_DIR"
-            case $1 in
+            case "$1" in
                 --aessiv) shift ; CRYPTFS_ARGS+=('--aessiv') ;;
                 --xchacha) shift ; CRYPTFS_ARGS+=('--xchacha') ;;
-                *)  case "$CRYPTFS_ENC" in
+                *)  case "$RIM_CRYPTFS_ENC" in
                         aessiv) CRYPTFS_ARGS+=('--aessiv') ;;
                         xchacha) CRYPTFS_ARGS+=('--xchacha') ;;
                     esac
@@ -1392,18 +1458,31 @@ encrypt_rootfs() {
                     if "$GOCRYPTFS" "${CRYPTFS_ARGS[@]}" --nosyslog \
                         "$CRYPTFS_DIR" "$CRYPTFS_MNT"
                         then
-                            info_msg "Encrypting RunImage rootfs..."
-                            if mv -f "$RUNROOTFS"/{.,}* "$CRYPTFS_MNT"/
+                            info_msg "Updating sharun directory..."
+                            upd_sharun() {
+                                rm -rf "$RUNDIR/sharun/shared"
+                                "$RUNDIR/sharun/sharun" lib4bin -p -g -d "$RUNDIR/sharun" \
+                                    $(cat "$RUNDIR/sharun/bin.list")
+                            }
+                            export -f upd_sharun
+                            if bwrun sh -c upd_sharun
                                 then
-                                    rm -rf "$RUNROOTFS"
-                                    export RUNROOTFS="$CRYPTFS_MNT"
-                                    export ZSDT_CMPRS_LVL=1
-                                    try_rebuild_runimage "$@"
-                                    try_unmount "$CRYPTFS_MNT"
-                                    info_msg "Encryption is complete!"
-                                    exit
+                                    info_msg "Encrypting RunImage rootfs..."
+                                    if chmod u+rw -R "$RUNROOTFS" && mv -f "$RUNROOTFS"/{.,}* "$CRYPTFS_MNT"/
+                                        then
+                                            rm -rf "$RUNROOTFS"
+                                            export RUNROOTFS="$CRYPTFS_MNT"
+                                            export RIM_ZSDT_CMPRS_LVL=1
+                                            try_rebuild_runimage "$@"
+                                            try_unmount "$CRYPTFS_MNT"
+                                            info_msg "Encryption is complete!"
+                                            exit
+                                        else
+                                            error_msg "Failed to encrypt RunImage rootfs!"
+                                            exit 1
+                                    fi
                                 else
-                                    error_msg "Failed to encrypt RunImage rootfs!"
+                                    error_msg "Failed to update sharun directory!"
                                     exit 1
                             fi
                         else
@@ -1428,12 +1507,22 @@ decrypt_rootfs() {
             try_mkdir "$RUNROOTFS"
             if mv -f "$CRYPTFS_MNT"/{.,}* "$RUNROOTFS"/
                 then
-                    rm -rf "$CRYPTFS_DIR"
-                    unset ZSDT_CMPRS_LVL
-                    try_rebuild_runimage "$@"
-                    try_unmount "$CRYPTFS_MNT"
-                    info_msg "Decryption is complete!"
-                    exit
+                    rm -rf "$BRUNDIR/sharun/shared"/*
+                    if (for dir in bin lib
+                        do ln -sfr "$RUNROOTFS/$dir" "$BRUNDIR/sharun/shared"/
+                    done)
+                        then
+                            rm -rf "$CRYPTFS_DIR"
+                            unset RIM_ZSDT_CMPRS_LVL
+                            touch "$RUNROOTFS/.decfs"
+                            try_rebuild_runimage "$@"
+                            try_unmount "$CRYPTFS_MNT"
+                            info_msg "Decryption is complete!"
+                            exit
+                        else
+                            error_msg "Failed to update sharun directory!"
+                            exit 1
+                    fi
                 else
                     error_msg "Failed to decrypt RunImage rootfs!"
                     exit 1
@@ -1456,44 +1545,44 @@ check_unshare_tmp() {
 }
 
 disable_sandbox_net() {
-    warn_msg "SANDBOX_NET is disabled for now!"
-    unset SANDBOX_NET_CIDR SANDBOX_NET_MAC \
-        SANDBOX_NET_MTU SANDBOX_NET_TAPNAME \
-        SANDBOX_NET_TAPIP SANDBOX_NET_SHARE_HOST \
-        SANDBOX_NET_DROP_CIDRS
-    SANDBOX_NET=0
+    warn_msg "RIM_SANDBOX_NET is disabled for now!"
+    unset RIM_SNET_CIDR RIM_SNET_MAC \
+        RIM_SNET_MTU RIM_SNET_TAPNAME \
+        RIM_SNET_TAPIP RIM_SNET_SHARE_HOST \
+        RIM_SNET_DROP_CIDRS RIM_SNET_PORTFW
+    RIM_SANDBOX_NET=0
 }
 
 set_default_option() {
-    NO_WARN=1
-    TMP_HOME=0
-    XORG_CONF=0
-    SANDBOX_NET=0
-    TMP_HOME_DL=0
-    UNSHARE_NSS=1
-    UNSHARE_HOME=1
-    SANDBOX_HOME=0
-    PORTABLE_HOME=0
-    UNSHARE_USERS=1
-    UNSHARE_HOSTS=1
-    SQFUSE_REMOUNT=0
-    SANDBOX_HOME_DL=0
-    NO_NVIDIA_CHECK=1
-    UNSHARE_MODULES=1
-    ENABLE_HOSTEXEC=0
-    UNSHARE_HOSTNAME=1
-    UNSHARE_LOCALTIME=1
-    UNSHARE_RESOLVCONF=1
+    RIM_NO_WARN=1
+    RIM_TMP_HOME=0
+    RIM_XORG_CONF=0
+    RIM_RUN_IN_ONE=0
+    RIM_SANDBOX_NET=0
+    RIM_TMP_HOME_DL=0
+    RIM_UNSHARE_NSS=1
+    RIM_UNSHARE_HOME=1
+    RIM_SANDBOX_HOME=0
+    RIM_PORTABLE_HOME=0
+    RIM_UNSHARE_USERS=1
+    RIM_UNSHARE_HOSTS=1
+    RIM_SANDBOX_HOME_DL=0
+    RIM_NO_NVIDIA_CHECK=1
+    RIM_UNSHARE_MODULES=1
+    RIM_ENABLE_HOSTEXEC=0
+    RIM_UNSHARE_HOSTNAME=1
+    RIM_UNSHARE_LOCALTIME=1
+    RIM_UNSHARE_RESOLVCONF=1
 }
 
 set_overfs_option() {
     set_default_option
-    if [[ -n "$RUNIMAGE" && ! -n "$OVERFS_ID" ]]
+    if [[ -n "$RUNIMAGE" && ! -n "$RIM_OVERFS_ID" ]]
         then
-            OVERFS_MODE=1
-            KEEP_OVERFS=0
-            REBUILD_RUNIMAGE=1
-            OVERFS_ID="${1}$(date +"%H%M%S").$RUNPID"
+            RIM_OVERFS_MODE=1
+            RIM_KEEP_OVERFS=0
+            RIM_REBUILD_RUNIMAGE=1
+            RIM_OVERFS_ID="${1}$(date +"%H%M%S").$RUNPID"
     fi
 }
 
@@ -1503,21 +1592,21 @@ print_help() {
 ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
     ${RED}Usage:
         $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-        $RED└──╼ \$$GREEN $([ -n "$ARGV0" ] && echo "$ARGV0"||echo "$0") $GREEN{executable} $YELLOW{executable args}
+        $RED└──╼ \$$GREEN $([ -n "$ARG0" ] && echo "$ARG0"||echo "$0") $GREEN{executable} $YELLOW{executable args}
 
-        ${BLUE}--run-help   ${RED}|${BLUE}--rH$GREEN                    Show this usage info
-        ${BLUE}--run-version${RED}|${BLUE}--rV$GREEN                    Show runimage, rootfs, static, runtime version
-        ${BLUE}--run-pkglist${RED}|${BLUE}--rP$GREEN                    Show packages installed in runimage
-        ${BLUE}--run-binlist${RED}|${BLUE}--rBin$GREEN                  Show /usr/bin in runimage
-        ${BLUE}--run-shell  ${RED}|${BLUE}--rS$YELLOW  {args}$GREEN            Run runimage shell or execute a command in runimage shell
-        ${BLUE}--run-desktop${RED}|${BLUE}--rD$GREEN                    Launch runimage desktop
-        ${BLUE}--overfs-list${RED}|${BLUE}--oL$GREEN                    Show the list of runimage OverlayFS
-        ${BLUE}--overfs-rm  ${RED}|${BLUE}--oR$YELLOW  {id id ...|all}$GREEN   Remove OverlayFS
-        ${BLUE}--run-build  ${RED}|${BLUE}--rB$YELLOW  {build args}$GREEN      Build new runimage container
-        ${BLUE}--run-update ${RED}|${BLUE}--rU$YELLOW  {build args}$GREEN      Update packages and rebuild runimage
-        ${BLUE}--run-kill   ${RED}|${BLUE}--rK$GREEN                    Kill all running runimage containers
-        ${BLUE}--run-procmon${RED}|${BLUE}--rPm$YELLOW {RUNPIDs}$GREEN         Monitoring of processes running in runimage containers
-        ${BLUE}--run-attach ${RED}|${BLUE}--rA$YELLOW  {RUNPID} {args}$GREEN   Attach to a running runimage container or exec command
+        ${BLUE}rim-help   $GREEN                    Show this usage info
+        ${BLUE}rim-version$GREEN                    Show runimage, rootfs, static, runtime version
+        ${BLUE}rim-pkglist$GREEN                    Show packages installed in runimage
+        ${BLUE}rim-binlist$GREEN                  Show /usr/bin in runimage
+        ${BLUE}rim-shell  $YELLOW  {args}$GREEN            Run runimage shell or execute a command in runimage shell
+        ${BLUE}rim-desktop$GREEN                    Launch runimage desktop
+        ${BLUE}rim-ofsls$GREEN                    Show the list of runimage OverlayFS
+        ${BLUE}rim-ofsrm  $YELLOW  {id id ...|all}$GREEN   Remove OverlayFS
+        ${BLUE}rim-build  $YELLOW  {build args}$GREEN      Build new runimage container
+        ${BLUE}rim-update $YELLOW  {build args}$GREEN      Update packages and rebuild runimage
+        ${BLUE}rim-kill   $GREEN                    Kill all running runimage containers
+        ${BLUE}rim-procmon$YELLOW {RUNPIDs}$GREEN         Monitoring of processes running in runimage containers
+        ${BLUE}rim-exec $YELLOW  {RUNPID} {args}$GREEN   Attach to a running runimage container or exec command
 
     ${RED}Only for not extracted (RunImage runtime options):
         ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
@@ -1530,73 +1619,72 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}--runtime-version$GREEN                    Print version of runimage runtime
 
     ${RED}Environment variables to configure:
-        ${YELLOW}NO_NET$GREEN=1                             Disables network access
-        ${YELLOW}TMP_HOME$GREEN=1                           Creates tmpfs /home/${YELLOW}\$USER${GREEN} and /root in RAM and uses it as ${YELLOW}\$HOME
-        ${YELLOW}TMP_HOME_DL$GREEN=1                        As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
-        ${YELLOW}SANDBOX_HOME$GREEN=1                       Creates sandbox home directory and bind it to /home/${YELLOW}\$USER${GREEN} or to /root
-        ${YELLOW}SANDBOX_HOME_DL$GREEN=1                    As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
-        ${YELLOW}SANDBOX_HOME_DIR$GREEN=\"/path/dir\"         Specifies sandbox home directory and bind it to /home/${YELLOW}\$USER${GREEN} or to /root
-        ${YELLOW}PORTABLE_HOME$GREEN=1                      Creates a portable home directory and uses it as ${YELLOW}\$HOME
-        ${YELLOW}PORTABLE_HOME_DIR$GREEN=\"/path/dir\"        Specifies a portable home directory and uses it as ${YELLOW}\$HOME
-        ${YELLOW}PORTABLE_CONFIG$GREEN=1                    Creates a portable config directory and uses it as ${YELLOW}\$XDG_CONFIG_HOME
-        ${YELLOW}NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
-        ${YELLOW}UNSHARE_PIDS$GREEN=1                       Unshares all host processes
-        ${YELLOW}UNSHARE_USERS$GREEN=1                      Don't bind-mount /etc/{passwd,group}
-        ${YELLOW}SHARE_SYSTEMD$GREEN=1                      Shares SystemD from the host
-        ${YELLOW}UNSHARE_DBUS$GREEN=1                       Unshares DBUS from the host
-        ${YELLOW}UNSHARE_UDEV$GREEN=1                       Unshares UDEV from the host (/run/udev)
-        ${YELLOW}UNSHARE_MODULES$GREEN=1                    Unshares kernel modules from the host (/usr/lib/modules)
-        ${YELLOW}UNSHARE_LOCALTIME$GREEN=1                  Unshares localtime from the host (/etc/localtime)
-        ${YELLOW}UNSHARE_NSS$GREEN=1                        Unshares NSS from the host (/etc/nsswitch.conf)
-        ${YELLOW}UNSHARE_DEF_MOUNTS$GREEN=1                 Unshares default mount points (/mnt /media /run/media)
-        ${YELLOW}NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
-        ${YELLOW}NVIDIA_DRIVERS_DIR$GREEN=\"/path/dir\"       Specifies custom Nvidia driver images directory
-        ${YELLOW}RUNCACHEDIR$GREEN=\"/path/dir\"              Specifies custom runimage cache directory
-        ${YELLOW}SQFUSE_REMOUNT$GREEN=1                     Remounts the container using squashfuse (fix MangoHud and VkBasalt bug)
-        ${YELLOW}OVERFS_MODE$GREEN=1                        Enables OverlayFS mode
-        ${YELLOW}KEEP_OVERFS$GREEN=1                        Enables OverlayFS mode with saving after closing runimage
-        ${YELLOW}OVERFS_ID$GREEN=ID                         Specifies the OverlayFS ID
-        ${YELLOW}KEEP_OLD_BUILD$GREEN=1                     Creates a backup of the old RunImage when building a new one
-        ${YELLOW}BUILD_WITH_EXTENSION$GREEN=1               Adds an extension when building (compression method and rootfs type)
-        ${YELLOW}CMPRS_ALGO$GREEN={zstd|xz|lz4}             Specifies the compression algo for runimage build
-        ${YELLOW}ZSDT_CMPRS_LVL$GREEN={1-22}                Specifies the compression ratio of the zstd algo for runimage build
-        ${YELLOW}RUN_SHELL$GREEN=\"shell\"                    Selects ${YELLOW}\$SHELL$GREEN in runimage
-        ${YELLOW}NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
+        ${YELLOW}RIM_NO_NET$GREEN=1                             Disables network access
+        ${YELLOW}RIM_TMP_HOME$GREEN=1                           Creates tmpfs /home/${YELLOW}\$USER${GREEN} and /root in RAM and uses it as ${YELLOW}\$HOME
+        ${YELLOW}RIM_TMP_HOME_DL$GREEN=1                        As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
+        ${YELLOW}RIM_SANDBOX_HOME$GREEN=1                       Creates sandbox home directory and bind it to /home/${YELLOW}\$USER${GREEN} or to /root
+        ${YELLOW}RIM_SANDBOX_HOME_DL$GREEN=1                    As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
+        ${YELLOW}RIM_SANDBOX_HOME_DIR$GREEN=\"/path/dir\"         Specifies sandbox home directory and bind it to /home/${YELLOW}\$USER${GREEN} or to /root
+        ${YELLOW}RIM_PORTABLE_HOME$GREEN=1                      Creates a portable home directory and uses it as ${YELLOW}\$HOME
+        ${YELLOW}RIM_PORTABLE_HOME_DIR$GREEN=\"/path/dir\"        Specifies a portable home directory and uses it as ${YELLOW}\$HOME
+        ${YELLOW}RIM_PORTABLE_CONFIG$GREEN=1                    Creates a portable config directory and uses it as ${YELLOW}\$XDG_CONFIG_HOME
+        ${YELLOW}RIM_NO_CLEANUP$GREEN=1                         Disables unmounting and cleanup mountpoints
+        ${YELLOW}RIM_UNSHARE_PIDS$GREEN=1                       Unshares all host processes
+        ${YELLOW}RIM_UNSHARE_USERS$GREEN=1                      Don't bind-mount /etc/{passwd,group}
+        ${YELLOW}RIM_SHARE_SYSTEMD$GREEN=1                      Shares SystemD from the host
+        ${YELLOW}RIM_UNSHARE_DBUS$GREEN=1                       Unshares DBUS from the host
+        ${YELLOW}RIM_UNSHARE_UDEV$GREEN=1                       Unshares UDEV from the host (/run/udev)
+        ${YELLOW}RIM_UNSHARE_MODULES$GREEN=1                    Unshares kernel modules from the host (/usr/lib/modules)
+        ${YELLOW}RIM_UNSHARE_LOCALTIME$GREEN=1                  Unshares localtime from the host (/etc/localtime)
+        ${YELLOW}RIM_UNSHARE_NSS$GREEN=1                        Unshares NSS from the host (/etc/nsswitch.conf)
+        ${YELLOW}RIM_UNSHARE_DEF_MOUNTS$GREEN=1                 Unshares default mount points (/mnt /media /run/media)
+        ${YELLOW}RIM_NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
+        ${YELLOW}RIM_NVIDIA_DRIVERS_DIR$GREEN=\"/path/dir\"     Specifies custom Nvidia driver images directory
+        ${YELLOW}RIM_CACHEDIR$GREEN=\"/path/dir\"                Specifies custom runimage cache directory
+        ${YELLOW}RIM_OVERFS_MODE$GREEN=1                        Enables OverlayFS mode
+        ${YELLOW}RIM_KEEP_OVERFS$GREEN=1                        Enables OverlayFS mode with saving after closing runimage
+        ${YELLOW}RIM_OVERFS_ID$GREEN=ID                         Specifies the OverlayFS ID
+        ${YELLOW}RIM_KEEP_OLD_BUILD$GREEN=1                     Creates a backup of the old RunImage when building a new one
+        ${YELLOW}RIM_BUILD_WITH_EXTENSION$GREEN=1               Adds an extension when building (compression method and rootfs type)
+        ${YELLOW}RIM_CMPRS_ALGO$GREEN={zstd|xz|lz4}             Specifies the compression algo for runimage build
+        ${YELLOW}RIM_ZSDT_CMPRS_LVL$GREEN={1-22}                Specifies the compression ratio of the zstd algo for runimage build
+        ${YELLOW}RIM_SHELL$GREEN=\"shell\"                      Selects ${YELLOW}\$SHELL$GREEN in runimage
+        ${YELLOW}RIM_NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
                                                 you can also use /usr/bin/nocap in runimage
-        ${YELLOW}AUTORUN$GREEN=\"{executable} {args}\"        Run runimage with autorun options for /usr/bin executables
-        ${YELLOW}ALLOW_ROOT$GREEN=1                         Allows to run runimage under root user
-        ${YELLOW}QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
-        ${YELLOW}NO_WARN$GREEN=1                            Disables all warning runimage messages
-        ${YELLOW}DONT_NOTIFY$GREEN=1                        Disables all non-error runimage notification
-        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1            Run runimage afer extraction without using FUSE
-        ${YELLOW}TMPDIR$GREEN=\"/path/{TMPDIR}\"              Used for extract and run options
-        ${YELLOW}RUNIMAGE_CONFIG$GREEN=\"/path/{config}\"     runimage сonfiguration file (0 to disable)
-        ${YELLOW}ENABLE_HOSTEXEC$GREEN=1                    Enables the ability to execute commands at the host level
-        ${YELLOW}NO_RPIDSMON$GREEN=1                        Disables the monitoring thread of running processes
-        ${YELLOW}SANDBOX_NET$GREEN=1                        Creates a network sandbox
-        ${YELLOW}SANDBOX_NET_SHARE_HOST$GREEN=1             Creates a network sandbox with access to host loopback
-        ${YELLOW}SANDBOX_NET_CIDR$GREEN=11.22.33.0/24       Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
-        ${YELLOW}SANDBOX_NET_TAPNAME$GREEN=tap0             Specifies tap interface name in network sandbox (Def: eth0)
-        ${YELLOW}SANDBOX_NET_MAC$GREEN=B6:40:E0:8B:A6:D7    Specifies tap interface MAC in network sandbox (Def: random)
-        ${YELLOW}SANDBOX_NET_MTU$GREEN=65520                Specifies tap interface MTU in network sandbox (Def: 1500)
-        ${YELLOW}HOSTS_FILE$GREEN=\"file\"                  Binds specified file to /etc/hosts
-        ${YELLOW}RESOLVCONF_FILE$GREEN=\"file\"             Binds specified file to /etc/resolv.conf
-        ${YELLOW}BUWRAP_ARGS$GREEN+=()                       Array with Bubblewrap arguments (for config file)
-        ${YELLOW}EXEC_ARGS$GREEN+=()                        Array with Bubblewrap exec arguments (for config file)
-        ${YELLOW}XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
+        ${YELLOW}RIM_AUTORUN$GREEN=\"{executable} {args}\"        Run runimage with autorun options for /usr/bin executables
+        ${YELLOW}RIM_ALLOW_ROOT$GREEN=1                         Allows to run runimage under root user
+        ${YELLOW}RIM_QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
+        ${YELLOW}RIM_NO_WARN$GREEN=1                            Disables all warning runimage messages
+        ${YELLOW}RIM_DONT_NOTIFY$GREEN=1                        Disables all non-error runimage notification
+        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1                Run runimage afer extraction without using FUSE
+        ${YELLOW}TMPDIR$GREEN=\"/path/{TMPDIR}\"                Used for extract and run options
+        ${YELLOW}RIM_CONFIG$GREEN=\"/path/{config}\"            runimage сonfiguration file (0 to disable)
+        ${YELLOW}RIM_ENABLE_HOSTEXEC$GREEN=1                    Enables the ability to execute commands at the host level
+        ${YELLOW}RIM_NO_RPIDSMON$GREEN=1                        Disables the monitoring thread of running processes
+        ${YELLOW}RIM_SANDBOX_NET$GREEN=1                        Creates a network sandbox
+        ${YELLOW}RIM_SNET_SHARE_HOST$GREEN=1                    Creates a network sandbox with access to host loopback
+        ${YELLOW}RIM_SNET_CIDR$GREEN=11.22.33.0/24              Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
+        ${YELLOW}RIM_SNET_TAPNAME$GREEN=tap0                    Specifies tap interface name in network sandbox (Def: eth0)
+        ${YELLOW}RIM_SNET_MAC$GREEN=B6:40:E0:8B:A6:D7           Specifies tap interface MAC in network sandbox (Def: random)
+        ${YELLOW}RIM_SNET_MTU$GREEN=65520                       Specifies tap interface MTU in network sandbox (Def: 1500)
+        ${YELLOW}RIM_HOSTS_FILE$GREEN=\"file\"                  Binds specified file to /etc/hosts
+        ${YELLOW}RIM_RESOLVCONF_FILE$GREEN=\"file\"             Binds specified file to /etc/resolv.conf
+        ${YELLOW}RIM_BUWRAP_ARGS$GREEN+=()                       Array with Bubblewrap arguments (for config file)
+        ${YELLOW}RIM_EXEC_ARGS$GREEN+=()                        Array with Bubblewrap exec arguments (for config file)
+        ${YELLOW}RIM_XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
                                                 (Default: /etc/X11/xorg.conf bind from the system)
-        ${YELLOW}XEPHYR_SIZE$GREEN=\"HEIGHTxWIDTH\"           Sets runimage desktop resolution (Default: 1600x900)
-        ${YELLOW}XEPHYR_DISPLAY$GREEN=\":9999\"               Sets runimage desktop ${YELLOW}\$DISPLAY$GREEN (Default: :1337)
-        ${YELLOW}XEPHYR_FULLSCREEN$GREEN=1                  Starts runimage desktop in full screen mode
-        ${YELLOW}UNSHARE_CLIPBOARD$GREEN=1                  Disables clipboard synchronization for runimage desktop
+        ${YELLOW}RIM_XEPHYR_SIZE$GREEN=\"HEIGHTxWIDTH\"           Sets runimage desktop resolution (Default: 1600x900)
+        ${YELLOW}RIM_XEPHYR_DISPLAY$GREEN=\":9999\"               Sets runimage desktop ${YELLOW}\$DISPLAY$GREEN (Default: :1337)
+        ${YELLOW}RIM_XEPHYR_FULLSCREEN$GREEN=1                  Starts runimage desktop in full screen mode
+        ${YELLOW}RIM_UNSHARE_CLIPBOARD$GREEN=1                  Disables clipboard synchronization for runimage desktop
 
-        ${YELLOW}SYS_BUWRAP$GREEN=1                         Using system ${BLUE}bwrap
-        ${YELLOW}SYS_SQFUSE$GREEN=1                         Using system ${BLUE}squashfuse
-        ${YELLOW}SYS_UNSQFS$GREEN=1                         Using system ${BLUE}unsquashfs
-        ${YELLOW}SYS_MKSQFS$GREEN=1                         Using system ${BLUE}mksquashfs
-        ${YELLOW}SYS_UNIONFS$GREEN=1                        Using system ${BLUE}unionfs
-        ${YELLOW}SYS_SLIRP$GREEN=1                          Using system ${BLUE}slirp4netns
-        ${YELLOW}SYS_TOOLS$GREEN=1                          Using all binaries from the system
+        ${YELLOW}RIM_SYS_BUWRAP$GREEN=1                         Using system ${BLUE}bwrap
+        ${YELLOW}RIM_SYS_SQFUSE$GREEN=1                         Using system ${BLUE}squashfuse
+        ${YELLOW}RIM_SYS_UNSQFS$GREEN=1                         Using system ${BLUE}unsquashfs
+        ${YELLOW}RIM_SYS_MKSQFS$GREEN=1                         Using system ${BLUE}mksquashfs
+        ${YELLOW}RIM_SYS_UNIONFS$GREEN=1                        Using system ${BLUE}unionfs
+        ${YELLOW}RIM_SYS_SLIRP$GREEN=1                          Using system ${BLUE}slirp4netns
+        ${YELLOW}RIM_SYS_TOOLS$GREEN=1                          Using all binaries from the system
                                              If they are not found in the system - auto return to the built-in
 
     ${RED}Other environment variables:
@@ -1607,7 +1695,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${GREEN}Squashfs offset (for packed):
             ${YELLOW}RUNOFFSET${GREEN}=\"$RUNOFFSET\"
         ${GREEN}Null argument:
-            ${YELLOW}ARGV0${GREEN}=\"$ARGV0\"
+            ${YELLOW}ARG0${GREEN}=\"$ARG0\"
         ${GREEN}PID of Run.sh script:
             ${YELLOW}RUNPID${GREEN}=\"$RUNPID\"
         ${GREEN}Parent PID of Run.sh script:
@@ -1631,7 +1719,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${GREEN}Nvidia driver images directory:
             ${YELLOW}NVIDIA_DRIVERS_DIR${GREEN}=\"$NVIDIA_DRIVERS_DIR\"
         ${GREEN}RunImage name or link name or executable name:
-            ${YELLOW}RUNSRCNAME${GREEN}=\"$RUNCACHEDIR\"
+            ${YELLOW}RUNSRCNAME${GREEN}=\"$RUNSRCNAME\"
         ${GREEN}RunImage version:
             ${YELLOW}RUNIMAGE_VERSION${GREEN}=\"$RUNIMAGE_VERSION\"
         ${GREEN}RootFS version:
@@ -1681,7 +1769,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}webm2gif$GREEN                     Convert webm to gif
         ${YELLOW}transfer$GREEN                     Upload file to ${BLUE}https://transfer.sh
         ${YELLOW}rpidsmon$GREEN                     For monitoring of processes running in runimage containers
-        ${YELLOW}hostexec$GREEN                     For execute commands at the host level (see ${YELLOW}ENABLE_HOSTEXEC$GREEN)
+        ${YELLOW}hostexec$GREEN                     For execute commands at the host level (see ${YELLOW}RIM_ENABLE_HOSTEXEC$GREEN)
         ${YELLOW}runupdate$GREEN                    For runimage update
 
         ${YELLOW}ls$GREEN='ls --color=auto'
@@ -1712,15 +1800,15 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         You can create a symlink/hardlink to runimage or rename runimage and give it the name
             of some executable file from /usr/bin in runimage, this will allow you to run
             runimage in autorun mode for this executable file.
-        The same principle applies to the ${YELLOW}AUTORUN$GREEN variable:
+        The same principle applies to the ${YELLOW}RIM_AUTORUN$GREEN variable:
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}AUTORUN=\"ls -la\" ${GREEN}runimage ${YELLOW}{autorun executable args}${GREEN}
+            $RED└──╼ \$ ${YELLOW}RIM_AUTORUN=\"ls -la\" ${GREEN}runimage ${YELLOW}{autorun executable args}${GREEN}
         Here runimage will become something like an alias for 'ls' in runimage
-            with the '-la' argument. You can also use ${YELLOW}AUTORUN${GREEN} as an array for complex commands in the config.
-            ${YELLOW}AUTORUN=(\"ls\" \"-la\" \"/path/to something\")${GREEN}
+            with the '-la' argument. You can also use ${YELLOW}RIM_AUTORUN${GREEN} as an array for complex commands in the config.
+            ${YELLOW}RIM_AUTORUN=(\"ls\" \"-la\" \"/path/to something\")${GREEN}
         This will also work in extracted form for the Run binary.
 
-        When using the ${YELLOW}PORTABLE_HOME$GREEN and ${YELLOW}PORTABLE_CONFIG$GREEN variables, runimage will create or
+        When using the ${YELLOW}RIM_PORTABLE_HOME$GREEN and ${YELLOW}RIM_PORTABLE_CONFIG$GREEN variables, runimage will create or
             search for these directories next to itself. The same behavior will occur when
             adding a runimage or Run binary or renamed or symlink/hardlink to them in the PATH
             it can be used both extracted and compressed and for all executable files being run:
@@ -1732,10 +1820,10 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             or with runimage/Run name:
                 ${YELLOW}'$PORTABLEHOMEDIR/{runimage/Run_name}'$GREEN
                 ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.config'$GREEN
-            It can also be with the name of the executable file from ${YELLOW}AUTORUN$GREEN environment variables,
+            It can also be with the name of the executable file from ${YELLOW}RIM_AUTORUN$GREEN environment variables,
                 or with the same name as the executable being run.
-        ${YELLOW}SANDBOX_HOME$GREEN* similar to ${YELLOW}PORTABLE_HOME$GREEN, but the system ${YELLOW}HOME$GREEN becomes isolated.
-        ${YELLOW}SANDBOX_HOME_DIR$GREEN and ${YELLOW}PORTABLE_HOME_DIR$GREEN point to a specific directory or create it in the absence of.
+        ${YELLOW}RIM_SANDBOX_HOME$GREEN* similar to ${YELLOW}RIM_PORTABLE_HOME$GREEN, but the system ${YELLOW}HOME$GREEN becomes isolated.
+        ${YELLOW}RIM_SANDBOX_HOME_DIR$GREEN and ${YELLOW}RIM_PORTABLE_HOME_DIR$GREEN point to a specific directory or create it in the absence of.
 
         RunImage uses fakechroot and fakeroot, which allows you to use root commands, including in
             unpacked form, to update the rootfs or install/remove packages.
@@ -1754,7 +1842,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                 ${YELLOW}'$RUNCONFIGDIR/Run.rcfg'$GREEN
                 ${YELLOW}'$RUNCONFIGDIR/{runimage/Run_name}.rcfg'$GREEN
                 ${YELLOW}'$RUNCONFIGDIR/{symlink/hardlink_name}.rcfg'$GREEN
-            It can also be with the name of the executable file from ${YELLOW}AUTORUN$GREEN environment variables,
+            It can also be with the name of the executable file from ${YELLOW}RIM_AUTORUN$GREEN environment variables,
                 or with the same name as the executable being run.
             In ${YELLOW}\$RUNDIR$GREEN/config there are default configs in RunImage, they are run in priority,
                 then external configs are run if they are found.
@@ -1764,7 +1852,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             If the launch is carried out from an already running desktop, then Xephyr will start
                 in windowed/full screen mode (see ${YELLOW}XEPHYR_*$GREEN environment variables)
                 Use CTRL+SHIFT to grab the keyboard and mouse.
-            It is also possible to run on TTY with Xorg (see ${YELLOW}XORG_CONF$GREEN environment variables)
+            It is also possible to run on TTY with Xorg (see ${YELLOW}RIM_XORG_CONF$GREEN environment variables)
                 To do this, just log in to TTY and run RunImage desktop.
             ${RED}Important!${GREEN} The launch on the TTY should be carried out only under the user under whom the
                 login to the TTY was carried out.
@@ -1775,20 +1863,20 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                 it allows you to mount the container in RW mode.
             It also allows you to attach to the same OverlayFS when you specify its ID:
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}OVERFS_ID=1337 ${GREEN}runimage ${YELLOW}{args}${GREEN}
+            $RED└──╼ \$ ${YELLOW}RIM_OVERFS_ID=1337 ${GREEN}runimage ${YELLOW}{args}${GREEN}
                 If OverlayFS with such ID does not exist, it will be created.
-            To save OverlayFS after closing the container, use ${YELLOW}KEEP_OVERFS:
+            To save OverlayFS after closing the container, use ${YELLOW}RIM_KEEP_OVERFS:
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}KEEP_OVERFS=1 ${GREEN}runimage ${YELLOW}{args}${GREEN}
-            To run a one-time OverlayFS, use ${YELLOW}OVERFS_MODE:
+            $RED└──╼ \$ ${YELLOW}RIM_KEEP_OVERFS=1 ${GREEN}runimage ${YELLOW}{args}${GREEN}
+            To run a one-time OverlayFS, use ${YELLOW}RIM_OVERFS_MODE:
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}OVERFS_MODE=1 ${GREEN}runimage ${YELLOW}{args}${GREEN}
+            $RED└──╼ \$ ${YELLOW}RIM_OVERFS_MODE=1 ${GREEN}runimage ${YELLOW}{args}${GREEN}
 
         ${RED}RunImage build:${GREEN}
             Allows you to create your own runimage containers.
             This works both externally by passing build args:
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${GREEN}runimage ${BLUE}--run-build ${YELLOW}{build args}${GREEN}
+            $RED└──╼ \$ ${GREEN}runimage ${BLUE}rim-build ${YELLOW}{build args}${GREEN}
             And it also works inside the running instance (see runbuild):
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - in runimage
             $RED└──╼ \$ ${GREEN}runbuild ${YELLOW}{build args}${GREEN}
@@ -1796,27 +1884,27 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                 ${YELLOW}{/path/new_runimage_name} {-zstd|-xz|-lz4} {zstd compression level 1-19}${GREEN}
             By default, runimage is created in the current directory with a standard name and
                 with lz4 compression. If a new RunImage is successfully build, the old one is deleted.
-                (see ${YELLOW}KEEP_OLD_BUILD${GREEN} ${YELLOW}BUILD_WITH_EXTENSION${GREEN} ${YELLOW}CMPRS_ALGO${GREEN} ${YELLOW}ZSDT_CMPRS_LVL${GREEN})
+                (see ${YELLOW}RIM_KEEP_OLD_BUILD${GREEN} ${YELLOW}RIM_BUILD_WITH_EXTENSION${GREEN} ${YELLOW}RIM_CMPRS_ALGO${GREEN} ${YELLOW}RIM_ZSDT_CMPRS_LVL${GREEN})
 
         ${RED}RunImage update:${GREEN}
             Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
                 not be performed. When running an update, you can also pass arguments for a new build.
                 (see RunImage build) (also see runupdate)
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${GREEN}runimage ${BLUE}--run-update ${YELLOW}{build args}${GREEN}
+            $RED└──╼ \$ ${GREEN}runimage ${BLUE}rim-update ${YELLOW}{build args}${GREEN}
             By default, update and rebuild is performed in ${YELLOW}\$RUNIMAGEDIR${GREEN}
 
         ${RED}RunImage network sandbox:${GREEN}
             Allows you to create a private network namespace with slirp4netns and inside the container
                 manage routing, create/delete network interfaces, connect to a vpn (checked openvpn
-                and wireguard), configure your resolv.conf and hosts, etc. (see ${YELLOW}SANDBOX_NET${GREEN}*)
+                and wireguard), configure your resolv.conf and hosts, etc. (see ${YELLOW}RIM_SANDBOX_NET${GREEN}*)
             By default, network sandbox created in 10.0.2.0/24 subnet, with eth0 tap name, 10.0.2.100 tap ip,
                 1500 tap MTU, and random MAC.
 
         ${RED}RunImage hostexec:${GREEN}
-            Allows you to run commands at the host level (see ${YELLOW}ENABLE_HOSTEXEC${GREEN} and hostexec)
+            Allows you to run commands at the host level (see ${YELLOW}RIM_ENABLE_HOSTEXEC${GREEN} and hostexec)
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}ENABLE_HOSTEXEC${GREEN}=1 runimage ${BLUE}--run-shell ${GREEN}
+            $RED└──╼ \$ ${YELLOW}RIM_ENABLE_HOSTEXEC${GREEN}=1 runimage ${BLUE}rim-shell ${GREEN}
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command as args
             $RED└──╼ \$ ${GREEN}hostexec ${BLUE}{hostexec args}${GREEN} {executable} ${YELLOW}{executable args}${GREEN}
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command to stdin
@@ -1836,7 +1924,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             In runimage, a fake version of the nvidia driver is installed by default to reduce the size:
                 ${BLUE}https://github.com/VHSgunzo/runimage-fake-nvidia-driver${GREEN}
             But you can also install the usual nvidia driver of your version in runimage.
-            Checking the nvidia driver version can be disabled using ${YELLOW}NO_NVIDIA_CHECK$GREEN variable.
+            Checking the nvidia driver version can be disabled using ${YELLOW}RIM_NO_NVIDIA_CHECK$GREEN variable.
             The nvidia driver image can be located next to runimage:
                     ${YELLOW}'$RUNIMAGEDIR/{nvidia_version}.nv.drv'$GREEN
                 or in ${YELLOW}\$RUNIMAGEDIR$GREEN/nvidia-drivers (Default):
@@ -1863,36 +1951,43 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
 
 trap cleanup EXIT
 
-if [[ "$EUID" == 0 && "$ALLOW_ROOT" != 1 ]]
+if [[ "$EUID" == 0 && "$RIM_ALLOW_ROOT" != 1 ]]
     then
         error_msg "root user is not allowed!"
         console_info_notify
         echo -e "${RED}\t\t\tDo not run RunImage as root!"
-        echo -e "If you really need to run it as root set the ${YELLOW}ALLOW_ROOT${GREEN}=1 ${RED}environment variable.$RESETCOLOR"
+        echo -e "If you really need to run it as root set the ${YELLOW}RIM_ALLOW_ROOT${GREEN}=1 ${RED}environment variable.$RESETCOLOR"
         exit 1
 fi
 
-if [ -n "$AUTORUN" ] && \
+if [ -n "$RIM_AUTORUN" ] && \
    [[ "$RUNSRCNAME" == "Run"* || \
       "$RUNSRCNAME" == "runimage"* ]]
     then
-        RUNSRCNAME=($AUTORUN)
+        RUNSRCNAME=($RIM_AUTORUN)
 elif [[ "$RUNSRCNAME" != "Run"* && \
         "$RUNSRCNAME" != "runimage"* ]]
    then
-        AUTORUN="$RUNSRCNAME"
+        RIM_AUTORUN="$RUNSRCNAME"
 fi
 
-if [[ -n "$1" && ! -n "$AUTORUN" ]]
+if [[ -n "$1" && "$1" != 'rim-'* && ! -n "$RIM_AUTORUN" ]]
     then
-        case "$1" in
-            --*) : ;;
-            *) RUNSRCNAME="$(basename "$1" 2>/dev/null)"
-            ;;
-        esac
+        run_args=("$@")
+        for arg in "${run_args[@]}"
+            do
+                case "$arg" in
+                    -*) : ;;
+                    *)
+                        export RUNSRCNAME="$(basename "$arg" 2>/dev/null)"
+                        break
+                    ;;
+                esac
+        done
+        unset run_args
 fi
 
-if [ "$RUNIMAGE_CONFIG" != 0 ]
+if [ "$RIM_CONFIG" != 0 ]
     then
         if [ -f "$RUNDIR/config/$RUNSRCNAME.rcfg" ]
             then
@@ -1910,84 +2005,93 @@ if [ "$RUNIMAGE_CONFIG" != 0 ]
                 set +a
                 info_msg "Found RunImage internal config: $(basename "$RUNIMAGE_INTERNAL_CONFIG")"
         fi
-        if [[ -f "$RUNIMAGE_CONFIG" && -n "$(echo "$RUNIMAGE_CONFIG"|grep -o '\.rcfg$')" ]]
+        if [[ -f "$RIM_CONFIG" && -n "$(echo "$RIM_CONFIG"|grep -o '\.rcfg$')" ]]
             then
                 SET_RUNIMAGE_CONFIG=1
         elif [ -f "$RUNIMAGEDIR/$RUNSRCNAME.rcfg" ]
             then
-                RUNIMAGE_CONFIG="$RUNIMAGEDIR/$RUNSRCNAME.rcfg"
+                RIM_CONFIG="$RUNIMAGEDIR/$RUNSRCNAME.rcfg"
                 SET_RUNIMAGE_CONFIG=1
         elif [ -f "$RUNCONFIGDIR/$RUNSRCNAME.rcfg" ]
             then
-                RUNIMAGE_CONFIG="$RUNCONFIGDIR/$RUNSRCNAME.rcfg"
+                RIM_CONFIG="$RUNCONFIGDIR/$RUNSRCNAME.rcfg"
                 SET_RUNIMAGE_CONFIG=1
         elif [[ -n "$RUNIMAGE" && -f "$RUNIMAGE.rcfg" ]]
             then
-                RUNIMAGE_CONFIG="$RUNIMAGE.rcfg"
+                RIM_CONFIG="$RUNIMAGE.rcfg"
                 SET_RUNIMAGE_CONFIG=1
         elif [ -f "$RUNIMAGEDIR/Run.rcfg" ]
             then
-                RUNIMAGE_CONFIG="$RUNIMAGEDIR/Run.rcfg"
+                RIM_CONFIG="$RUNIMAGEDIR/Run.rcfg"
                 SET_RUNIMAGE_CONFIG=1
         elif [ -f "$RUNCONFIGDIR/Run.rcfg" ]
             then
-                RUNIMAGE_CONFIG="$RUNCONFIGDIR/Run.rcfg"
+                RIM_CONFIG="$RUNCONFIGDIR/Run.rcfg"
                 SET_RUNIMAGE_CONFIG=1
         fi
         if [ "$SET_RUNIMAGE_CONFIG" == 1 ]
             then
                 set -a
-                source "$RUNIMAGE_CONFIG"
+                source "$RIM_CONFIG"
                 set +a
-                info_msg "Found RunImage config: '$RUNIMAGE_CONFIG'"
+                info_msg "Found RunImage config: '$RIM_CONFIG'"
         fi
     else
         warn_msg "RunImage config is disabled!"
 fi
 
-UNENV="all-:SHELL,DISPLAY,XDG_DATA_DIRS,\
-XDG_CONFIG_DIRS,XDG_RUNTIME_DIR,DBUS_SESSION_BUS_ADDRESS"
+export RUNCACHEDIR="${RIM_CACHEDIR:=$RUNIMAGEDIR/cache}"
 
-if [ "$RUN_IN_ONE" == 1 ]
+case "$1" in
+    rim-decfs     ) set_overfs_option crypt ;;
+    rim-encfs  |\
+    rim-enc-passwd) NO_CRYPTFS_MOUNT=1
+                    set_overfs_option crypt ;;
+    rim-pkglist|\
+    rim-binlist|\
+    rim-version|\
+    rim-build     ) set_default_option ;;
+    rim-kill   |\
+    rim-help   |\
+    rim-ofsls  |\
+    rim-ofsrm     ) NO_CRYPTFS_MOUNT=1
+                    set_default_option ;;
+    rim-exec      ) shift ; if [ "$RIM_RUN_IN_ONE" != 1 ]
+                        then run_attach exec "$@" ; exit $?
+                    fi ;;
+    rim-portfw    ) if [ "$RIM_RUN_IN_ONE" != 1 ]
+                        then shift ; run_attach portfw "$@" ; exit $?
+                    fi ;;
+    rim-procmon   ) set_default_option ; RIM_TMP_HOME=1
+                    RIM_UNSHARE_PIDS=0 ; RIM_CONFIG=0
+                    export SSRV_SOCK="unix:$RUNPIDDIR/rmp"
+                    RIM_NO_RPIDSMON=1 ; RIM_QUIET_MODE=1 ;;
+    rim-update    ) set_overfs_option upd ;;
+esac
+
+if [ "$RIM_RUN_IN_ONE" == 1 ]
     then
         RUNIMAGEDIR_SUM=($(sha1sum<<<"$RUNIMAGEDIR"))
         SSRV_SOCK_PATH="$RUNPIDDIR/${RUNIMAGEDIR_SUM}.sock"
-        SSRV_RUNPID="$(ls -1 "$RUNTMPDIR"/*/"${RUNIMAGEDIR_SUM}.sock" 2>/dev/null|head -1|awk -F'/' '{print $(NF-1)}')"
+        SSRV_RUNPID="$(ls -1 "$RUNTMPDIR"/*/"${RUNIMAGEDIR_SUM}.sock" 2>/dev/null|awk -F'/' 'NR==1{print $(NF-1)}')"
         if [ -n "$SSRV_RUNPID" ]
             then
                 if is_pid "$SSRV_RUNPID"
-                    then SSRV_SOCK_PATH="${RUNTMPDIR}/${SSRV_RUNPID}/${RUNIMAGEDIR_SUM}.sock"
+                    then
+                        RUNPORTFW="${RUNTMPDIR}/${SSRV_RUNPID}/portfw"
+                        SSRV_SOCK_PATH="${RUNTMPDIR}/${SSRV_RUNPID}/${RUNIMAGEDIR_SUM}.sock"
                     else rm -f "${RUNTMPDIR}/${SSRV_RUNPID}.${RUNIMAGEDIR_SUM}.sock"
                 fi
         fi
         export SSRV_SOCK="unix:$SSRV_SOCK_PATH"
-        [ -e "$SSRV_SOCK_PATH" ] && \
-        SSRV_ENV="$UNENV" exec ssrv "$@"
+        if [ -e "$SSRV_SOCK_PATH" ]
+            then
+                case "$1" in
+                    rim-portfw ) shift ; run_attach portfw "$SSRV_RUNPID" "$@" ;;
+                    *) run_attach exec "$SSRV_RUNPID" "$@" ;;
+                esac
+        fi
 fi
-
-case "$RUNSRCNAME" in
-    Run*|runimage*|$RUNROOTFSTYPE)
-        case "$1" in
-            --decrypt-rootfs|--dR) set_overfs_option crypt ;;
-            --encrypt-rootfs|--eR|\
-            --passwd-cryptfs|--pC) DONT_MOUNT_CRYPTFS=1
-                                   set_overfs_option crypt ;;
-            --run-pkglist|--rP|\
-            --run-binlist|--rBin|\
-            --run-version|--rV|\
-            --run-build  |--rB) set_default_option ;;
-            --run-kill   |--rK|\
-            --run-help   |--rH|\
-            --overfs-list|--oL|\
-            --overfs-rm  |--oR) DONT_MOUNT_CRYPTFS=1 ;
-                                set_default_option ;;
-            --run-attach |--rA) shift ; run_attach "$@" ; exit $? ;;
-            --run-procmon|--rPm) set_default_option ; TMP_HOME=1
-                                 export SSRV_SOCK="unix:$RUNPIDDIR/rmp"
-                                 NO_RPIDSMON=1 ; QUIET_MODE=1 ;;
-            --run-update |--rU) set_overfs_option upd ;;
-        esac
-esac
 
 mkdir -p "$RUNPIDDIR"
 chmod go-rwx "$REUIDDIR"/{,/run}
@@ -2012,7 +2116,7 @@ export RUNGROUP="$(id -gn 2>/dev/null)"
 
 if [[ "$DISPLAY" == "wayland-"* ]]
     then
-        export DISPLAY=":$(echo "$DISPLAY"|sed 's|wayland-||g')"
+        export DISPLAY=":${DISPLAY/wayland-/}"
 elif [[ ! -n "$DISPLAY" && ! -n "$WAYLAND_DISPLAY" && -n "$XDG_SESSION_TYPE" ]]
     then
         export DISPLAY="$(who|grep "$RUNUSER"|grep -v "ttyS"|\
@@ -2025,7 +2129,7 @@ xhost +si:localuser:$RUNUSER &>/dev/null
 
 ulimit -n $(ulimit -n -H) &>/dev/null
 
-if [ "$UNSHARE_DEF_MOUNTS" != 1 ]
+if [ "$RIM_UNSHARE_DEF_MOUNTS" != 1 ]
     then
         DEF_MOUNTS_BIND=(
             '--bind-try' '/mnt' '/mnt'
@@ -2045,10 +2149,10 @@ XDG_RUN_BIND=(
     "--dir" "$XDG_RUNTIME_DIR"
     "--chmod" "0700" "$XDG_RUNTIME_DIR"
 )
-[ "$UNSHARE_UDEV" != 1 ] && \
+[ "$RIM_UNSHARE_UDEV" != 1 ] && \
     runbinds+=("/run/udev")||\
     warn_msg "Host UDEV is unshared!"
-if [[ "$SHARE_SYSTEMD" == 1 && -d "/run/systemd" ]]
+if [[ "$RIM_SHARE_SYSTEMD" == 1 && -d "/run/systemd" ]]
     then
         warn_msg "Host SystemD is shared!"
         runbinds+=("/run/systemd")
@@ -2057,11 +2161,11 @@ XDG_DBUS=(
     "$XDG_RUNTIME_DIR/bus"
     "$XDG_RUNTIME_DIR/dbus-1"
 )
-if [ "$UNSHARE_PIDS" == 1 ]
+if [ "$RIM_UNSHARE_PIDS" == 1 ]
     then
         warn_msg "Host PIDs are unshared!"
         UNSHARE_BIND+=("--unshare-pid" "--as-pid-1")
-        [ "$UNSHARE_DBUS" != 1 ] && \
+        [ "$RIM_UNSHARE_DBUS" != 1 ] && \
             runbinds+=(
                 "/run/dbus"
                 "${XDG_DBUS[@]}"
@@ -2075,17 +2179,17 @@ if [ "$UNSHARE_PIDS" == 1 ]
         )
     else
         runbinds+=("/run/utmp")
-        [ "$UNSHARE_DBUS" != 1 ] && \
+        [ "$RIM_UNSHARE_DBUS" != 1 ] && \
             runbinds+=(
                 "/run/dbus"
                 "$XDG_RUNTIME_DIR"
             )
 fi
-if [ "$UNSHARE_DBUS" == 1 ]
+if [ "$RIM_UNSHARE_DBUS" == 1 ]
     then
         warn_msg "Host DBUS is unshared!"
         UNSHARE_BIND+=("--unsetenv" "DBUS_SESSION_BUS_ADDRESS")
-        if [ "$UNSHARE_PIDS" != 1 ]
+        if [ "$RIM_UNSHARE_PIDS" != 1 ]
             then
                 for runbind in "$XDG_RUNTIME_DIR"/* "$XDG_RUNTIME_DIR"/.*
                     do
@@ -2098,13 +2202,14 @@ for bind in "${runbinds[@]}"
     do XDG_RUN_BIND+=("--bind-try" "$bind" "$bind")
 done
 
-if [ "$UNSHARE_LOCALTIME" != 1 ]
+if [ "$RIM_UNSHARE_LOCALTIME" != 1 ]
     then LOCALTIME_BIND=("--ro-bind-try" "/etc/localtime" "/etc/localtime")
     else warn_msg "Host '/etc/localtime' is unshared!"
 fi
 
-if [ "$NO_RPIDSMON" != 1 ]
+if [ "$RIM_NO_RPIDSMON" != 1 ]
     then
+        RPIDSFL="$RUNPIDDIR/rpids"
         (wait_rpids=15
         while [[ ! -n "$oldrpids" && "$wait_rpids" -gt 0 ]]
             do
@@ -2146,12 +2251,12 @@ if [ ! -n "$DBUS_SESSION_BUS_ADDRESS" ]
         fi
 fi
 
-[ "$SYS_TOOLS" == 1 ] && \
-    export SYS_MKSQFS=1 SYS_UNSQFS=1 \
-           SYS_SQFUSE=1 SYS_BUWRAP=1 \
-           SYS_UNIONFS=1 SYS_SLIRP=1
+[ "$RIM_SYS_TOOLS" == 1 ] && \
+    export RIM_SYS_MKSQFS=1 RIM_SYS_UNSQFS=1 \
+           RIM_SYS_SQFUSE=1 RIM_SYS_BUWRAP=1 \
+           RIM_SYS_UNIONFS=1 RIM_SYS_SLIRP=1
 
-if [ "$SYS_MKSQFS" == 1 ] && is_sys_exe mksquashfs
+if [ "$RIM_SYS_MKSQFS" == 1 ] && is_sys_exe mksquashfs
     then
         info_msg "The system mksquashfs is used!"
         export MKSQFS="$(which_sys_exe mksquashfs)"
@@ -2159,7 +2264,7 @@ if [ "$SYS_MKSQFS" == 1 ] && is_sys_exe mksquashfs
         export MKSQFS="$RUNSTATIC/mksquashfs"
 fi
 
-if [ "$SYS_UNSQFS" == 1 ] && is_sys_exe unsquashfs
+if [ "$RIM_SYS_UNSQFS" == 1 ] && is_sys_exe unsquashfs
     then
         info_msg "The system unsquashfs is used!"
         export UNSQFS="$(which_sys_exe unsquashfs)"
@@ -2167,7 +2272,7 @@ if [ "$SYS_UNSQFS" == 1 ] && is_sys_exe unsquashfs
         export UNSQFS="$RUNSTATIC/unsquashfs"
 fi
 
-if [ "$SYS_SLIRP" == 1 ] && is_sys_exe slirp4netns
+if [ "$RIM_SYS_SLIRP" == 1 ] && is_sys_exe slirp4netns
     then
         info_msg "The system slirp4netns is used!"
         export SLIRP="$(which_sys_exe slirp4netns)"
@@ -2175,24 +2280,20 @@ if [ "$SYS_SLIRP" == 1 ] && is_sys_exe slirp4netns
         export SLIRP="$RUNSTATIC/slirp4netns"
 fi
 
-if [ "$SYS_SQFUSE" == 1 ] && is_sys_exe squashfuse
+if [ "$RIM_SYS_SQFUSE" == 1 ] && is_sys_exe squashfuse
     then
         info_msg "The system squashfuse is used!"
         export SQFUSE="$(which_sys_exe squashfuse)"
     else
-        [ -x "$(which_sys_exe fusermount3)" ] && \
-            export SQFUSE="$RUNSTATIC/squashfuse3" || \
-            export SQFUSE="$RUNSTATIC/squashfuse"
+        export SQFUSE="$RUNSTATIC/squashfuse"
 fi
 
-if [ "$SYS_UNIONFS" == 1 ] && is_sys_exe unionfs
+if [ "$RIM_SYS_UNIONFS" == 1 ] && is_sys_exe unionfs
     then
         info_msg "The system unionfs is used!"
         export UNIONFS="$(which_sys_exe unionfs)"
     else
-        [ -x "$(which_sys_exe fusermount3)" ] && \
-            export UNIONFS="$RUNSTATIC/unionfs3" || \
-            export UNIONFS="$RUNSTATIC/unionfs"
+        export UNIONFS="$RUNSTATIC/unionfs"
 fi
 
 if [ "$SYS_GOCRYPTFS" == 1 ] && is_sys_exe gocryptfs
@@ -2203,11 +2304,32 @@ if [ "$SYS_GOCRYPTFS" == 1 ] && is_sys_exe gocryptfs
         export GOCRYPTFS="$RUNSTATIC/gocryptfs"
 fi
 
+TMP_PATH_DIR='/tmp/.path'
+[ -d "$TMP_PATH_DIR" ] && \
+export PATH="$PATH:$TMP_PATH_DIR"
+for fusermount in fusermount fusermount3
+    do
+        [[ "$fusermount" == *3 ]] && \
+            fallback='fusermount'||\
+            fallback='fusermount3'
+        if ! is_exe_exist "$fusermount"
+            then
+                fusermount_path="$(which_sys_exe "$fallback")"
+                if [ -n "$fusermount_path" ]
+                    then
+                        mkdir -p "$TMP_PATH_DIR"
+                        ln -sf "$fusermount_path" "$TMP_PATH_DIR/$fusermount"
+                        export PATH="$PATH:$TMP_PATH_DIR"
+                        break
+                fi
+        fi
+done
+
 if [ "$EUID" != 0 ]
     then
         if [ ! -f '/proc/self/ns/user' ]
             then
-                SYS_BUWRAP=1
+                RIM_SYS_BUWRAP=1
                 [ ! -n "$(echo "$PATH"|grep -wo '^/usr/bin:')" ] && \
                     export PATH="/usr/bin:$PATH"
                 if [ ! -x "$(find "$(which_exe bwrap)" -perm -u=s 2>/dev/null)" ]
@@ -2259,20 +2381,20 @@ if [ "$EUID" != 0 ]
         fi
 fi
 
-if [ "$SYS_BUWRAP" == 1 ] && is_sys_exe bwrap
+if [ "$RIM_SYS_BUWRAP" == 1 ] && is_sys_exe bwrap
     then
         info_msg "The system Bubblewrap is used!"
         export BUWRAP="$(which_sys_exe bwrap)"
     else
         export BUWRAP="$RUNSTATIC/bwrap"
 fi
-if [[ "$SYS_BUWRAP" == 1 && "$EUID" != 0 && \
+if [[ "$RIM_SYS_BUWRAP" == 1 && "$EUID" != 0 && \
       -x "$(find "$BUWRAP" -perm -u=s 2>/dev/null)" ]]
     then
         warn_msg "Bubblewrap has SUID sticky bit!"
         SUID_BUWRAP=1
 fi
-if [[ "$SUID_BUWRAP" == 1 || "$NO_CAP" == 1 ]]
+if [[ "$SUID_BUWRAP" == 1 || "$RIM_NO_CAP" == 1 ]]
     then
         warn_msg "Bubblewrap capabilities is disabled!"
         BUWRAP_CAP=("--cap-drop" "ALL")
@@ -2284,56 +2406,57 @@ fi
 [ "$(getenforce 2>/dev/null)" == "Enforcing" ] && \
     warn_msg "SELinux in enforcing mode!"
 
-if [[ -n "$RUNOFFSET" && -n "$RUNIMAGE" && "$SQFUSE_REMOUNT" == 1 ]] # MangoHud and vkBasalt bug in DXVK mode
-    then
-        info_msg "Remounting RunImage with squashfuse..."
-        RO_MNT="$RUNPIDDIR/mnt/${RUNSRCNAME}"
-        try_mkdir "$RO_MNT"
-        "$SQFUSE" -f "$RUNIMAGE" "$RO_MNT" -o "ro,offset=$RUNOFFSET" &>/dev/null &
-        FUSE_PID="$!"
-        export FUSE_PIDS="$FUSE_PID $FUSE_PIDS"
-        if ! mount_exist "$FUSE_PID" "$RO_MNT"
-            then
-                error_msg "Failed to remount RunImage with squashfuse!"
-                cleanup force
-                exit 1
-        fi
-        export RUNROOTFS="$RO_MNT/rootfs"
-fi
+[[ ! -n "$RUNIMAGE" && -w "$RUNIMAGEDIR" ]] && \
+    export CRYPTFS_MNT="$RUNIMAGEDIR/rootfs" ||\
+    export CRYPTFS_MNT="$RUNPIDDIR/mnt/rootfs"
+export CRYPTFS_DIR="$RUNDIR/cryptfs"
 
-if [ "$OVERFS_MODE" != 0 ] && [[ "$OVERFS_MODE" == 1 || "$KEEP_OVERFS" == 1 || -n "$OVERFS_ID" ]]
+if [ "$RIM_OVERFS_MODE" != 0 ] && [[ "$RIM_OVERFS_MODE" == 1 || "$RIM_KEEP_OVERFS" == 1 || -n "$RIM_OVERFS_ID" ]]
     then
-        if [ ! -n "$OVERFS_ID" ]
+        if [ ! -n "$RIM_OVERFS_ID" ]
             then
-                export OVERFS_ID=0
+                export RIM_OVERFS_ID=0
                 while true
                     do
-                        [ ! -d "$RUNOVERFSDIR/$OVERFS_ID" ] && \
+                        [ ! -d "$RUNOVERFSDIR/$RIM_OVERFS_ID" ] && \
                             break
-                        export OVERFS_ID="$(( $OVERFS_ID + 1 ))"
+                        export RIM_OVERFS_ID="$(( $RIM_OVERFS_ID + 1 ))"
                 done
         fi
-        if [[ -n "$OVERFS_ID" && -d "$RUNOVERFSDIR/$OVERFS_ID" ]]
+        if [[ -n "$RIM_OVERFS_ID" && -d "$RUNOVERFSDIR/$RIM_OVERFS_ID" ]]
             then
-                [ "$KEEP_OVERFS" != 0 ] && \
-                    KEEP_OVERFS=1
-                info_msg "Attaching to OverlayFS: $OVERFS_ID"
+                [ "$RIM_KEEP_OVERFS" != 0 ] && \
+                    RIM_KEEP_OVERFS=1
+                info_msg "Attaching to OverlayFS: $RIM_OVERFS_ID"
             else
-                info_msg "OverlayFS ID: $OVERFS_ID"
+                info_msg "OverlayFS ID: $RIM_OVERFS_ID"
         fi
-        export OVERFS_DIR="$RUNOVERFSDIR/$OVERFS_ID"
+        export OVERFS_DIR="$RUNOVERFSDIR/$RIM_OVERFS_ID"
         try_mkdir "$OVERFS_DIR"
+        UNIONFS_ARGS=(
+            -f -o max_files=$(ulimit -n -H),nodev,hide_meta_files,cow,noatime,nodev
+            -o $([ "$EUID" != 0 ] && echo relaxed_permissions),uid=$EUID,gid=$EGID
+        )
         mkdir -p "$OVERFS_DIR"/{layers,mnt}
+        [ -e "$OVERFS_DIR/layers/rootfs/.decfs" ] && \
+            export RIM_NO_BUWRAP_OVERLAY=1
+        if ! is_cryptfs && [ "$RIM_NO_BUWRAP_OVERLAY" != 1 ]
+            then
+                try_mkdir "$OVERFS_DIR/workdir"
+                try_mkdir "$OVERFS_DIR/bwrap/rootfs"
+                UNIONFS_ARGS+=(-o dirs="$OVERFS_DIR/layers"=RW:"$OVERFS_DIR/bwrap"=RW:"$RUNDIR"=RO)
+                BOVERLAY_SRC="$RUNROOTFS"
+            else
+                warn_msg "Bubblewrap OverlayFS is disabled!"
+                UNIONFS_ARGS+=(-o dirs="$OVERFS_DIR/layers"=RW:"$RUNDIR"=RO)
+        fi
         [ ! -L "$OVERFS_DIR/RunDir" ] && \
         ln -sfr "$OVERFS_DIR/mnt" "$OVERFS_DIR/RunDir"
         export OVERFS_MNT="$OVERFS_DIR/mnt"
         BRUNDIR="$OVERFS_MNT"
-        "$UNIONFS" -f -o max_files=$(ulimit -n -H),hide_meta_files,cow,noatime \
-                      -o $([ "$EUID" != 0 ] && echo relaxed_permissions),uid=$EUID,gid=$EGID \
-                      -o dirs="$OVERFS_DIR/layers"=RW:"$([ -n "$RO_MNT" ] && echo "$RO_MNT"||\
-                         echo "$RUNDIR")"=RO "$OVERFS_MNT" &>/dev/null &
+        "$UNIONFS" "${UNIONFS_ARGS[@]}" "$OVERFS_MNT" &>/dev/null &
         UNIONFS_PID="$!"
-        export FUSE_PIDS="$UNIONFS_PID $FUSE_PIDS"
+        FUSE_PIDS="$UNIONFS_PID $FUSE_PIDS"
         if ! mount_exist "$UNIONFS_PID" "$OVERFS_MNT"
             then
                 error_msg "Failed to mount RunImage in OverlayFS mode!"
@@ -2341,18 +2464,10 @@ if [ "$OVERFS_MODE" != 0 ] && [[ "$OVERFS_MODE" == 1 || "$KEEP_OVERFS" == 1 || -
                 exit 1
         fi
         export RUNROOTFS="$OVERFS_MNT/rootfs"
-fi
-
-if [ -d "$OVERFS_DIR" ]
-    then
         export CRYPTFS_MNT="$OVERFS_DIR/rootfs"
         export CRYPTFS_DIR="$OVERFS_MNT/cryptfs"
-    else
-        [[ ! -n "$RUNIMAGE" && -w "$RUNIMAGEDIR" ]] && \
-            export CRYPTFS_MNT="$RUNIMAGEDIR/rootfs" ||\
-            export CRYPTFS_MNT="$RUNPIDDIR/mnt/rootfs"
-        export CRYPTFS_DIR="$([ -n "$RO_MNT" ] && echo "$RO_MNT"||echo "$RUNDIR")/cryptfs"
 fi
+
 if [ ! -n "$CRYPTFS_PASSFILE" ]
     then
         if [ -f "$RUNIMAGEDIR/passfile" ]
@@ -2367,34 +2482,33 @@ if [ -f "$CRYPTFS_PASSFILE" ]
         CRYPTFS_ARGS=("--passfile" "$CRYPTFS_PASSFILE")
     else unset CRYPTFS_ARGS CRYPTFS_PASSFILE
 fi
-if is_cryptfs
+if is_cryptfs && [ "$NO_CRYPTFS_MOUNT" != 1 ]
     then
-        export ZSDT_CMPRS_LVL=1
-        if [ "$DONT_MOUNT_CRYPTFS" != 1 ]
+        export RIM_ZSDT_CMPRS_LVL=1
+        try_mkdir "$CRYPTFS_MNT"
+        if [ ! -n "$(ls -A "$CRYPTFS_MNT" 2>/dev/null)" ]
             then
-                try_mkdir "$CRYPTFS_MNT"
-                if [ ! -n "$(ls -A "$CRYPTFS_MNT" 2>/dev/null)" ]
+                info_msg "Mounting RunImage rootfs in GoCryptFS mode..."
+                [ -f "$CRYPTFS_PASSFILE" ]||\
+                echo 'Password:'
+                if ! "$GOCRYPTFS" "${CRYPTFS_ARGS[@]}" --nosyslog \
+                    "$CRYPTFS_DIR" "$CRYPTFS_MNT" &>/dev/null
                     then
-                        info_msg "Mounting RunImage rootfs in GoCryptFS mode..."
-                        [ -f "$CRYPTFS_PASSFILE" ]||\
-                        echo 'Password:'
-                        if ! "$GOCRYPTFS" "${CRYPTFS_ARGS[@]}" --nosyslog \
-                            "$CRYPTFS_DIR" "$CRYPTFS_MNT" &>/dev/null
-                            then
-                                error_msg "Failed to mount RunImage rootfs in GoCryptFS mode!"
-                                cleanup force
-                                exit 1
-                        fi
-                        CRYPTFS_PID="$(pgrep -f "gocryptfs.*$CRYPTFS_DIR")"
-                        export FUSE_PIDS="$CRYPTFS_PID $FUSE_PIDS"
-                        unset KEEP_CRYPTFS
-                    else
-                        info_msg "Attaching to GoCryptFS rootfs..."
-                        KEEP_CRYPTFS=1
+                        error_msg "Failed to mount RunImage rootfs in GoCryptFS mode!"
+                        cleanup force
+                        exit 1
                 fi
-                export RUNROOTFS="$CRYPTFS_MNT"
-                export_rootfs_info
+                CRYPTFS_PID="$(pgrep -f "gocryptfs.*$CRYPTFS_DIR")"
+                FUSE_PIDS="$CRYPTFS_PID $FUSE_PIDS"
+                unset KEEP_CRYPTFS
+            else
+                info_msg "Attaching to GoCryptFS rootfs..."
+                KEEP_CRYPTFS=1
         fi
+        [ -d "$OVERFS_DIR" ] && \
+        export RIM_NO_BUWRAP_OVERLAY=1
+        export RUNROOTFS="$CRYPTFS_MNT"
+        export_rootfs_info
 fi
 
 [[ -d "$BRUNDIR" && "$OVERFS_MNT" == "$BRUNDIR" ]]||\
@@ -2405,252 +2519,8 @@ RUNDIR_BIND=(
     "--setenv" "RUNUTILS" "/var/RunDir/utils"
     "--setenv" "RUNSTATIC" "/var/RunDir/static"
     "--setenv" "RUNROOTFS" "/var/RunDir/rootfs"
-    "--setenv" "RUNRUNTIME" "/var/RunDir/static/runtime-fuse2-all"
+    "--setenv" "RUNRUNTIME" "/var/RunDir/static/uruntime"
 )
-
-if [ -n "$AUTORUN" ]
-    then
-        AUTORUN0ARG=($AUTORUN)
-        info_msg "Autorun mode: ${AUTORUN[@]}"
-        if NO_NVIDIA_CHECK=1 QUIET_MODE=1 SANDBOX_NET=0 bwrun \
-            /usr/bin/sh -c "[ -x '/usr/bin/$AUTORUN0ARG' ]"
-            then
-                RUNSRCNAME="$AUTORUN0ARG"
-            else
-                error_msg "$AUTORUN0ARG not found in /usr/bin"
-                cleanup force
-                exit 1
-        fi
-fi
-
-if [ ! -n "$RUN_SHELL" ]
-    then
-        if [ -x "$RUNROOTFS/usr/bin/fish" ]
-            then
-                RUN_SHELL='/usr/bin/fish'
-        elif [ -x "$RUNROOTFS/usr/bin/zsh" ]
-            then
-                RUN_SHELL='/usr/bin/zsh'
-        elif [ -x "$RUNROOTFS/usr/bin/bash" ]
-            then
-                RUN_SHELL=('/usr/bin/bash' '--rcfile' '/etc/bash.bashrc')
-        elif [ -x "$RUNROOTFS/usr/bin/sh" ]
-            then
-                RUN_SHELL='/usr/bin/sh'
-        fi
-fi
-SETENV_ARGS+=("--setenv" "SHELL" "$RUN_SHELL")
-
-[ -n "$HOME" ] && \
-SYS_HOME="$HOME"
-
-if [[ "$SANDBOX_HOME" != 0 && "$SANDBOX_HOME_DL" != 0 ]]
-    then
-        [[ -n "$SANDBOX_HOME_DIR" && ! -d "$SANDBOX_HOME_DIR" ]] && \
-            try_mkhome "$SANDBOX_HOME_DIR"
-        if [ ! -d "$SANDBOX_HOME_DIR" ]
-            then
-                if [ -d "$SANDBOXHOMEDIR/$RUNSRCNAME" ]
-                    then SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
-                elif [[ -n "$RUNIMAGE" && -d "$SANDBOXHOMEDIR/$RUNIMAGENAME" ]]
-                    then SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNIMAGENAME"
-                elif [ -d "$SANDBOXHOMEDIR/Run" ]
-                    then SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/Run"
-                fi
-        fi
-    else unset SANDBOX_HOME_DIR
-fi
-
-if [[ "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 ]]
-    then
-        [ "$EUID" == 0 ] && \
-            export HOME="/root" || \
-            export HOME="/home/$RUNUSER"
-        HOME_BIND+=("--tmpfs" "/home" \
-                    "--tmpfs" "/root" \
-                    "--dir" "$HOME/.cache" \
-                    "--dir" "$HOME/.config")
-        [[ "$EUID" == 0 && "$RUNUSER" != "root" ]] && \
-            HOME_BIND+=("--dir" "/home/$RUNUSER")
-        [ "$TMP_HOME_DL" == 1 ] && \
-            HOME_BIND+=("--dir" "$HOME/Downloads" \
-                        "--symlink" "$HOME/Downloads" "$HOME/Загрузки" \
-                        "--bind-try" "$HOME/Downloads" "$HOME/Downloads")
-        info_msg "Setting temporary \$HOME to: '$HOME'"
-elif [ "$UNSHARE_HOME" == 1 ]
-    then
-        warn_msg "Host HOME is unshared!"
-        UNSHARED_HOME="$RUNROOTFS/home/runimage"
-        if [ "$EUID" == 0 ]
-            then export HOME="/root"
-            else
-                export HOME="/home/$RUNUSER"
-                if [ -w "$RUNROOTFS" ]
-                    then
-                        try_mkdir "$UNSHARED_HOME"
-                        [[ ! -d "$RUNROOTFS/$HOME" && ! -L "$RUNROOTFS/$HOME" ]] && \
-                            ln -sfr "$UNSHARED_HOME" "$RUNROOTFS/$HOME"
-                        try_mkhome "$RUNROOTFS/$HOME"
-                    else
-                        if [[ ! -d "$RUNROOTFS/$HOME" && ! -L "$RUNROOTFS/$HOME" ]]
-                            then
-                                warn_msg "The user HOME directory not found in the container!"
-                                if [ -d "$UNSHARED_HOME" ]
-                                    then
-                                        warn_msg "Fallback HOME to: /home/runimage"
-                                        export HOME="/home/runimage"
-                                    else
-                                        error_msg "Fallback HOME directory /home/runimage not found in the container!"
-                                        exit 1
-                                fi
-                        fi
-                fi
-        fi
-elif [[ "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" == 1 || -d "$SANDBOX_HOME_DIR" ]]
-    then
-        if [ "$EUID" == 0 ]
-            then
-                NEW_HOME="/root"
-            else
-                NEW_HOME="/home/$RUNUSER"
-                HOME_BIND+=("--tmpfs" "/home" \
-                            "--dir" "$NEW_HOME")
-        fi
-        HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
-        [ ! -n "$SANDBOX_HOME_DIR" ] && \
-            SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
-        if [[ "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" == 1 ]] && \
-            [ ! -d "$SANDBOX_HOME_DIR" ]
-            then
-                SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
-                try_mkhome "$SANDBOX_HOME_DIR"
-        fi
-        HOME_BIND+=("--bind-try" "$SANDBOX_HOME_DIR" "$NEW_HOME")
-        [ "$SANDBOX_HOME_DL" == 1 ] && \
-            HOME_BIND+=("--dir" "$NEW_HOME/Downloads" \
-                        "--bind-try" "$SYS_HOME/Downloads" "$NEW_HOME/Downloads")
-        info_msg "Setting sandbox \$HOME to: '$SANDBOX_HOME_DIR'"
-else
-    if [[ -n "$SYS_HOME" && "$SYS_HOME" != "/root" && \
-        "$(echo "$SYS_HOME"|head -c 6)" != "/home/" ]]
-        then
-            case "$(echo "$SYS_HOME"|cut -d '/' -f2)" in
-                tmp|mnt|media|run|dev|proc|sys) : ;;
-                *)
-                    if [ "$EUID" == 0 ]
-                        then
-                            NEW_HOME="/root"
-                            HOME_BIND+=("--bind-try" "/home" "/home")
-                        else
-                            NEW_HOME="/home/$RUNUSER"
-                            HOME_BIND+=("--tmpfs" "/home" \
-                                        "--tmpfs" "/root" \
-                                        "--dir" "$NEW_HOME")
-                    fi
-                    HOME_BIND+=("--bind-try" "$SYS_HOME" "$NEW_HOME")
-                    export HOME="$NEW_HOME"
-                ;;
-            esac
-        else
-            HOME_BIND+=("--bind-try" "/home" "/home")
-            if [ "$EUID" == 0 ]
-                then
-                    if [ "$SYS_HOME" == "/home/$RUNUSER" ]
-                        then
-                            export HOME="/root"
-                            SET_HOME_DIR=1
-                    fi
-                    HOME_BIND+=("--bind-try" "/root" "/root")
-                else
-                    HOME_BIND+=("--tmpfs" "/root")
-            fi
-    fi
-    if [ "$PORTABLE_HOME" != 0 ]
-        then
-            [[ -n "$PORTABLE_HOME_DIR" && ! -d "$PORTABLE_HOME_DIR" ]] && \
-                try_mkdir "$PORTABLE_HOME_DIR"
-            if [ -d "$PORTABLE_HOME_DIR" ]
-                then
-                    export HOME="$PORTABLE_HOME_DIR"
-                    SET_HOME_DIR=1
-                    export PORTABLE_HOME=1
-            elif [[ "$PORTABLE_HOME" == 1 || -d "$PORTABLEHOMEDIR/$RUNSRCNAME" ]]
-                then
-                    export HOME="$PORTABLEHOMEDIR/$RUNSRCNAME"
-                    SET_HOME_DIR=1
-                    export PORTABLE_HOME=1
-            elif [ -n "$RUNIMAGE" ] && [[ "$PORTABLE_HOME" == 1 || -d "$PORTABLEHOMEDIR/$RUNIMAGENAME" ]]
-                then
-                    export HOME="$PORTABLEHOMEDIR/$RUNIMAGENAME"
-                    SET_HOME_DIR=1
-                    export PORTABLE_HOME=1
-            elif [[ "$PORTABLE_HOME" == 1 || -d "$PORTABLEHOMEDIR/Run" ]]
-                then
-                    export HOME="$PORTABLEHOMEDIR/Run"
-                    SET_HOME_DIR=1
-                    export PORTABLE_HOME=1
-            fi
-    fi
-fi
-if [[ -L "$HOME" && ! -n "$NEW_HOME" && "$HOME" != "/root" ]]
-    then
-        export HOME="$(realpath "$HOME" 2>/dev/null)"
-        warn_msg "Symlinking for \$HOME is not allowed!"
-        SET_HOME_DIR=1
-fi
-if [ "$SET_HOME_DIR" == 1 ]
-    then
-        try_mkhome "$HOME"
-        info_msg "Setting \$HOME to: '$HOME'"
-fi
-
-if [ "$PORTABLE_CONFIG" != 0 ]
-    then
-        if [[ "$PORTABLE_CONFIG" == 1 || -d "$RUNIMAGEDIR/$RUNSRCNAME.config" ]]
-            then
-                export XDG_CONFIG_HOME="$RUNIMAGEDIR/$RUNSRCNAME.config"
-                SET_CONF_DIR=1
-        elif [ -n "$RUNIMAGE" ] && [[ "$PORTABLE_CONFIG" == 1 || -d "$RUNIMAGE.config" ]]
-            then
-                export XDG_CONFIG_HOME="$RUNIMAGE.config"
-                SET_CONF_DIR=1
-        elif [[ "$PORTABLE_CONFIG" == 1 || -d "$RUNIMAGEDIR/Run.config" ]]
-            then
-                export XDG_CONFIG_HOME="$RUNIMAGEDIR/Run.config"
-                SET_CONF_DIR=1
-        fi
-fi
-if [ "$SET_CONF_DIR" == 1 ]
-    then
-        try_mkdir "$XDG_CONFIG_HOME"
-        info_msg "Setting \$XDG_CONFIG_HOME to: '$XDG_CONFIG_HOME'"
-fi
-
-[ -n "$XAUTHORITY" ] && \
-    SYS_XAUTHORITY="$XAUTHORITY"
-
-if [[ ! -n "$XAUTHORITY" || "$SET_HOME_DIR" == 1 || \
-    "$TMP_HOME" == 1 || "$TMP_HOME_DL" == 1 || \
-    "$SANDBOX_HOME" == 1 || "$SANDBOX_HOME_DL" ]]
-    then
-        [ -n "$NEW_HOME" ] && \
-        export XAUTHORITY="$NEW_HOME/.Xauthority" || \
-        export XAUTHORITY="$HOME/.Xauthority"
-        if [ -n "$SYS_XAUTHORITY" ]
-            then
-                HOME_BIND+=("--bind-try" "$SYS_XAUTHORITY" "$XAUTHORITY")
-            else
-                if [[ "$EUID" == 0 && "$RUNUSER" == "root" ]]
-                    then
-                        HOME_BIND+=("--bind-try" "/root/.Xauthority" "$XAUTHORITY")
-                elif [[ "$EUID" == 0 && "$RUNUSER" != "root" ]]
-                    then
-                        HOME_BIND+=("--ro-bind-try" "/home/$RUNUSER/.Xauthority" "$XAUTHORITY")
-                else
-                    HOME_BIND+=("--bind-try" "/home/$RUNUSER/.Xauthority" "$XAUTHORITY")
-                fi
-        fi
-fi
 
 if [[ -d "/tmp/.X11-unix" && "$UNSHARE_TMP" != 1 ]]
     then
@@ -2685,7 +2555,7 @@ fi
 if [ -d "$TMPDIR" ]
     then
         NEWTMPDIR="$RUNPIDDIR/tmp"
-        info_msg "Binding \$TMPDIR to: '$NEWTMPDIR'"
+        info_msg "Bind \$TMPDIR to: '$NEWTMPDIR'"
         TMPDIR_BIND+=(
             "--dir" "$NEWTMPDIR"
             "--bind-try" "$TMPDIR" "$NEWTMPDIR"
@@ -2695,18 +2565,285 @@ if [ -d "$TMPDIR" ]
         unset TMPDIR
 fi
 
-[[ -n "$SANDBOX_NET_CIDR" || -n "$SANDBOX_NET_MTU" ||\
-   -n "$SANDBOX_NET_TAPNAME" || -n "$SANDBOX_NET_MAC" ||\
-   "$SANDBOX_NET_SHARE_HOST" == 1 || -n "$SANDBOX_NET_TAPIP" ||\
-   "$SANDBOX_NET_DROP_CIDRS" == 1 ]] && \
-   SANDBOX_NET=1
+add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
+/usr/lib/jvm/default/bin:/usr/local/bin:/usr/local/sbin:\
+/opt/cuda/bin:$HOME/.cargo/bin:$SYS_PATH:/usr/bin/vendor_perl:\
+/var/RunDir/static:/var/RunDir/utils"
+[ -n "$LD_LIBRARY_PATH" ] && \
+    add_lib_pth "$LD_LIBRARY_PATH"
 
-[[ "$SANDBOX_NET" == 1 && "$SUID_BUWRAP" == 1 ]] && \
+if [ -n "$RIM_AUTORUN" ]
+    then
+        AUTORUN0ARG=($RIM_AUTORUN)
+        info_msg "Autorun mode: ${RIM_AUTORUN[@]}"
+        if RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 bwrun \
+            sh -c "[ -x '/usr/bin/$AUTORUN0ARG' ]"
+            then
+                export RUNSRCNAME="$AUTORUN0ARG"
+            else
+                error_msg "$AUTORUN0ARG not found in /usr/bin"
+                cleanup force
+                exit 1
+        fi
+fi
+
+if [ ! -n "$RIM_SHELL" ]
+    then
+        if [ -x "$RUNROOTFS/usr/bin/fish" ]
+            then
+                RIM_SHELL='/usr/bin/fish'
+        elif [ -x "$RUNROOTFS/usr/bin/zsh" ]
+            then
+                RIM_SHELL='/usr/bin/zsh'
+        elif [ -x "$RUNROOTFS/usr/bin/bash" ]
+            then
+                RIM_SHELL=('/usr/bin/bash' '--rcfile' '/etc/bash.bashrc')
+        elif [ -x "$RUNROOTFS/usr/bin/sh" ]
+            then
+                RIM_SHELL='/usr/bin/sh'
+        fi
+fi
+SETENV_ARGS+=("--setenv" "SHELL" "$RIM_SHELL")
+
+[ -n "$HOME" ] && \
+SYS_HOME="$HOME"
+
+if [[ "$RIM_SANDBOX_HOME" != 0 && "$RIM_SANDBOX_HOME_DL" != 0 ]]
+    then
+        [[ -n "$RIM_SANDBOX_HOME_DIR" && ! -d "$RIM_SANDBOX_HOME_DIR" ]] && \
+            try_mkhome "$RIM_SANDBOX_HOME_DIR"
+        if [ ! -d "$RIM_SANDBOX_HOME_DIR" ]
+            then
+                if [ -d "$SANDBOXHOMEDIR/$RUNSRCNAME" ]
+                    then RIM_SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
+                elif [[ -n "$RUNIMAGE" && -d "$SANDBOXHOMEDIR/$RUNIMAGENAME" ]]
+                    then RIM_SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNIMAGENAME"
+                elif [ -d "$SANDBOXHOMEDIR/Run" ]
+                    then RIM_SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/Run"
+                fi
+        fi
+    else unset RIM_SANDBOX_HOME_DIR
+fi
+
+unset HOME_BIND
+if [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 ]]
+    then
+        [ "$EUID" == 0 ] && \
+            TMP_HOME="/root" || \
+            TMP_HOME="/home/$RUNUSER"
+        HOME_BIND+=(
+            "--tmpfs" "/home"
+            "--tmpfs" "/root"
+            "--dir" "$TMP_HOME/.cache"
+            "--dir" "$TMP_HOME/.config"
+        )
+        [[ "$EUID" == 0 && "$RUNUSER" != "root" ]] && \
+            HOME_BIND+=("--dir" "/home/$RUNUSER")
+        [ "$RIM_TMP_HOME_DL" == 1 ] && \
+            HOME_BIND+=(
+                "--dir" "$HOME/Downloads"
+                "--symlink" "$HOME/Downloads" "$HOME/Загрузки"
+                "--bind-try" "$HOME/Downloads" "$HOME/Downloads"
+            )
+        HOME_BIND+=('--setenv' 'HOME' "$TMP_HOME")
+        info_msg "Setting temporary \$HOME to: '$HOME'"
+elif [ "$RIM_UNSHARE_HOME" == 1 ]
+    then
+        warn_msg "Host HOME is unshared!"
+        if [ "$EUID" == 0 ]
+            then UNSHARED_HOME="/root"
+            else
+                UNSHARED_HOME="/home/$RUNUSER"
+                if [ -w "$RUNROOTFS" ]
+                    then
+                        HOME_BIND+=('--dir' '/home/runimage')
+                        [[ ! -d "$RUNROOTFS/$HOME" && ! -L "$RUNROOTFS/$HOME" ]] && \
+                            HOME_BIND+=('--symlink' '/home/runimage' "$UNSHARED_HOME")
+                        HOME_BIND+=(
+                            '--dir' "$UNSHARED_HOME"
+                            '--dir' "$UNSHARED_HOME/.cache"
+                            '--dir' "$UNSHARED_HOME/.config"
+                        )
+                    else
+                        if [[ ! -d "$RUNROOTFS/$HOME" && ! -L "$RUNROOTFS/$HOME" && "$NO_CRYPTFS_MOUNT" != 1 ]]
+                            then
+                                warn_msg "The user HOME directory not found in the container!"
+                                if [ -d "$RUNROOTFS/home/runimage" ]
+                                    then
+                                        warn_msg "Fallback HOME to: /home/runimage"
+                                        UNSHARED_HOME="/home/runimage"
+                                    else
+                                        error_msg "Fallback HOME directory /home/runimage not found in the container!"
+                                        cleanup force
+                                        exit 1
+                                fi
+                        fi
+                fi
+        fi
+        HOME_BIND+=('--setenv' 'HOME' "$UNSHARED_HOME")
+elif [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || -d "$RIM_SANDBOX_HOME_DIR" ]]
+    then
+        if [ "$EUID" == 0 ]
+            then NEW_HOME="/root"
+            else
+                NEW_HOME="/home/$RUNUSER"
+                HOME_BIND+=(
+                    "--tmpfs" "/home"
+                    "--dir" "$NEW_HOME"
+                )
+        fi
+        HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
+        [ ! -n "$RIM_SANDBOX_HOME_DIR" ] && \
+            RIM_SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
+        if [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 ]] && \
+            [ ! -d "$RIM_SANDBOX_HOME_DIR" ]
+            then
+                RIM_SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
+                try_mkhome "$RIM_SANDBOX_HOME_DIR"
+        fi
+        HOME_BIND+=("--bind-try" "$RIM_SANDBOX_HOME_DIR" "$NEW_HOME")
+        [ "$RIM_SANDBOX_HOME_DL" == 1 ] && \
+            HOME_BIND+=(
+                "--dir" "$NEW_HOME/Downloads"
+                "--bind-try" "$SYS_HOME/Downloads" "$NEW_HOME/Downloads"
+            )
+        info_msg "Setting sandbox \$HOME to: '$RIM_SANDBOX_HOME_DIR'"
+else
+    if [[ -n "$SYS_HOME" && "$SYS_HOME" != "/root" && \
+        "$(echo "$SYS_HOME"|head -c 6)" != "/home/" ]]
+        then
+            case "$(echo "$SYS_HOME"|cut -d '/' -f2)" in
+                tmp|mnt|media|run|dev|proc|sys) : ;;
+                *)
+                    if [ "$EUID" == 0 ]
+                        then
+                            NEW_HOME="/root"
+                            HOME_BIND+=("--bind-try" "/home" "/home")
+                        else
+                            NEW_HOME="/home/$RUNUSER"
+                            HOME_BIND+=(
+                                "--tmpfs" "/home"
+                                "--tmpfs" "/root"
+                                "--dir" "$NEW_HOME"
+                            )
+                    fi
+                    HOME_BIND+=("--bind-try" "$SYS_HOME" "$NEW_HOME")
+                    export HOME="$NEW_HOME"
+                ;;
+            esac
+        else
+            HOME_BIND+=("--bind-try" "/home" "/home")
+            if [ "$EUID" == 0 ]
+                then
+                    if [ "$SYS_HOME" == "/home/$RUNUSER" ]
+                        then
+                            export HOME="/root"
+                            SET_HOME_DIR=1
+                    fi
+                    HOME_BIND+=("--bind-try" "/root" "/root")
+                else
+                    HOME_BIND+=("--tmpfs" "/root")
+            fi
+    fi
+    if [ "$RIM_PORTABLE_HOME" != 0 ]
+        then
+            [[ -n "$RIM_PORTABLE_HOME_DIR" && ! -d "$RIM_PORTABLE_HOME_DIR" ]] && \
+                try_mkdir "$RIM_PORTABLE_HOME_DIR"
+            if [ -d "$RIM_PORTABLE_HOME_DIR" ]
+                then
+                    export HOME="$RIM_PORTABLE_HOME_DIR"
+                    SET_HOME_DIR=1
+                    export RIM_PORTABLE_HOME=1
+            elif [[ "$RIM_PORTABLE_HOME" == 1 || -d "$PORTABLEHOMEDIR/$RUNSRCNAME" ]]
+                then
+                    export HOME="$PORTABLEHOMEDIR/$RUNSRCNAME"
+                    SET_HOME_DIR=1
+                    export RIM_PORTABLE_HOME=1
+            elif [ -n "$RUNIMAGE" ] && [[ "$RIM_PORTABLE_HOME" == 1 || -d "$PORTABLEHOMEDIR/$RUNIMAGENAME" ]]
+                then
+                    export HOME="$PORTABLEHOMEDIR/$RUNIMAGENAME"
+                    SET_HOME_DIR=1
+                    export RIM_PORTABLE_HOME=1
+            elif [[ "$RIM_PORTABLE_HOME" == 1 || -d "$PORTABLEHOMEDIR/Run" ]]
+                then
+                    export HOME="$PORTABLEHOMEDIR/Run"
+                    SET_HOME_DIR=1
+                    export RIM_PORTABLE_HOME=1
+            fi
+    fi
+fi
+if [[ -L "$HOME" && ! -n "$NEW_HOME" && "$HOME" != "/root" ]]
+    then
+        export HOME="$(realpath "$HOME" 2>/dev/null)"
+        warn_msg "Symlinking for \$HOME is not allowed!"
+        SET_HOME_DIR=1
+fi
+if [ "$SET_HOME_DIR" == 1 ]
+    then
+        try_mkhome "$HOME"
+        info_msg "Setting \$HOME to: '$HOME'"
+fi
+
+if [ "$RIM_PORTABLE_CONFIG" != 0 ]
+    then
+        if [[ "$RIM_PORTABLE_CONFIG" == 1 || -d "$RUNIMAGEDIR/$RUNSRCNAME.config" ]]
+            then
+                export XDG_CONFIG_HOME="$RUNIMAGEDIR/$RUNSRCNAME.config"
+                SET_CONF_DIR=1
+        elif [ -n "$RUNIMAGE" ] && [[ "$RIM_PORTABLE_CONFIG" == 1 || -d "$RUNIMAGE.config" ]]
+            then
+                export XDG_CONFIG_HOME="$RUNIMAGE.config"
+                SET_CONF_DIR=1
+        elif [[ "$RIM_PORTABLE_CONFIG" == 1 || -d "$RUNIMAGEDIR/Run.config" ]]
+            then
+                export XDG_CONFIG_HOME="$RUNIMAGEDIR/Run.config"
+                SET_CONF_DIR=1
+        fi
+fi
+if [ "$SET_CONF_DIR" == 1 ]
+    then
+        try_mkdir "$XDG_CONFIG_HOME"
+        info_msg "Setting \$XDG_CONFIG_HOME to: '$XDG_CONFIG_HOME'"
+fi
+
+[ -n "$XAUTHORITY" ] && \
+    SYS_XAUTHORITY="$XAUTHORITY"
+
+if [[ ! -n "$XAUTHORITY" || "$SET_HOME_DIR" == 1 || \
+    "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 || \
+    "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" ]]
+    then
+        [ -n "$NEW_HOME" ] && \
+        export XAUTHORITY="$NEW_HOME/.Xauthority" || \
+        export XAUTHORITY="$HOME/.Xauthority"
+        if [ -n "$SYS_XAUTHORITY" ]
+            then
+                HOME_BIND+=("--bind-try" "$SYS_XAUTHORITY" "$XAUTHORITY")
+            else
+                if [[ "$EUID" == 0 && "$RUNUSER" == "root" ]]
+                    then
+                        HOME_BIND+=("--bind-try" "/root/.Xauthority" "$XAUTHORITY")
+                elif [[ "$EUID" == 0 && "$RUNUSER" != "root" ]]
+                    then
+                        HOME_BIND+=("--ro-bind-try" "/home/$RUNUSER/.Xauthority" "$XAUTHORITY")
+                else
+                    HOME_BIND+=("--bind-try" "/home/$RUNUSER/.Xauthority" "$XAUTHORITY")
+                fi
+        fi
+fi
+
+[[ -n "$RIM_SNET_CIDR" || -n "$RIM_SNET_MTU" ||\
+   -n "$RIM_SNET_TAPNAME" || -n "$RIM_SNET_MAC" ||\
+   "$RIM_SNET_SHARE_HOST" == 1 || -n "$RIM_SNET_TAPIP" ||\
+   "$RIM_SNET_DROP_CIDRS" == 1 || -n "$RIM_SNET_PORTFW" ]] && \
+    RIM_SANDBOX_NET=1
+
+[[ "$RIM_SANDBOX_NET" == 1 && "$SUID_BUWRAP" == 1 ]] && \
     disable_sandbox_net
 
-if [[ "$SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
+if [[ "$RIM_SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
     then
-        tun_err_text="SANDBOX_NET enabled, but /dev/net/tun not found!"
+        tun_err_text="RIM_SANDBOX_NET enabled, but /dev/net/tun not found!"
         if [ "$EUID" == 0 ]
             then
                 warn_msg "$tun_err_text"
@@ -2729,7 +2866,7 @@ if [[ "$SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
         fi
 fi
 
-if [[ "$SANDBOX_NET" == 1 || "$NO_NET" == 1 ]] && [ "$UNSHARE_DBUS" != 1 ] && \
+if [[ "$RIM_SANDBOX_NET" == 1 || "$RIM_NO_NET" == 1 ]] && [ "$RIM_UNSHARE_DBUS" != 1 ] && \
     [[ "$DBUS_SESSION_BUS_ADDRESS" =~ "unix:abstract" ]]
     then
         DBUSP_SOCKET="$RUNPIDDIR/rdbus"
@@ -2747,64 +2884,65 @@ if [[ "$SANDBOX_NET" == 1 || "$NO_NET" == 1 ]] && [ "$UNSHARE_DBUS" != 1 ] && \
         fi
 fi
 
-if [[ "$NO_NET" == 1 || "$SANDBOX_NET" == 1 ]]
+if [[ "$RIM_NO_NET" == 1 || "$RIM_SANDBOX_NET" == 1 ]]
     then
         NETWORK_BIND=("--unshare-net")
-        [ "$NO_NET" == 1 ] && \
+        [ "$RIM_NO_NET" == 1 ] && \
             warn_msg "Network is disabled!"
+        export RUNPORTFW="$RUNPIDDIR/portfw"
     else
         NETWORK_BIND=("--share-net")
-        if [ "$UNSHARE_HOSTS" == 1 ]
+        if [ "$RIM_UNSHARE_HOSTS" == 1 ]
             then warn_msg "Host '/etc/hosts' is unshared!"
             else NETWORK_BIND+=("--ro-bind-try" "/etc/hosts" "/etc/hosts")
         fi
-        if [ "$UNSHARE_RESOLVCONF" == 1 ]
+        if [ "$RIM_UNSHARE_RESOLVCONF" == 1 ]
             then warn_msg "Host '/etc/resolv.conf' is unshared!"
             else NETWORK_BIND+=("--ro-bind-try" "/etc/resolv.conf" "/etc/resolv.conf")
         fi
 fi
-if [ ! -n "$HOSTS_FILE" ]
+if [ ! -n "$RIM_HOSTS_FILE" ]
     then
         if [ -f "$RUNIMAGEDIR/hosts" ]
-            then HOSTS_FILE="$RUNIMAGEDIR/hosts"
+            then RIM_HOSTS_FILE="$RUNIMAGEDIR/hosts"
         elif [ -f "$RUNDIR/hosts" ]
-            then HOSTS_FILE="$RUNDIR/hosts"
+            then RIM_HOSTS_FILE="$RUNDIR/hosts"
         fi
 fi
-if [[ -f "$HOSTS_FILE" && "$HOSTS_FILE" != 0 ]]
+if [[ -f "$RIM_HOSTS_FILE" && "$RIM_HOSTS_FILE" != 0 ]]
     then
-        info_msg "Binding '$HOSTS_FILE' -> '/etc/hosts'"
-        NETWORK_BIND+=("--bind-try" "$HOSTS_FILE" "/etc/hosts")
+        info_msg "Bind: '$RIM_HOSTS_FILE' -> '/etc/hosts'"
+        NETWORK_BIND+=("--bind-try" "$RIM_HOSTS_FILE" "/etc/hosts")
 fi
-if [ ! -n "$RESOLVCONF_FILE" ]
+if [ ! -n "$RIM_RESOLVCONF_FILE" ]
     then
         if [ -f "$RUNIMAGEDIR/resolv.conf" ]
-            then RESOLVCONF_FILE="$RUNIMAGEDIR/resolv.conf"
+            then RIM_RESOLVCONF_FILE="$RUNIMAGEDIR/resolv.conf"
         elif [ -f "$RUNDIR/resolv.conf" ]
-            then RESOLVCONF_FILE="$RUNDIR/resolv.conf"
+            then RIM_RESOLVCONF_FILE="$RUNDIR/resolv.conf"
         fi
 fi
-if [[ -f "$RESOLVCONF_FILE" && "$RESOLVCONF_FILE" != 0 ]]
+if [[ -f "$RIM_RESOLVCONF_FILE" && "$RIM_RESOLVCONF_FILE" != 0 ]]
     then
-        info_msg "Binding '$RESOLVCONF_FILE' -> '/etc/resolv.conf'"
-        NETWORK_BIND+=("--bind-try" "$RESOLVCONF_FILE" "/etc/resolv.conf")
+        info_msg "Bind: '$RIM_RESOLVCONF_FILE' -> '/etc/resolv.conf'"
+        NETWORK_BIND+=("--bind-try" "$RIM_RESOLVCONF_FILE" "/etc/resolv.conf")
 fi
 
-if [ "$XORG_CONF" != 0 ]
+if [ "$RIM_XORG_CONF" != 0 ]
     then
-        if [ ! -n "$XORG_CONF" ]
+        if [ ! -n "$RIM_XORG_CONF" ]
             then
                 if [ -f "$RUNIMAGEDIR/xorg.conf" ]
-                    then RESOLVCONF_FILE="$RUNIMAGEDIR/xorg.conf"
+                    then RIM_RESOLVCONF_FILE="$RUNIMAGEDIR/xorg.conf"
                 elif [ -f "$RUNDIR/xorg.conf" ]
-                    then RESOLVCONF_FILE="$RUNDIR/xorg.conf"
+                    then RIM_RESOLVCONF_FILE="$RUNDIR/xorg.conf"
                 fi
         fi
-        if [[ -f "$XORG_CONF" && "$(basename "$XORG_CONF")" == "xorg.conf" ]]
+        if [[ -f "$RIM_XORG_CONF" && "$(basename "$RIM_XORG_CONF")" == "xorg.conf" ]]
             then
-                info_msg "Found xorg.conf in: '$XORG_CONF'"
+                info_msg "Found xorg.conf in: '$RIM_XORG_CONF'"
                 XORG_CONF_BIND=("--ro-bind-try" \
-                                "$XORG_CONF" "/etc/X11/xorg.conf")
+                                "$RIM_XORG_CONF" "/etc/X11/xorg.conf")
         elif [ -f "/etc/X11/xorg.conf" ]
             then
                 info_msg "Found xorg.conf in: '/etc/X11/xorg.conf'"
@@ -2812,47 +2950,41 @@ if [ "$XORG_CONF" != 0 ]
                                 "/etc/X11/xorg.conf" "/etc/X11/xorg.conf")
         fi
     else
-        warn_msg "Binding xorg.conf is disabled!"
+        warn_msg "Bind xorg.conf is disabled!"
 fi
 
-add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
-/usr/lib/jvm/default/bin:/usr/local/bin:/usr/local/sbin:\
-/opt/cuda/bin:$HOME/.cargo/bin:$SYS_PATH:/usr/bin/vendor_perl:\
-/var/RunDir/static:/var/RunDir/utils"
-[ -n "$LD_LIBRARY_PATH" ] && \
-    add_lib_pth "$LD_LIBRARY_PATH"
-
-if [ "$ENABLE_HOSTEXEC" == 1 ]
+if [ -n "$RIM_HOST_TOOLS" ]
     then
-        warn_msg "The HOSTEXEC option is enabled!"
+        RIM_ENABLE_HOSTEXEC=1
+        HOST_TOOLS_BIND=(--dir /usr/local/bin)
+        [ ! -w "$RUNROOTFS/usr/local/bin" ] && \
+            HOST_TOOLS_BIND=(--tmpfs /usr/local/bin)
+        IFS=',' read -r -a tools <<<"$RIM_HOST_TOOLS"
+        for tool in "${tools[@]}"
+            do
+                if [ -n "$(which_sys_exe "$tool")" ]
+                    then
+                        info_msg "Share host tool: $tool"
+                        HOST_TOOLS_BIND+=("--bind-try" "$RUNUTILS/hostexec" "/usr/local/bin/$tool")
+                fi
+        done
+    else unset HOST_TOOLS_BIND
+fi
+
+if [ "$RIM_ENABLE_HOSTEXEC" == 1 ]
+    then
+        HEXECFLDIR="$RUNPIDDIR/hexec"
+        try_mkdir "$HEXECFLDIR"
+        export RIM_HEXEC_SOCK="$HEXECFLDIR/s"
+        warn_msg "HOSTEXEC option is enabled!"
         ([ -n "$SYS_HOME" ] && \
             export HOME="$SYS_HOME"
-        JOBNUMFL="$EXECFLDIR/job"
-        mkdir -p "$EXECFLDIR" 2>/dev/null
-        mkfifo "$JOBNUMFL" 2>/dev/null
-        unset jobnum
-        while is_pid "$RUNPID" && [ -d "$EXECFLDIR" ]
-            do
-                jobnum=$(( $jobnum + 1 ))
-                execjobdir="$EXECFLDIR/$jobnum"
-                execjobfl="$execjobdir/exec"
-                execjoboutfl="$execjobdir/out"
-                execjobstatfl="$execjobdir/stat"
-                mkdir "$execjobdir" 2>/dev/null
-                mkfifo "$execjobfl" 2>/dev/null
-                mkfifo "$execjoboutfl" 2>/dev/null
-                mkfifo "$execjobstatfl" 2>/dev/null
-                tee <<<"$jobnum" "$JOBNUMFL" &>/dev/null
-                if [ -e "$execjobfl" ]
-                    then
-                        (cat "$execjobfl" 2>/dev/null|"$RUNSTATIC/bash" &>"$execjoboutfl" &
-                        execjobpid="$!"
-                        tee <<<"$execjobpid" "$execjobstatfl" &>/dev/null
-                        wait $execjobpid 2>/dev/null
-                        execstat=$?
-                        tee <<<"$execstat" "$execjobstatfl" &>/dev/null) &
-                fi
-        done) &
+        SSRV_SOCK="unix:$RIM_HEXEC_SOCK" \
+        SSRV_CPIDS_DIR="$HEXECFLDIR/cpids" \
+        SSRV_PID_FILE="$HEXECFLDIR/ssrv.pid" \
+        PATH="$SYS_PATH:$RUNSTATIC:$RUNUTILS" \
+        SSRV_UENV="$(tr ' ' ','<<<"${!RIM_@}")" \
+        exec ssrv -srv -env all &>/dev/null) &
 fi
 
 if [[ -f "/var/lib/dbus/machine-id" && -f "/etc/machine-id" ]]
@@ -2884,12 +3016,12 @@ if [ ! -w "$RUNROOTFS" ]
         )
 fi
 
-if [ "$UNSHARE_NSS" == 1 ]
+if [ "$RIM_UNSHARE_NSS" == 1 ]
     then warn_msg "NSS is unshared!"
     else NSS_BIND=('--ro-bind-try' '/etc/nsswitch.conf' '/etc/nsswitch.conf')
 fi
 
-if [ "$UNSHARE_HOSTNAME" == 1 ]
+if [ "$RIM_UNSHARE_HOSTNAME" == 1 ]
     then
         warn_msg "Hostname is unshared!"
         HOSTNAME_BIND=('--unshare-uts' '--hostname' 'runimage')
@@ -2897,7 +3029,7 @@ if [ "$UNSHARE_HOSTNAME" == 1 ]
         HOSTNAME_BIND=('--ro-bind-try' '/etc/hostname' '/etc/hostname')
 fi
 
-if [ "$UNSHARE_USERS" == 1 ]
+if [ "$RIM_UNSHARE_USERS" == 1 ]
     then
         warn_msg "Users are unshared!"
         USERS_BIND+=("--unshare-user-try")
@@ -2926,7 +3058,7 @@ if [ "$UNSHARE_USERS" == 1 ]
         )
 fi
 
-if [ "$UNSHARE_MODULES" != 1 ]
+if [ "$RIM_UNSHARE_MODULES" != 1 ]
     then
         unset libmodules
         MODULES_BIND=("--ro-bind-try")
@@ -2938,45 +3070,68 @@ if [ "$UNSHARE_MODULES" != 1 ]
         MODULES_BIND+=("$libmodules" "/usr/lib/modules")
     else
         warn_msg "Kernel modules are unshared!"
+        unset MODULES_BIND
 fi
 
-##############################################################################
-if [ -n "$AUTORUN" ]
+[ "$RIM_BIND_PWD" == 1 ] &&
+    RIM_BIND+=",$PWD:$PWD"
+
+if [ -n "$RIM_BIND" ]
     then
-        [ "$1" != "$(basename "$RUNSRC")" ] && [[ "$1" == "$AUTORUN0ARG" ||\
-          "$1" == "$(basename "${RUNIMAGE_CONFIG%.rcfg}")" ||\
-          "$1" == "$(basename "${RUNIMAGE_INTERNAL_CONFIG%.rcfg}")" ]] && \
-            shift
-        if [ "${#AUTORUN[@]}" == 1 ]
-            then bwrun /usr/bin/$AUTORUN "$@"
-            else bwrun /usr/bin/"${AUTORUN[@]}" "$@"
-        fi
-    else
-        if [ ! -n "$1" ]
-            then
-                info_msg "To show usage, run with ${BLUE}--run-help"
-                bwrun "${RUN_SHELL[@]}"
-            else
-                case $1 in
-                    --encrypt-rootfs|--eR) shift ; encrypt_rootfs "$@" ;;
-                    --decrypt-rootfs|--dR) shift ; decrypt_rootfs "$@" ;;
-                    --passwd-cryptfs|--pC) shift ; passwd_cryptfs "$@" ;;
-                    --run-pkglist|--rP) pkg_list ;;
-                    --run-kill   |--rK) force_kill ;;
-                    --run-help   |--rH) print_help ;;
-                    --run-binlist|--rBin) bin_list ;;
-                    --run-version|--rV) print_version ;;
-                    --overfs-list|--oL) overlayfs_list ;;
-                    --run-attach |--rA) shift ; run_attach "$@" ;;
-                    --run-update |--rU) shift ; run_update "$@" ;;
-                    --overfs-rm  |--oR) shift ; overlayfs_rm "$@" ;;
-                    --run-desktop|--rD) bwrun rundesktop ;;
-                    --run-shell  |--rS) shift ; bwrun "${RUN_SHELL[@]}" "$@" ;;
-                    --run-procmon|--rPm) shift ; bwrun rpidsmon "$@" ;;
-                    --run-build  |--rB) shift ; run_build "$@" ;;
-                    *) bwrun "$@" ;;
-                esac
-        fi
+        BUWRAP_BIND=()
+        IFS=',' read -r -a pairs <<< "$RIM_BIND"
+        for pair in "${pairs[@]}"
+            do
+                IFS=':' read -r source dest<<<"$pair"
+                if [ -e "$source" ]
+                    then
+                        info_msg "Bind: '$source' -> '$dest'"
+                        BUWRAP_BIND+=("--bind-try" "$source" "$dest")
+                fi
+        done
+    else unset BUWRAP_BIND
 fi
+
+export -p|grep '^declare -x RIM_.*='|sed 's|^declare -x ||g' > "$RIMENVFL"
+
+##############################################################################
+
+case "$1" in
+    rim-encfs     ) shift ; encrypt_rootfs "$@" ;;
+    rim-decfs     ) shift ; decrypt_rootfs "$@" ;;
+    rim-enc-passwd) shift ; passwd_cryptfs "$@" ;;
+    rim-pkglist   ) pkg_list ;;
+    rim-kill      ) force_kill ;;
+    rim-help      ) print_help ;;
+    rim-binlist   ) bin_list ;;
+    rim-version   ) print_version ;;
+    rim-ofsls     ) overlayfs_list ;;
+    rim-update    ) shift ; run_update "$@" ;;
+    rim-ofsrm     ) shift ; overlayfs_rm "$@" ;;
+    rim-desktop   ) bwrun rundesktop ;;
+    rim-shell     ) shift ; bwrun "${RIM_SHELL[@]}" "$@" ;;
+    rim-procmon   ) shift ; bwrun rpidsmon "$@" ;;
+    rim-build     ) shift ; run_build "$@" ;;
+    *)
+        if [ -n "$RIM_AUTORUN" ]
+            then
+                [ "$1" != "$(basename "$RUNSRC")" ] && [[ "$1" == "$AUTORUN0ARG" ||\
+                "$1" == "$(basename "${RIM_CONFIG%.rcfg}")" ||\
+                "$1" == "$(basename "${RUNIMAGE_INTERNAL_CONFIG%.rcfg}")" ]] && \
+                    shift
+                if [ "${#RIM_AUTORUN[@]}" == 1 ]
+                    then bwrun /usr/bin/$RIM_AUTORUN "$@"
+                    else bwrun /usr/bin/"${RIM_AUTORUN[@]}" "$@"
+                fi
+            else
+                if [[ ! -n "$1" && ! -n "$RIM_EXEC_ARGS" ]]
+                    then bwrun "${RIM_SHELL[@]}"
+                    else bwrun "$@"
+                fi
+        fi
+    ;;
+esac
+
 exit $?
+
 ##############################################################################

@@ -6,70 +6,17 @@ GREEN='\033[1;92m'
 YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 PATH="$PATH:$RUNSTATIC"
-JOBNUMFL="$EXECFLDIR/job"
+SELFNAME="$(basename "$0")"
+
+[ -f "$RIMENVFL" ] && \
+    source "$RIMENVFL"
 
 error_msg() {
     echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
     if [ "$NOT_TERM" == 1 ]
-        then
-            notify-send -a 'RunImage Error' "$@" 2>/dev/null &
+        then notify-send -a 'RunImage Error' "$@" 2>/dev/null &
     fi
 }
-
-get_child_pids() {
-    local child_pids="$(ps --forest -o pid= -g $(ps -o sid= -p $1 2>/dev/null) 2>/dev/null)"
-    echo -e "$1\n$(ps -o pid=,cmd= -p $child_pids 2>/dev/null|sort -n|\
-    sed "0,/$1/d" 2>/dev/null|grep -Pv '\d+ sleep \d+'|awk '{print$1}')"|sort -nu
-}
-
-try_kill() {
-    ret=1
-    if [ -n "$1" ]
-        then
-            for pid in $1
-                do
-                    trykillnum=1
-                    while [[ -n "$pid" && -d "/proc/$pid" ]]
-                        do
-                            if [[ "$trykillnum" -le 3 ]]
-                                then
-                                    kill -2 $pid 2>/dev/null
-                                    ret=$?
-                                    sleep 0.05
-                                else
-                                    kill -9 $pid 2>/dev/null
-                                    ret=$?
-                                    wait $pid &>/dev/null
-                                    wait_pid "$pid"
-                            fi
-                            trykillnum="$(( $trykillnum + 1 ))"
-                    done
-            done
-    fi
-    return $ret
-}
-
-wait_pid() {
-    if [ -n "$1" ]
-        then
-            if [ "$UNLIM_WAIT" == 1 ]
-                then
-                    while [ -d "/proc/$1" ]; do sleep 0.1; done
-                else
-                    [ -n "$2" ] && \
-                        timeout="$2"||
-                        timeout="100"
-                    waittime=1
-                    while [[ -d "/proc/$1" && "$waittime" -le "$timeout" ]]
-                        do
-                            sleep 0.01
-                            waittime="$(( $waittime + 1 ))"
-                    done
-            fi
-    fi
-}
-
-killjobpids() { try_kill "$(get_child_pids "$execjobpid")" ; }
 
 set_terminal() {
     if hostexec which konsole &>/dev/null
@@ -136,100 +83,34 @@ print_help() {
     RUNHOSTNAME="$(uname -a|awk '{print$2}')"
     echo -e "
     ${RED}Usage:
-        $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command as args
+        $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
         $RED└──╼ \$$GREEN ${0}${BLUE} {args} $GREEN{executable} $YELLOW{executable args}
 
-        $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command to stdin
-        $RED└──╼ \$${GREEN} echo ${BLUE}\"$GREEN{executable} $YELLOW{executable args}${BLUE}\"${RED}|$GREEN${0}${BLUE} {args}
-
         ${BLUE}--help      ${RED}|${BLUE}-h$GREEN             Show this usage info
-        ${BLUE}--shell     ${RED}|${BLUE}-s$GREEN  $YELLOW{args}$GREEN     Launch host shell (socat + ptyspawn)
         ${BLUE}--superuser ${RED}|${BLUE}-su$GREEN $YELLOW{args}$GREEN     Execute command as superuser
         ${BLUE}--terminal  ${RED}|${BLUE}-t$GREEN  $YELLOW{args}$GREEN     Execute command in host terminal
         "
 }
 
-host_shell() {
-    wait_shell() {
-        wait_time=100
-        while [[ ! -S "$SHELL_SOCKET" && "$wait_time" -gt 0 ]]; \
-            do
-                sleep 0.01
-                wait_time=$(( $wait_time - 1 ))
-        done
-    }
-    HOST_SHELL="$(hostexec echo '$SHELL')"
-    if [ -n "$HOST_SHELL" ]
-        then
-            SHELL_SOCKET="$RUNPIDDIR/shell"
-            if [ -n "$1" ]
-                then
-                    hostexec socat UNIX-LISTEN:"$SHELL_SOCKET" EXEC:"$HOST_SHELL",pty,stderr,setsid,sigint,sane &>/dev/null &
-                    wait_shell
-                    check_args_spaces "$@"
-                    echo "${args[@]}"|socat STDIO UNIX-CONNECT:"$SHELL_SOCKET"
-                    EXEC_STATUS=$?
-                else
-                    hostexec socat UNIX-LISTEN:"$SHELL_SOCKET" SYSTEM:"ptyspawn '$HOST_SHELL'" &>/dev/null &
-                    wait_shell
-                    socat $(tty),raw,echo=0 UNIX-CONNECT:"$SHELL_SOCKET"
-                    EXEC_STATUS=$?
-                    [ "$EXEC_STATUS" != 0 ] && \
-                        kill $(pgrep -fa socat|grep "$SHELL_SOCKET"|awk '{print$1}')
-            fi
-        else
-            error_msg "Could not determine host shell!"
-            return 1
-    fi
-    return $EXEC_STATUS
-}
-
-check_args_spaces() {
-    for arg in "$@"
-        do
-            echo "$arg"|grep -Po '\s' &>/dev/null && \
-                arg="$(echo "$arg"|sed 's|.*|"&"|' 2>/dev/null)"
-            args+=("$arg")
-    done
-}
-
-cleanup() { [[ -d "$execjobdir" && -n "$jobnum" ]] && rm -rf "$execjobdir" 2>/dev/null ; }
-
-if [[ -d "$EXECFLDIR" && -e "$JOBNUMFL" ]]
+if [ -e "$RIM_HEXEC_SOCK" ]
     then
-        trap 'killjobpids;cleanup' SIGINT SIGTERM
-        trap 'cleanup' EXIT
-        unset args
-        case $1 in
-            -h |--help) print_help ; exit 0 ;;
-            -s |--shell) shift ; host_shell "$@" ; exit $? ;;
-            -t |--terminal) shift ; set_terminal || exit 1 ;;
-            -su|--superuser) shift ; set_supassapp || exit 1 ;;
-        esac
-        jobnum="$(cat "$JOBNUMFL" 2>/dev/null)"
-        if [ -n "$jobnum" ]
-            then
-                execjobdir="$EXECFLDIR/$jobnum"
-                execjobfl="$execjobdir/exec"
-                execjoboutfl="$execjobdir/out"
-                execjobstatfl="$execjobdir/stat"
-                if [ -n "$1" ]
-                    then
-                        check_args_spaces "$@"
-                        echo "${args[@]}" > "$execjobfl"
-                    else
-                        if [ -n "$args" ]
-                            then (echo -n "${args[@]} ";cat) > "$execjobfl" 2>/dev/null
-                            else cat > "$execjobfl" 2>/dev/null
-                        fi
-                fi
-                execjobpid="$(cat "$execjobstatfl" 2>/dev/null)"
-                cat "$execjoboutfl" 2>/dev/null
-                execstat="$(cat "$execjobstatfl" 2>/dev/null)"
+        if [ "$SELFNAME" != 'hostexec' ]
+            then args=("$SELFNAME")
+            else
+                unset args
+                while [[ $# -gt 0 ]]
+                    do
+                        case "$1" in
+                            -h |--help) print_help ; exit 0 ;;
+                            -t |--terminal) shift ; set_terminal || exit 1 ;;
+                            -su|--superuser) shift ; set_supassapp || exit 1 ;;
+                            *) break ;;
+                        esac
+                done
         fi
-        [ -n "$execstat" ]||execstat=1
-        exit $execstat
+        SSRV_SOCK="unix:$RIM_HEXEC_SOCK" \
+        exec ssrv "${args[@]}" "$@"
     else
-        error_msg "EXECFLDIR is not configured!"
+        error_msg "HOSTEXEC socket not found!"
         exit 1
 fi

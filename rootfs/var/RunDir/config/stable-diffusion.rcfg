@@ -1,2 +1,2 @@
-KEEP_OVERFS=1
-OVERFS_ID=stable-diffusion
+RIM_KEEP_OVERFS=1
+RIM_OVERFS_ID=stable-diffusion

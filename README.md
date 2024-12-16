@@ -137,11 +137,11 @@ Environment variables to configure:
     ENABLE_HOSTEXEC=1                    Enables the ability to execute commands at the host level
     NO_RPIDSMON=1                        Disables the monitoring thread of running processes
     SANDBOX_NET=1                        Creates a network sandbox
-    SANDBOX_NET_SHARE_HOST=1             Creates a network sandbox with access to host loopback
-    SANDBOX_NET_CIDR=11.22.33.0/24       Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
-    SANDBOX_NET_TAPNAME=tap0             Specifies tap interface name in network sandbox (Def: eth0)
-    SANDBOX_NET_MAC=B6:40:E0:8B:A6:D7    Specifies tap interface MAC in network sandbox (Def: random)
-    SANDBOX_NET_MTU=65520                Specifies tap interface MTU in network sandbox (Def: 1500)
+    SNET_SHARE_HOST=1                    Creates a network sandbox with access to host loopback
+    SNET_CIDR=11.22.33.0/24              Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
+    SNET_TAPNAME=tap0                    Specifies tap interface name in network sandbox (Def: eth0)
+    SNET_MAC=B6:40:E0:8B:A6:D7           Specifies tap interface MAC in network sandbox (Def: random)
+    SNET_MTU=65520                       Specifies tap interface MTU in network sandbox (Def: 1500)
     HOSTS_FILE="file"                    Binds specified file to /etc/hosts
     RESOLVCONF_FILE="file"               Binds specified file to /etc/resolv.conf
     BUWRAP_ARGS+=()                       Array with Bubblewrap arguments (for config file)

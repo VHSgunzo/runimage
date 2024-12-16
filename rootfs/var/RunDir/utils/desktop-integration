@@ -5,6 +5,9 @@ HINTEG_APPS_DIR="$HINTEG_DIR/applications"
 ICONS_DIR='/usr/share/icons'
 APPS_DIR='/usr/share/applications'
 
+[ -f "$RIMENVFL" ] && \
+    source "$RIMENVFL"
+
 IGNORE_FILES=(
     'mimeinfo.cache'
     'icon-theme.cache'
@@ -77,8 +80,8 @@ dinteg() {
                             if [[ "$hinteg_file" == *'.desktop' ]]
                                 then
                                     exec_args="env "
-                                    [ -n "$OVERFS_ID" ] && \
-                                    exec_args+="OVERFS_ID='$OVERFS_ID' "
+                                    [ -n "$RIM_OVERFS_ID" ] && \
+                                    exec_args+="RIM_OVERFS_ID='$RIM_OVERFS_ID' "
                                     #if [[ "$RUNSRCNAME" == "Run"* || \
                                     #      "$RUNSRCNAME" == "runimage"* ]]
                                     #    then exec_args+="'$RUNSRC' "
@@ -124,17 +127,17 @@ if [ -n "$1" ]
         case "$1" in
             hook) shift
                 unset verb
-                if [ "$DESKTOP_INTEGRATION" == 1 ]
+                if [ "$RIM_DESKTOP_INTEGRATION" == 1 ]
                     then dinteg
                     else echo "Desktop integration is disabled!"
                 fi
             ;;
             all) shift
-                [ "$WITH_MIME" == 1 ] && \
+                [ "$RIM_DINTEG_WITH_MIME" == 1 ] && \
                     INTEG_DIRS+=("${MIME_DIRS[@]}")
                 find_fl "${INTEG_DIRS[@]}"|dinteg
                 upd_ddb
-                [ "$WITH_MIME" == 1 ] && upd_mdb
+                [ "$RIM_DINTEG_WITH_MIME" == 1 ] && upd_mdb
             ;;
             mime) shift
                 find_fl "${MIME_DIRS[@]}"|dinteg

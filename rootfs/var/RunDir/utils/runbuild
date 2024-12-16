@@ -8,6 +8,9 @@ YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 EXEPT_RUNSRCNAMES=("Run" "runbuild" "rundesktop" "runupdate" "rpidsmon")
 
+[ -f "$RIMENVFL" ] && \
+    source "$RIMENVFL"
+
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
 error_msg() {
@@ -18,18 +21,18 @@ error_msg() {
 }
 
 info_msg() {
-    if [ "$QUIET_MODE" != 1 ]
+    if [ "$RIM_QUIET_MODE" != 1 ]
         then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
                 then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
 }
 
 warn_msg() {
-    if [[ "$QUIET_MODE" != 1 && "$NO_WARN" != 1 ]]
+    if [[ "$RIM_QUIET_MODE" != 1 && "$RIM_NO_WARN" != 1 ]]
         then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
                 then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
@@ -48,7 +51,7 @@ if [ ! -x "$RUNRUNTIME" ]
           exit 1
 fi
 
-RUNRUNTIMESIZE=($(du -sb "$RUNRUNTIME" 2>/dev/null))
+RUNOFFSET="${RUNOFFSET:="$("$RUNRUNTIME" --runtime-offset)"}"
 
 [ ! -x "$MKSQFS" ] && \
      MKSQFS="$RUNSTATIC/mksquashfs"
@@ -77,31 +80,31 @@ if [[ -n "$1" && ! "${CMPRS_ARGS[@]}" =~ "$1" ]]
           fi
 fi
 
-if [[ "$1" == '-zstd' || "$2" == '-zstd' || "$CMPRS_ALGO" == "zstd" || -n "$ZSDT_CMPRS_LVL" ]]
+if [[ "$1" == '-zstd' || "$2" == '-zstd' || "$RIM_CMPRS_ALGO" == "zstd" || -n "$RIM_ZSDT_CMPRS_LVL" ]]
      then
           if is_zstd_cmprs_valid "$2"
-               then ZSDT_CMPRS_LVL="$2"
+               then RIM_ZSDT_CMPRS_LVL="$2"
           elif is_zstd_cmprs_valid "$3"
-               then ZSDT_CMPRS_LVL="$3"
-          elif ! is_zstd_cmprs_valid "$ZSDT_CMPRS_LVL"
-               then ZSDT_CMPRS_LVL="19"
+               then RIM_ZSDT_CMPRS_LVL="$3"
+          elif ! is_zstd_cmprs_valid "$RIM_ZSDT_CMPRS_LVL"
+               then RIM_ZSDT_CMPRS_LVL="19"
           fi
-          CMPRS_MTHD="1M -comp zstd -Xcompression-level $ZSDT_CMPRS_LVL"
+          CMPRS_MTHD="128K -comp zstd -Xcompression-level $RIM_ZSDT_CMPRS_LVL"
           info_msg "Compression method: zstd"
-          info_msg "Compression level: $ZSDT_CMPRS_LVL"
-elif [[ "$1" == '-xz' || "$2" == '-xz' || "$CMPRS_ALGO" == "xz" ]]
+          info_msg "Compression level: $RIM_ZSDT_CMPRS_LVL"
+elif [[ "$1" == '-xz' || "$2" == '-xz' || "$RIM_CMPRS_ALGO" == "xz" ]]
      then
           CMPRS_MTHD="1M -comp xz -Xdict-size 100%"
           info_msg "Compression method: xz"
 fi
 
-if [[ ! -n "$CMPRS_MTHD" || "$1" == '-lz4' || "$2" == '-lz4' || "$CMPRS_ALGO" == "lz4" ]]
+if [[ ! -n "$CMPRS_MTHD" || "$1" == '-lz4' || "$2" == '-lz4' || "$RIM_CMPRS_ALGO" == "lz4" ]]
      then
           CMPRS_MTHD="256K -comp lz4 -Xhc"
           info_msg "Compression method: lz4"
 fi
 
-if [ "$BUILD_WITH_EXTENSION" == 1 ]
+if [ "$RIM_BUILD_WITH_EXTENSION" == 1 ]
      then
           [ -n "$RUNROOTFSTYPE" ] && \
                ROOTFSTYPE=".$RUNROOTFSTYPE"
@@ -122,7 +125,8 @@ OLDRUNIMAGE="${NEWRUNIMAGE%.new$BUILDKEY}"
 [[ "$INSIDE_RUNIMAGE" == 1 && ! -d "$RUNROOTFS" ]] && \
      RUNROOTFS='/'
 
-unset IS_PACLOCKFL
+unset IS_PACLOCKFL IS_DECFSFL
+DECFSFL="$RUNROOTFS/.decfs"
 PACLOCKFL="$RUNROOTFS/var/lib/pacman/db.lck"
 if [ -w "$RUNROOTFS" ]
      then
@@ -136,12 +140,19 @@ if [ -w "$RUNROOTFS" ]
                     IS_PACLOCKFL=1
                     rm -rf "$PACLOCKFL"
           fi
+          if [ -f "$DECFSFL" ]
+               then
+                    IS_DECFSFL=1
+                    rm -rf "$DECFSFL"
+          fi
           rm -rf "$RUNROOTFS/var/lib/pacman/sync"/*
           rm -rf "$RUNROOTFS/var/cache/pacman/pkg"/*
           rm -rf "$RUNROOTFS/var/cache/apt/archives"/*.deb
           rm -rf "$RUNROOTFS/var/cache/apt"/*.bin
           rm -rf "$RUNROOTFS/var/lib/apt/lists"/deb.*
           rm -rf "$RUNROOTFS/var/log/apt"/*
+          rm -rf "$RUNROOTFS/var/cache/apk"/*
+          rm -rf "$RUNROOTFS/var/cache/xbps/"/*
      else
           warn_msg "Unable to update build timestamp. Read-only!"
           warn_msg "Unable to cleanup rootfs. Read-only!"
@@ -152,23 +163,25 @@ info_msg "Path: '$OLDRUNIMAGE'"
 [ -d "$OVERFS_MNT" ] && \
      RUNDIR="$OVERFS_MNT"
 echo -en "$BLUE"
-"$MKSQFS" "$RUNDIR" "$NEWRUNIMAGE" -root-owned -offset "$RUNRUNTIMESIZE" \
-     -no-xattrs -noappend -quiet -mkfs-time 0 -b $CMPRS_MTHD
+"$MKSQFS" "$RUNDIR" "$NEWRUNIMAGE" -root-owned -offset "$RUNOFFSET" -no-recovery \
+     -no-xattrs -noappend -quiet -mkfs-time 0 -action "prune @ type(c) || type(s) || type(b) || type(p)" -b $CMPRS_MTHD
 echo -en "$RESETCOLOR"
 
 [ "$IS_PACLOCKFL" == 1 ] && \
      touch "$PACLOCKFL"
+[ "$IS_DECFSFL" == 1 ] && \
+     touch "$DECFSFL"
 
 if [ -f "$NEWRUNIMAGE" ]
      then
           info_msg "Embedding RunImage runtime..."
-          if dd if="$RUNRUNTIME" bs="$RUNRUNTIMESIZE" count=1 of="$NEWRUNIMAGE" conv=notrunc &>/dev/null
+          if dd if="$RUNRUNTIME" bs="$RUNOFFSET" count=1 of="$NEWRUNIMAGE" conv=notrunc &>/dev/null
                then
                     info_msg "Marking RunImage as executable..."
                     chmod +x "$NEWRUNIMAGE"
                     if [ -f "$OLDRUNIMAGE" ]
                          then
-                              if [ "$KEEP_OLD_BUILD" == 1 ]
+                              if [ "$RIM_KEEP_OLD_BUILD" == 1 ]
                                    then
                                         info_msg "Saving old RunImage: '${OLDRUNIMAGE}.old'"
                                         mv -f "${OLDRUNIMAGE}" "${OLDRUNIMAGE}.old"
