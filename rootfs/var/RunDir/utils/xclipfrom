@@ -1,4 +1,4 @@
-#!/usr/bin/wish
+#!/usr/bin/env wish
 
 wm withdraw .
 

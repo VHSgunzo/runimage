@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 is_exe_exist() { command -v "$@" &>/dev/null ; }
 

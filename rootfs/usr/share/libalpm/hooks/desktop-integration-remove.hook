@@ -23,7 +23,7 @@ Target = usr/share/desktop-directories/*
 Target = etc/xdg/menus/applications-merged/*
 
 [Action]
-Description = Desktop integration remove...
+Description = Remove desktop integration...
 When = PreTransaction
-Exec = /var/RunDir/utils/desktop-integration remove hook
+Exec = /var/RunDir/utils/rim-dinteg --remove hook
 NeedsTargets

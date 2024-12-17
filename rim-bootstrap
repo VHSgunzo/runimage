@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 shopt -s extglob
 
 RUNIMAGE_VERSION='v0.39.1'
@@ -21,10 +21,10 @@ if [ ! -x 'RunDir/Run' ]
 fi
 
 # download shrinking script
-if [ ! -x 'runshrink' ]
+if [ ! -x 'rim-shrink' ]
     then
-        curl -LO "https://raw.githubusercontent.com/VHSgunzo/runimage/main/runshrink"
-        chmod +x runshrink
+        curl -LO "https://raw.githubusercontent.com/VHSgunzo/runimage/main/rim-shrink"
+        chmod +x rim-shrink
 fi
 
 # create new runimage rootfs
@@ -355,7 +355,7 @@ cp -f ../pacman.conf ./RunDir/rootfs/etc/pacman.conf
 ./RunDir/Run pac -Rsndd lib32-glibc lib32-fakeroot lib32-fakechroot --noconfirm
 
 # optional for shrink
-../runshrink
+../rim-shrink
 
 # optional for shrink
 rm -rf "${SHRINK_ITEMS[@]}"
@@ -365,5 +365,5 @@ rm -rf ./RunDir/rootfs/{dev,sys,proc,tmp,run}/*
 rm -f RunDir/rootfs/etc/pacman.d/gnupg/S.*
 
 # build new runimage
-./RunDir/Run rim-build -zstd
+./RunDir/Run rim-build
 )

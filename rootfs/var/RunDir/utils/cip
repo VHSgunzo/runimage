@@ -1,2 +1,2 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 curl -s ifconfig.io 2>/dev/null

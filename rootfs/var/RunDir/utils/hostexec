@@ -80,16 +80,13 @@ set_supassapp() {
 }
 
 print_help() {
-    RUNHOSTNAME="$(uname -a|awk '{print$2}')"
-    echo -e "
-    ${RED}Usage:
-        $RED┌──[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-        $RED└──╼ \$$GREEN ${0}${BLUE} {args} $GREEN{executable} $YELLOW{executable args}
+    echo -e "[ Usage ]: hostexec [OPTIONS] {executable} {executable args}
 
-        ${BLUE}--help      ${RED}|${BLUE}-h$GREEN             Show this usage info
-        ${BLUE}--superuser ${RED}|${BLUE}-su$GREEN $YELLOW{args}$GREEN     Execute command as superuser
-        ${BLUE}--terminal  ${RED}|${BLUE}-t$GREEN  $YELLOW{args}$GREEN     Execute command in host terminal
-        "
+[ Options ]:
+    -su, --superuser  {args}     Execute command as superuser
+    -t,  --terminal   {args}     Execute command in host terminal
+    -h,  --help                  Show this message"
+    exit 1
 }
 
 if [ -e "$RIM_HEXEC_SOCK" ]

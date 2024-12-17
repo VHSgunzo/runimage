@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 dbus-filemgr() {
     dbus-send --session --dest=org.freedesktop.FileManager1 \

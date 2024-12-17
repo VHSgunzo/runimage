@@ -1371,7 +1371,7 @@ print_version() {
 run_update() {
     info_msg "RunImage update"
     RIM_ROOT=1 RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 \
-        bwrun runupdate
+        bwrun rim-update
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
         then
@@ -1533,7 +1533,7 @@ decrypt_rootfs() {
     fi
 }
 
-run_build() { "$RUNSTATIC/bash" "$RUNUTILS/runbuild" "$@" ; }
+run_build() { "$RUNSTATIC/bash" "$RUNUTILS/rim-build" "$@" ; }
 
 check_unshare_tmp() {
     if [ "$UNSHARE_TMP" == 1 ]
@@ -1605,7 +1605,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}rim-build  $YELLOW  {build args}$GREEN      Build new runimage container
         ${BLUE}rim-update $YELLOW  {build args}$GREEN      Update packages and rebuild runimage
         ${BLUE}rim-kill   $GREEN                    Kill all running runimage containers
-        ${BLUE}rim-procmon$YELLOW {RUNPIDs}$GREEN         Monitoring of processes running in runimage containers
+        ${BLUE}rim-psmon$YELLOW {RUNPIDs}$GREEN         Monitoring of processes running in runimage containers
         ${BLUE}rim-exec $YELLOW  {RUNPID} {args}$GREEN   Attach to a running runimage container or exec command
 
     ${RED}Only for not extracted (RunImage runtime options):
@@ -1645,7 +1645,6 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_KEEP_OVERFS$GREEN=1                        Enables OverlayFS mode with saving after closing runimage
         ${YELLOW}RIM_OVERFS_ID$GREEN=ID                         Specifies the OverlayFS ID
         ${YELLOW}RIM_KEEP_OLD_BUILD$GREEN=1                     Creates a backup of the old RunImage when building a new one
-        ${YELLOW}RIM_BUILD_WITH_EXTENSION$GREEN=1               Adds an extension when building (compression method and rootfs type)
         ${YELLOW}RIM_CMPRS_ALGO$GREEN={zstd|xz|lz4}             Specifies the compression algo for runimage build
         ${YELLOW}RIM_ZSDT_CMPRS_LVL$GREEN={1-22}                Specifies the compression ratio of the zstd algo for runimage build
         ${YELLOW}RIM_SHELL$GREEN=\"shell\"                      Selects ${YELLOW}\$SHELL$GREEN in runimage
@@ -1744,6 +1743,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             ${YELLOW}RUNUSER${GREEN}=\"$RUNUSER\"
         ${GREEN}mksquashfs:
             ${YELLOW}MKSQFS${GREEN}=\"$MKSQFS\"
+        ${GREEN}mkdwarfs:
+            ${YELLOW}MKDWFS${GREEN}=\"$MKDWFS\"
         ${GREEN}unsquashfs:
             ${YELLOW}UNSQFS${GREEN}=\"$UNSQFS\"
         ${GREEN}unionfs:
@@ -1763,14 +1764,14 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}pac$GREEN                          sudo pacman (fake sudo)
         ${YELLOW}packey$GREEN                       sudo pacman-key (fake sudo)
         ${YELLOW}panelipmon$GREEN                   Shows information about an active network connection
-        ${YELLOW}runbuild$GREEN                     Starts the runimage build
-        ${YELLOW}rundesktop$GREEN                   Starts the desktop mode
+        ${YELLOW}rim-build$GREEN                     Starts the runimage build
+        ${YELLOW}rim-desktop$GREEN                   Starts the desktop mode
         ${YELLOW}{xclipsync,xclipfrom}$GREEN        For clipboard synchronization in desktop mode
         ${YELLOW}webm2gif$GREEN                     Convert webm to gif
         ${YELLOW}transfer$GREEN                     Upload file to ${BLUE}https://transfer.sh
-        ${YELLOW}rpidsmon$GREEN                     For monitoring of processes running in runimage containers
+        ${YELLOW}rim-psmon$GREEN                     For monitoring of processes running in runimage containers
         ${YELLOW}hostexec$GREEN                     For execute commands at the host level (see ${YELLOW}RIM_ENABLE_HOSTEXEC$GREEN)
-        ${YELLOW}runupdate$GREEN                    For runimage update
+        ${YELLOW}rim-update$GREEN                    For runimage update
 
         ${YELLOW}ls$GREEN='ls --color=auto'
         ${YELLOW}dir$GREEN='dir --color=auto'
@@ -1848,7 +1849,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
                 then external configs are run if they are found.
 
         ${RED}RunImage desktop:${GREEN}
-            Ability to run RunImage in desktop mode. Default DE: XFCE (see rundesktop)
+            Ability to run RunImage in desktop mode. Default DE: XFCE (see rim-desktop)
             If the launch is carried out from an already running desktop, then Xephyr will start
                 in windowed/full screen mode (see ${YELLOW}XEPHYR_*$GREEN environment variables)
                 Use CTRL+SHIFT to grab the keyboard and mouse.
@@ -1877,9 +1878,9 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             This works both externally by passing build args:
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
             $RED└──╼ \$ ${GREEN}runimage ${BLUE}rim-build ${YELLOW}{build args}${GREEN}
-            And it also works inside the running instance (see runbuild):
+            And it also works inside the running instance (see rim-build):
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - in runimage
-            $RED└──╼ \$ ${GREEN}runbuild ${YELLOW}{build args}${GREEN}
+            $RED└──╼ \$ ${GREEN}rim-build ${YELLOW}{build args}${GREEN}
             Optionally, you can specify the following build arguments:
                 ${YELLOW}{/path/new_runimage_name} {-zstd|-xz|-lz4} {zstd compression level 1-19}${GREEN}
             By default, runimage is created in the current directory with a standard name and
@@ -1889,7 +1890,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${RED}RunImage update:${GREEN}
             Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
                 not be performed. When running an update, you can also pass arguments for a new build.
-                (see RunImage build) (also see runupdate)
+                (see RunImage build) (also see rim-update)
             $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
             $RED└──╼ \$ ${GREEN}runimage ${BLUE}rim-update ${YELLOW}{build args}${GREEN}
             By default, update and rebuild is performed in ${YELLOW}\$RUNIMAGEDIR${GREEN}
@@ -2036,8 +2037,6 @@ if [ "$RIM_CONFIG" != 0 ]
                 set +a
                 info_msg "Found RunImage config: '$RIM_CONFIG'"
         fi
-    else
-        warn_msg "RunImage config is disabled!"
 fi
 
 export RUNCACHEDIR="${RIM_CACHEDIR:=$RUNIMAGEDIR/cache}"
@@ -2062,7 +2061,7 @@ case "$1" in
     rim-portfw    ) if [ "$RIM_RUN_IN_ONE" != 1 ]
                         then shift ; run_attach portfw "$@" ; exit $?
                     fi ;;
-    rim-procmon   ) set_default_option ; RIM_TMP_HOME=1
+    rim-psmon   ) set_default_option ; RIM_TMP_HOME=1
                     RIM_UNSHARE_PIDS=0 ; RIM_CONFIG=0
                     export SSRV_SOCK="unix:$RUNPIDDIR/rmp"
                     RIM_NO_RPIDSMON=1 ; RIM_QUIET_MODE=1 ;;
@@ -2254,7 +2253,8 @@ fi
 [ "$RIM_SYS_TOOLS" == 1 ] && \
     export RIM_SYS_MKSQFS=1 RIM_SYS_UNSQFS=1 \
            RIM_SYS_SQFUSE=1 RIM_SYS_BUWRAP=1 \
-           RIM_SYS_UNIONFS=1 RIM_SYS_SLIRP=1
+           RIM_SYS_UNIONFS=1 RIM_SYS_SLIRP=1 \
+           RIM_SYS_MKDWFS=1
 
 if [ "$RIM_SYS_MKSQFS" == 1 ] && is_sys_exe mksquashfs
     then
@@ -2270,6 +2270,14 @@ if [ "$RIM_SYS_UNSQFS" == 1 ] && is_sys_exe unsquashfs
         export UNSQFS="$(which_sys_exe unsquashfs)"
     else
         export UNSQFS="$RUNSTATIC/unsquashfs"
+fi
+
+if [ "$RIM_SYS_MKDWFS" == 1 ] && is_sys_exe mkdwarfs
+    then
+        info_msg "The system mkdwarfs is used!"
+        export MKDWFS="$(which_sys_exe mkdwarfs)"
+    else
+        export MKDWFS="$RUNSTATIC/mkdwarfs"
 fi
 
 if [ "$RIM_SYS_SLIRP" == 1 ] && is_sys_exe slirp4netns
@@ -3108,9 +3116,9 @@ case "$1" in
     rim-ofsls     ) overlayfs_list ;;
     rim-update    ) shift ; run_update "$@" ;;
     rim-ofsrm     ) shift ; overlayfs_rm "$@" ;;
-    rim-desktop   ) bwrun rundesktop ;;
+    rim-desktop   ) bwrun rim-desktop ;;
     rim-shell     ) shift ; bwrun "${RIM_SHELL[@]}" "$@" ;;
-    rim-procmon   ) shift ; bwrun rpidsmon "$@" ;;
+    rim-psmon   ) shift ; bwrun rim-psmon "$@" ;;
     rim-build     ) shift ; run_build "$@" ;;
     *)
         if [ -n "$RIM_AUTORUN" ]

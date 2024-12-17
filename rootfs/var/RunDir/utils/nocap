@@ -1,5 +1,5 @@
-#!/usr/bin/bash
-# Use this to disable capabilities for run steam or another bubblewrap, if you don't disable capabilities by NO_CAP=1
+#!/usr/bin/env bash
+# Use this to disable capabilities for run steam or another bubblewrap, if you don't disable capabilities by RIM_NO_CAP=1
 # $ nocap steam
 # See https://github.com/containers/bubblewrap/issues/380
 # And https://github.com/containers/bubblewrap/issues/397
