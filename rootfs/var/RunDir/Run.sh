@@ -944,13 +944,17 @@ try_kill() {
 cleanup() {
     if [[ "$RIM_NO_CLEANUP" != 1 || "$1" == "force" ]]
         then
-            [ "$1" == "force" ] && \
-                RIM_QUIET_MODE=1
+            if [ "$1" == "force" ]
+                then
+                    FORCE_UMOUNT=1
+                    RIM_QUIET_MODE=1
+                else unset FORCE_UMOUNT
+            fi
             if [ -n "$FUSE_PIDS" ]
                 then
-                    [ "$KEEP_CRYPTFS" != 1 ] && \
+                    [[ "$KEEP_CRYPTFS" != 1 || "$FORCE_UMOUNT" == 1 ]] && \
                         try_unmount "$CRYPTFS_MNT"
-                    [ "$RIM_KEEP_OVERFS" != 1 ] && \
+                    [[ "$RIM_KEEP_OVERFS" != 1 || "$FORCE_UMOUNT" == 1 ]] && \
                         try_unmount "$OVERFS_MNT"
                     try_unmount "$NVDRVMNT"
             fi
@@ -1577,6 +1581,7 @@ set_default_option() {
 
 set_overfs_option() {
     set_default_option
+    RIM_DESKTOP_INTEGRATION=0
     if [[ -n "$RUNIMAGE" && ! -n "$RIM_OVERFS_ID" ]]
         then
             RIM_OVERFS_MODE=1
@@ -1988,6 +1993,14 @@ if [[ -n "$1" && "$1" != 'rim-'* && ! -n "$RIM_AUTORUN" ]]
         unset run_args
 fi
 
+case "$1" in
+    rim-psmon   ) set_default_option ; RIM_TMP_HOME=1
+                    RIM_UNSHARE_PIDS=0 ; RIM_CONFIG=0
+                    export SSRV_SOCK="unix:$RUNPIDDIR/rmp"
+                    RIM_NO_RPIDSMON=1 ; RIM_QUIET_MODE=1
+                    RIM_DESKTOP_INTEGRATION=0 ;;
+esac
+
 if [ "$RIM_CONFIG" != 0 ]
     then
         if [ -f "$RUNDIR/config/$RUNSRCNAME.rcfg" ]
@@ -2061,10 +2074,6 @@ case "$1" in
     rim-portfw    ) if [ "$RIM_RUN_IN_ONE" != 1 ]
                         then shift ; run_attach portfw "$@" ; exit $?
                     fi ;;
-    rim-psmon   ) set_default_option ; RIM_TMP_HOME=1
-                    RIM_UNSHARE_PIDS=0 ; RIM_CONFIG=0
-                    export SSRV_SOCK="unix:$RUNPIDDIR/rmp"
-                    RIM_NO_RPIDSMON=1 ; RIM_QUIET_MODE=1 ;;
     rim-update    ) set_overfs_option upd ;;
 esac
 
@@ -2476,6 +2485,7 @@ if [ "$RIM_OVERFS_MODE" != 0 ] && [[ "$RIM_OVERFS_MODE" == 1 || "$RIM_KEEP_OVERF
         export CRYPTFS_DIR="$OVERFS_MNT/cryptfs"
 fi
 
+CRYPTFS_ARGS=("$GOCRYPTFS" "$CRYPTFS_DIR" "$CRYPTFS_MNT" '-fg' '--nosyslog')
 if [ ! -n "$CRYPTFS_PASSFILE" ]
     then
         if [ -f "$RUNIMAGEDIR/passfile" ]
@@ -2487,8 +2497,8 @@ fi
 if [ -f "$CRYPTFS_PASSFILE" ]
     then
         info_msg "GoCryptFS passfile: '$CRYPTFS_PASSFILE'"
-        CRYPTFS_ARGS=("--passfile" "$CRYPTFS_PASSFILE")
-    else unset CRYPTFS_ARGS CRYPTFS_PASSFILE
+        CRYPTFS_ARGS+=("--passfile" "$CRYPTFS_PASSFILE")
+    else unset CRYPTFS_PASSFILE
 fi
 if is_cryptfs && [ "$NO_CRYPTFS_MOUNT" != 1 ]
     then
@@ -2497,16 +2507,30 @@ if is_cryptfs && [ "$NO_CRYPTFS_MOUNT" != 1 ]
         if [ ! -n "$(ls -A "$CRYPTFS_MNT" 2>/dev/null)" ]
             then
                 info_msg "Mounting RunImage rootfs in GoCryptFS mode..."
-                [ -f "$CRYPTFS_PASSFILE" ]||\
-                echo 'Password:'
-                if ! "$GOCRYPTFS" "${CRYPTFS_ARGS[@]}" --nosyslog \
-                    "$CRYPTFS_DIR" "$CRYPTFS_MNT" &>/dev/null
+                if [ -f "$CRYPTFS_PASSFILE" ]
+                    then
+                        unset encfifo
+                        "${CRYPTFS_ARGS[@]}" &
+                    else
+                        encfifo="$RUNPIDDIR/encfifo"
+                        mkfifo "$encfifo"
+                        exec 7<>"$encfifo"
+                        rm -f "$encfifo"
+                        "${CRYPTFS_ARGS[@]}"<&7 &
+                fi
+                CRYPTFS_PID="$!"
+                if [ -n "$encfifo" ]
+                    then
+                        read -s -r encpass && echo "$encpass">&7
+                        unset encpass
+                        exec 7>&-
+                fi
+                if ! mount_exist "$CRYPTFS_PID" "$CRYPTFS_MNT"
                     then
                         error_msg "Failed to mount RunImage rootfs in GoCryptFS mode!"
                         cleanup force
                         exit 1
                 fi
-                CRYPTFS_PID="$(pgrep -f "gocryptfs.*$CRYPTFS_DIR")"
                 FUSE_PIDS="$CRYPTFS_PID $FUSE_PIDS"
                 unset KEEP_CRYPTFS
             else
@@ -2655,9 +2679,8 @@ if [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 ]]
             )
         HOME_BIND+=('--setenv' 'HOME' "$TMP_HOME")
         info_msg "Setting temporary \$HOME to: '$HOME'"
-elif [ "$RIM_UNSHARE_HOME" == 1 ]
+elif [[ "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
     then
-        warn_msg "Host HOME is unshared!"
         if [ "$EUID" == 0 ]
             then UNSHARED_HOME="/root"
             else
@@ -2672,8 +2695,14 @@ elif [ "$RIM_UNSHARE_HOME" == 1 ]
                             '--dir' "$UNSHARED_HOME/.cache"
                             '--dir' "$UNSHARED_HOME/.config"
                         )
+                        [ "$RIM_UNSHARE_HOME_DL" == 1 ] && \
+                            HOME_BIND+=(
+                                "--dir" "$HOME/Downloads"
+                                "--symlink" "$HOME/Downloads" "$HOME/Загрузки"
+                                "--bind-try" "$HOME/Downloads" "$HOME/Downloads"
+                            )
                     else
-                        if [[ ! -d "$RUNROOTFS/$HOME" && ! -L "$RUNROOTFS/$HOME" && "$NO_CRYPTFS_MOUNT" != 1 ]]
+                        if [[ ! -d "$RUNROOTFS/$UNSHARED_HOME" && ! -L "$RUNROOTFS/$UNSHARED_HOME" && "$NO_CRYPTFS_MOUNT" != 1 ]]
                             then
                                 warn_msg "The user HOME directory not found in the container!"
                                 if [ -d "$RUNROOTFS/home/runimage" ]
@@ -2686,9 +2715,17 @@ elif [ "$RIM_UNSHARE_HOME" == 1 ]
                                         exit 1
                                 fi
                         fi
+                        if [ "$RIM_UNSHARE_HOME_DL" == 1 ]
+                            then
+                                if [ ! -d "$RUNROOTFS/$UNSHARED_HOME/Downloads" ]
+                                    then warn_msg "Unable to bind Downloads directory!"
+                                    else HOME_BIND+=("--bind-try" "$HOME/Downloads" "$HOME/Downloads")
+                                fi
+                        fi
                 fi
         fi
         HOME_BIND+=('--setenv' 'HOME' "$UNSHARED_HOME")
+        warn_msg "Host HOME is unshared!"
 elif [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || -d "$RIM_SANDBOX_HOME_DIR" ]]
     then
         if [ "$EUID" == 0 ]
@@ -3100,6 +3137,49 @@ if [ -n "$RIM_BIND" ]
     else unset BUWRAP_BIND
 fi
 
+if [ "$RIM_DESKTOP_INTEGRATION" == 1 ] && [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 ||\
+    "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || \
+    "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
+    then
+        export RUNDINTEGDIR="$RUNPIDDIR/dinteg"
+        try_mkdir "$RUNDINTEGDIR"
+        dinteg() {
+            unset -f dinteg
+            [ -n "$SYS_HOME" ] && \
+                export HOME="$SYS_HOME"
+            ACTINTEGFL="$RUNDINTEGDIR/act"
+            ADDINTEGFL="$RUNDINTEGDIR/add"
+            RMINTEGFL="$RUNDINTEGDIR/rm"
+            LSINTEGFL="$RUNDINTEGDIR/ls"
+            mkfifo "$ACTINTEGFL"
+            mkfifo "$ADDINTEGFL"
+            mkfifo "$RMINTEGFL"
+            mkfifo "$LSINTEGFL"
+            unset RUNDINTEGDIR
+            while [[ -n "$RUNPID" && -d "/proc/$RUNPID" ]]
+                do
+                    case "$(cat "$ACTINTEGFL" 2>/dev/null)" in
+                        a)
+                            newdinteg="$(cat "$ADDINTEGFL" 2>/dev/null)"
+                            if [ -n "$newdinteg" ]
+                                then "$RUNSTATIC/bash" "$RUNUTILS/rim-dinteg" --add hook<<<"$newdinteg"
+                            fi
+                        ;;
+                        r)
+                            rmdinteg="$(cat "$RMINTEGFL" 2>/dev/null)"
+                            if [ -n "$rmdinteg" ]
+                                then "$RUNSTATIC/bash" "$RUNUTILS/rim-dinteg" --remove hook<<<"$rmdinteg"
+                            fi
+                        ;;
+                        l) "$RUNSTATIC/bash" "$RUNUTILS/rim-dinteg" --list added>"$LSINTEGFL" ;;
+                    esac
+            done
+        }
+        export -f dinteg
+        "$RUNSTATIC/bash" -c dinteg &
+        unset -f dinteg
+fi
+
 export -p|grep '^declare -x RIM_.*='|sed 's|^declare -x ||g' > "$RIMENVFL"
 
 ##############################################################################
@@ -3118,7 +3198,7 @@ case "$1" in
     rim-ofsrm     ) shift ; overlayfs_rm "$@" ;;
     rim-desktop   ) bwrun rim-desktop ;;
     rim-shell     ) shift ; bwrun "${RIM_SHELL[@]}" "$@" ;;
-    rim-psmon   ) shift ; bwrun rim-psmon "$@" ;;
+    rim-psmon     ) shift ; bwrun rim-psmon "$@" ;;
     rim-build     ) shift ; run_build "$@" ;;
     *)
         if [ -n "$RIM_AUTORUN" ]

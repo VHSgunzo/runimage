@@ -11,9 +11,6 @@ HINTEG_APPS_DIR="$HINTEG_DIR/applications"
 ICONS_DIR='/usr/share/icons'
 APPS_DIR='/usr/share/applications'
 
-[ -f "$RIMENVFL" ] && \
-    source "$RIMENVFL"
-
 IGNORE_FILES=(
     'mimeinfo.cache'
     'icon-theme.cache'
@@ -43,6 +40,17 @@ MIME_DIRS=(
     '/usr/share/mime/x-epoc'
 )
 
+[ -f "$RIMENVFL" ] && \
+    source "$RIMENVFL"
+
+if [ -d "$RUNDINTEGDIR" ]
+    then
+        ACTINTEGFL="$RUNDINTEGDIR/act"
+        ADDINTEGFL="$RUNDINTEGDIR/add"
+        RMINTEGFL="$RUNDINTEGDIR/rm"
+        LSINTEGFL="$RUNDINTEGDIR/ls"
+fi
+
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
 error_msg() {
@@ -68,9 +76,13 @@ lsapps() {
 }
 
 lsintegapps() {
-    local apps="$(grep -m1 '^Name=.* \[RunImage\]' -nr "$HINTEG_APPS_DIR"/*-rim.desktop 2>/dev/null|\
-                  sed 's|.*:Name=||g;s| \[RunImage\]$||g;s|.*|"&"|g'|sort -u)"
-    [ -n "$apps" ] && cat -n<<<"$apps"
+    if [ -d "$RUNDINTEGDIR" ]
+        then fifo_ls
+        else
+             local apps="$(grep -m1 '^Name=.* \[RunImage\]' -nr "$HINTEG_APPS_DIR"/*-rim.desktop 2>/dev/null|\
+                        sed 's|.*:Name=||g;s| \[RunImage\]$||g;s|.*|"&"|g'|sort -u)"
+             [ -n "$apps" ] && cat -n<<<"$apps"
+    fi
 }
 
 find_fl() { find "$@" -type f 2>/dev/null|sort ; }
@@ -79,6 +91,21 @@ upd_ddb() { update-desktop-database -q "$HINTEG_APPS_DIR" &>/dev/null ; }
 
 upd_mdb() { update-mime-database "$HINTEG_DIR/mime" &>/dev/null ; }
 
+fifo_add() {
+    echo a > "$ACTINTEGFL"
+    echo "$1" > "$ADDINTEGFL"
+}
+
+fifo_ls() {
+    echo l > "$ACTINTEGFL"
+    cat "$LSINTEGFL"
+}
+
+fifo_rm() {
+    echo r > "$ACTINTEGFL"
+    echo "$1" > "$RMINTEGFL"
+}
+
 dinteg() {
     while read -r file
         do
@@ -86,35 +113,52 @@ dinteg() {
                 continue
             [ "${file:0:1}" == '/' ]||\
                 file="/${file}"
-            if [ -f "$file" ]
+            if [[ -f "$file" || "$file" == "$RUNPIDDIR/dinteg/"* ]]
                 then
-                    unset postfix postfix_dir target exec_args
-                    target="$(awk -F/ '{print$4}'<<<"$file")"
-                    postfix="$(cut -d'/' -f4-<<<"$file"|sed 's|.desktop$|-rim.desktop|i;s|.png$|-rim.png|i;s|.svg$|-rim.svg|i;s|.xml$|-rim.xml|i')"
+                    unset postfix postfix_dir exec_args
+                    if [ -d "$RUNDINTEGDIR" ]
+                        then hinteg_dir="$RUNDINTEGDIR"
+                        else
+                            [[ "$file" == *'/menus/'* ]] && \
+                                hinteg_dir="$HOME/.config"||\
+                                hinteg_dir="$HINTEG_DIR"
+                    fi
+                    if [[ "$file" == "$RUNPIDDIR/dinteg/"* ]]
+                        then
+                            cp_mv=mv
+                            postfix="$(sed "s|$RUNPIDDIR/dinteg/||g"<<<"$file")"
+                        else
+                            cp_mv=cp
+                            postfix="$(cut -d'/' -f4-<<<"$file"|sed 's|.desktop$|-rim.desktop|i;s|.png$|-rim.png|i;s|.svg$|-rim.svg|i;s|.xml$|-rim.xml|i')"
+                    fi
                     postfix_dir="$(dirname "$postfix")"
-                    [ "$target" == 'menus' ] && \
-                        HINTEG_DIR="$HOME/.config"
-                    hinteg_file="${HINTEG_DIR}/${postfix}"
-                    hinteg_file_dir="${HINTEG_DIR}/${postfix_dir}"
+                    hinteg_file="${hinteg_dir}/${postfix}"
+                    hinteg_file_dir="${hinteg_dir}/${postfix_dir}"
                     case "$act" in
                         a)
                             mkdir $verb -p "$hinteg_file_dir"
-                            cp $verb -f "$file" "$hinteg_file"
-
-                            if [[ "$hinteg_file" == *'.desktop' ]]
+                            "$cp_mv" $verb -f "$file" "$hinteg_file"
+                            if [[ "$hinteg_file" == *'.desktop' && "$file" != "$RUNPIDDIR/dinteg/"* ]]
                                 then
                                     exec_args="env "
                                     [ -n "$RIM_OVERFS_ID" ] && \
                                     exec_args+="RIM_OVERFS_ID='$RIM_OVERFS_ID' "
                                     exec_args+="'$RUNSRC' "
 
-                                    sed -i "s|^Icon.*|&-rim|g;s|^Name.*|& [RunImage]|g;s|^Exec=|Exec=$exec_args|g;/^TryExec/d" "$hinteg_file"
+                                    sed -i "s|^Icon.*|&-rim|g;s|^Name.*|& [RunImage]|g;s|^Exec=|Exec=$exec_args|g;/^TryExec/d;/^DBusActivatable/d" "$hinteg_file"
                                     chmod $verb +x "$hinteg_file"
+                            fi
+                            if [ -d "$RUNDINTEGDIR" ]
+                                then fifo_add "$hinteg_file"
                             fi
                         ;;
                         r)
-                            [ -f "$hinteg_file" ] && \
-                                rm $verb -f "$hinteg_file"
+                            if [ -d "$RUNDINTEGDIR" ]
+                                then fifo_rm "$hinteg_file"
+                                else
+                                    [ -f "$hinteg_file" ] && \
+                                        rm $verb -f "$hinteg_file"
+                            fi
                         ;;
                         *) return 1 ;;
                     esac
@@ -176,7 +220,9 @@ if [ -n "$1" ]
                     INTEG_DIRS+=("${MIME_DIRS[@]}")
                 find_fl "${INTEG_DIRS[@]}"|dinteg
                 upd_ddb
-                [ "$RIM_DINTEG_WITH_MIME" == 1 ] && upd_mdb
+                if [ "$RIM_DINTEG_WITH_MIME" == 1 ]
+                    then upd_mdb
+                fi
             ;;
             mime) shift
                 find_fl "${MIME_DIRS[@]}"|dinteg
