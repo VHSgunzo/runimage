@@ -6,6 +6,12 @@ GREEN='\033[1;92m'
 YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 
+[ -f "$RIMENVFL" ] && \
+    source "$RIMENVFL"
+
+[[ "$RIM_PORTABLE_HOME" == 1 && -d "$SYS_HOME" ]] && \
+    HOME="$SYS_HOME"
+
 HINTEG_DIR="$HOME/.local/share"
 HINTEG_APPS_DIR="$HINTEG_DIR/applications"
 ICONS_DIR='/usr/share/icons'
@@ -39,9 +45,6 @@ MIME_DIRS=(
     '/usr/share/mime/chemical'
     '/usr/share/mime/x-epoc'
 )
-
-[ -f "$RIMENVFL" ] && \
-    source "$RIMENVFL"
 
 if [ -d "$RUNDINTEGDIR" ]
     then
@@ -167,7 +170,7 @@ dinteg() {
 }
 
 print_help() {
-    echo -e "[ Usage ]: desktop-integration [OPTIONS] {apps}
+    echo -e "[ Usage ]: rim-dinteg [OPTIONS] {apps}
 
 [ Options ]:
     -a, --add     [num|name|all|mime] Add applications to apps menu
@@ -259,5 +262,5 @@ if [ -n "$1" ]
         esac
     else
         error_msg "Specify the name or number of the app!"
-        exit 1
+        print_help
 fi

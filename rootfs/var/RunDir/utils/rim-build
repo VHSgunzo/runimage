@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 
 BUILDKEY="$BASHPID"
-EXEPT_RUNSRCNAMES=("Run" "runbuild" "rundesktop" "runupdate" "rpidsmon")
+EXEPT_RUNSRCNAMES=("Run" "rim-build" "rim-desktop" "rim-update")
 
 [ -f "$RIMENVFL" ] && \
     source "$RIMENVFL"
@@ -45,7 +45,7 @@ empty_msg() {
 }
 
 print_help() {
-    echo -e "[ Usage ]: runbuild [OPTIONS] /path/runimage
+    echo -e "[ Usage ]: rim-build [OPTIONS] /path/runimage
 
 [ Options ]:
     -b, --bsize '1M|20'    Set block size (env: RIM_CMPRS_BSIZE=1M)
@@ -150,7 +150,6 @@ case "$RIM_CMPRS_FS" in
           CMPRS_CMD+=(
             "$MKDWFS" -f --set-owner 0 --set-group 0 --no-history --log-level error
             --no-create-timestamp --header "$RUNRUNTIME"
-            --chmod=o+r  # FIXME https://github.com/mhx/dwarfs/discussions/244#discussioncomment-11593534
             -i "$RUNDIR" -o "$NEWRUNIMAGE" -B16 --compression
           )
           info_msg "Compression file system: DwarFS"

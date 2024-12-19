@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
@@ -24,8 +23,6 @@ export SSRV_NOSEP_CPIDS=1
 export SSRV_ENV='SSRV_PID'
 UNGROUPFL="$RUNPIDDIR/group"
 UNPASSWDFL="$RUNPIDDIR/passwd"
-[ ! -n "$SYS_PATH" ] && \
-export SYS_PATH="$(sed "s|$SHARUN_DIR/bin:||g"<<<"$PATH")"
 unset RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BUWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNSHARE_BIND \
@@ -38,6 +35,13 @@ unset RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       LOCALTIME_BIND CRYPTFS_DIR KEEP_CRYPTFS NO_CRYPTFS_MOUNT \
       NSS_BIND USERS_BIND HOSTNAME_BIND POSIXLY_CORRECT LD_PRELOAD ENV \
       BOVERLAY_SRC
+if [ ! -n "$SYS_PATH" ]
+    then
+        if [ -n "$SHARUN_DIR" ]
+            then export SYS_PATH="$(sed "s|$SHARUN_DIR/bin:||g"<<<"$PATH")"
+            else export SYS_PATH="$PATH"
+        fi
+fi
 
 which_exe() { command -v "$@" ; }
 
@@ -174,11 +178,11 @@ mount_exist() {
 }
 
 is_sys_exe() {
-    [[ -x "$(which -a "$1" 2>/dev/null|grep -v "$RUNSTATIC"|head -1)" ]] && \
+    [[ -x "$(PATH="$SYS_PATH" which "$1" 2>/dev/null)" ]] && \
         return 0||return 1
 }
 
-which_sys_exe() { which -a "$1" 2>/dev/null|grep -v "$RUNSTATIC"|head -1 ; }
+which_sys_exe() { PATH="$SYS_PATH" which "$1" 2>/dev/null ; }
 
 is_exe_exist() { command -v "$@" &>/dev/null ; }
 
@@ -1447,23 +1451,15 @@ encrypt_rootfs() {
         then
             info_msg "Creating GoCryptFS rootfs directory..."
             try_mkdir "$CRYPTFS_DIR"
-            case "$1" in
-                --aessiv) shift ; CRYPTFS_ARGS+=('--aessiv') ;;
-                --xchacha) shift ; CRYPTFS_ARGS+=('--xchacha') ;;
-                *)  case "$RIM_CRYPTFS_ENC" in
-                        aessiv) CRYPTFS_ARGS+=('--aessiv') ;;
-                        xchacha) CRYPTFS_ARGS+=('--xchacha') ;;
-                    esac
-            esac
-            if "$GOCRYPTFS" "${CRYPTFS_ARGS[@]}" --init "$CRYPTFS_DIR"
+            if "$GOCRYPTFS" --init "$CRYPTFS_DIR"
                 then
                     info_msg "Mounting GoCryptFS rootfs directory..."
                     try_mkdir "$CRYPTFS_MNT"
-                    if "$GOCRYPTFS" "${CRYPTFS_ARGS[@]}" --nosyslog \
-                        "$CRYPTFS_DIR" "$CRYPTFS_MNT"
+                    if "${CRYPTFS_ARGS[@]}"
                         then
                             info_msg "Updating sharun directory..."
                             upd_sharun() {
+                                unset -f upd_sharun
                                 rm -rf "$RUNDIR/sharun/shared"
                                 "$RUNDIR/sharun/sharun" lib4bin -p -g -d "$RUNDIR/sharun" \
                                     $(cat "$RUNDIR/sharun/bin.list")
@@ -2485,7 +2481,7 @@ if [ "$RIM_OVERFS_MODE" != 0 ] && [[ "$RIM_OVERFS_MODE" == 1 || "$RIM_KEEP_OVERF
         export CRYPTFS_DIR="$OVERFS_MNT/cryptfs"
 fi
 
-CRYPTFS_ARGS=("$GOCRYPTFS" "$CRYPTFS_DIR" "$CRYPTFS_MNT" '-fg' '--nosyslog')
+CRYPTFS_ARGS=("$GOCRYPTFS" "$CRYPTFS_DIR" "$CRYPTFS_MNT" '--nosyslog')
 if [ ! -n "$CRYPTFS_PASSFILE" ]
     then
         if [ -f "$RUNIMAGEDIR/passfile" ]
@@ -2510,13 +2506,13 @@ if is_cryptfs && [ "$NO_CRYPTFS_MOUNT" != 1 ]
                 if [ -f "$CRYPTFS_PASSFILE" ]
                     then
                         unset encfifo
-                        "${CRYPTFS_ARGS[@]}" &
+                        "${CRYPTFS_ARGS[@]}" -fg &
                     else
                         encfifo="$RUNPIDDIR/encfifo"
                         mkfifo "$encfifo"
                         exec 7<>"$encfifo"
                         rm -f "$encfifo"
-                        "${CRYPTFS_ARGS[@]}"<&7 &
+                        "${CRYPTFS_ARGS[@]}" -fg <&7 &
                 fi
                 CRYPTFS_PID="$!"
                 if [ -n "$encfifo" ]
@@ -2725,7 +2721,7 @@ elif [[ "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
                 fi
         fi
         HOME_BIND+=('--setenv' 'HOME' "$UNSHARED_HOME")
-        warn_msg "Host HOME is unshared!"
+        info_msg "Host HOME is unshared!"
 elif [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || -d "$RIM_SANDBOX_HOME_DIR" ]]
     then
         if [ "$EUID" == 0 ]
@@ -2817,6 +2813,9 @@ else
             fi
     fi
 fi
+if [[ "$RIM_PORTABLE_HOME" == 1 && -n "$SYS_HOME" ]]
+    then export SYS_HOME
+fi
 if [[ -L "$HOME" && ! -n "$NEW_HOME" && "$HOME" != "/root" ]]
     then
         export HOME="$(realpath "$HOME" 2>/dev/null)"
@@ -2883,8 +2882,12 @@ fi
    "$RIM_SNET_DROP_CIDRS" == 1 || -n "$RIM_SNET_PORTFW" ]] && \
     RIM_SANDBOX_NET=1
 
-[[ "$RIM_SANDBOX_NET" == 1 && "$SUID_BUWRAP" == 1 ]] && \
-    disable_sandbox_net
+if [ "$SUID_BUWRAP" == 1 ]
+    then
+        [ "$RIM_SANDBOX_NET" == 1 ] && \
+            disable_sandbox_net
+        RIM_NO_BUWRAP_OVERLAY=1
+fi
 
 if [[ "$RIM_SANDBOX_NET" == 1 && ! -e '/dev/net/tun' ]]
     then
@@ -3001,18 +3004,19 @@ fi
 if [ -n "$RIM_HOST_TOOLS" ]
     then
         RIM_ENABLE_HOSTEXEC=1
-        HOST_TOOLS_BIND=(--dir /usr/local/bin)
-        [ ! -w "$RUNROOTFS/usr/local/bin" ] && \
-            HOST_TOOLS_BIND=(--tmpfs /usr/local/bin)
+        HOST_TOOLS_BIND=(--dir /var/host/bin)
+        [ ! -w "$RUNROOTFS/var/host/bin" ] && \
+            HOST_TOOLS_BIND=(--tmpfs /var/host/bin)
         IFS=',' read -r -a tools <<<"$RIM_HOST_TOOLS"
         for tool in "${tools[@]}"
             do
                 if [ -n "$(which_sys_exe "$tool")" ]
                     then
                         info_msg "Share host tool: $tool"
-                        HOST_TOOLS_BIND+=("--bind-try" "$RUNUTILS/hostexec" "/usr/local/bin/$tool")
+                        HOST_TOOLS_BIND+=("--bind-try" "$RUNUTILS/hostexec" "/var/host/bin/$tool")
                 fi
         done
+        add_bin_pth '/var/host/bin'
     else unset HOST_TOOLS_BIND
 fi
 
@@ -3137,8 +3141,9 @@ if [ -n "$RIM_BIND" ]
     else unset BUWRAP_BIND
 fi
 
-if [ "$RIM_DESKTOP_INTEGRATION" == 1 ] && [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 ||\
-    "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || \
+if [ "$RIM_DESKTOP_INTEGRATION" == 1 ] && \
+     [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 ||\
+    "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 ||\
     "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
     then
         export RUNDINTEGDIR="$RUNPIDDIR/dinteg"
