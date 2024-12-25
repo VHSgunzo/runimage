@@ -21,8 +21,15 @@ export SSRV_CPIDS_DIR="$RUNPIDDIR/cpids"
 export SSRV_PID_FILE="$RUNPIDDIR/ssrv.pid"
 export SSRV_NOSEP_CPIDS=1
 export SSRV_ENV='SSRV_PID'
-UNGROUPFL="$RUNPIDDIR/group"
-UNPASSWDFL="$RUNPIDDIR/passwd"
+
+if [ ! -n "$SYS_PATH" ]
+    then
+        if [ -n "$SHARUN_DIR" ]
+            then export SYS_PATH="$(sed "s|$SHARUN_DIR/bin:||g"<<<"$PATH")"
+            else export SYS_PATH="$PATH"
+        fi
+fi
+
 unset RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       MKSQFS NVDRVMNT BUWRAP_CAP NVIDIA_DRIVER_BIND EXEC_STATUS \
       SESSION_MANAGER UNSQFS TMP_BIND SYS_HOME UNSHARE_BIND \
@@ -35,13 +42,6 @@ unset RUNROOTFS SQFUSE BUWRAP NOT_TERM UNIONFS VAR_BIND \
       LOCALTIME_BIND CRYPTFS_DIR KEEP_CRYPTFS NO_CRYPTFS_MOUNT \
       NSS_BIND USERS_BIND HOSTNAME_BIND POSIXLY_CORRECT LD_PRELOAD ENV \
       BOVERLAY_SRC
-if [ ! -n "$SYS_PATH" ]
-    then
-        if [ -n "$SHARUN_DIR" ]
-            then export SYS_PATH="$(sed "s|$SHARUN_DIR/bin:||g"<<<"$PATH")"
-            else export SYS_PATH="$PATH"
-        fi
-fi
 
 which_exe() { command -v "$@" ; }
 
@@ -116,11 +116,9 @@ export RUNTTY="$(tty|grep -v 'not a')"
 export RUNROOTFS="$RUNDIR/rootfs"
 export RUNRUNTIME="$RUNSTATIC/uruntime"
 export RUNCONFIGDIR="$RUNIMAGEDIR/config"
-export RUNOVERFSDIR="$RUNIMAGEDIR/overlayfs"
 export SANDBOXHOMEDIR="$RUNIMAGEDIR/sandbox-home"
 export PORTABLEHOMEDIR="$RUNIMAGEDIR/portable-home"
 export RUNSRCNAME="$(basename "$RUNSRC" 2>/dev/null)"
-OVERFSLIST="$(ls -A "$RUNOVERFSDIR" 2>/dev/null)"
 export RUNSTATIC_VERSION="$(cat "$RUNSTATIC/.version" 2>/dev/null)"
 export_rootfs_info
 export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version)"
@@ -961,11 +959,11 @@ cleanup() {
                     [[ "$RIM_KEEP_OVERFS" != 1 || "$FORCE_UMOUNT" == 1 ]] && \
                         try_unmount "$OVERFS_MNT"
                     try_unmount "$NVDRVMNT"
+                    try_kill "$FUSE_PIDS"
             fi
-            kill -2 $FUSE_PIDS 2>/dev/null
             if [ -n "$DBUSP_PID" ]
                 then
-                    kill $DBUSP_PID 2>/dev/null
+                    try_kill $DBUSP_PID
                     [ -S "$DBUSP_SOCKET" ] && \
                         rm -f "$DBUSP_SOCKET" 2>/dev/null
             fi
@@ -981,6 +979,17 @@ cleanup() {
                 rm -rf "$RUNPIDDIR" 2>/dev/null && \
                 rmdir "$RUNTMPDIR" 2>/dev/null && \
                 rmdir "$REUIDDIR" 2>/dev/null
+            if [ "$RIM_FORCE_KILL_PPID" == 1 ]
+                then
+                    if [ -n "$RUNIMAGE" ]
+                        then
+                            try_unmount "$RUNDIR"
+                            kill -9 $(ps -oppid $RUNPPID)
+                        else
+                            kill -9 $RUNPPID
+                    fi
+                    rmdir "$REUIDDIR" 2>/dev/null
+            fi
         else
             warn_msg "Cleanup is disabled!"
     fi
@@ -1052,8 +1061,23 @@ enable_portfw() {
         then
             info_msg "Enable port forwarding..."
             ssrv chisel server -usock "$RUNPORTFW" -socks5 -reverse &>/dev/null &
-            chisel client "unix:$RUNPORTFW" $RIM_SNET_PORTFW &>/dev/null &
             CHISEL_PID="$!"
+            if ! is_pid "$CHISEL_PID"
+                then
+                    error_msg "Failed to start port forwarding server!"
+                    cleanup force
+                    exit 1
+            fi
+            if [ "$RIM_SNET_PORTFW" != 1 ]
+                then
+                    chisel client "unix:$RUNPORTFW" $RIM_SNET_PORTFW &>/dev/null &
+                    if ! is_pid "$!"
+                        then
+                            error_msg "Failed to start port forwarding: $RIM_SNET_PORTFW"
+                            cleanup force
+                            exit 1
+                    fi
+            fi
     fi
 }
 
@@ -1254,6 +1278,7 @@ bwrun() {
 }
 
 overlayfs_list() {
+    OVERFSLIST="$(ls -A "$RUNOVERFSDIR" 2>/dev/null)"
     if [ -n "$OVERFSLIST" ]
         then
             echo -e "${GREEN}OverlayFS:\t${BLUE}SIZE\tPATH\tID"
@@ -1273,6 +1298,7 @@ overlayfs_list() {
 }
 
 overlayfs_rm() {
+    OVERFSLIST="$(ls -A "$RUNOVERFSDIR" 2>/dev/null)"
     if [[ -n "$OVERFSLIST" || "$1" == 'all' ]]
         then
             if [[ -n "$1" || -n "$RIM_OVERFS_ID" ]]
@@ -1558,6 +1584,7 @@ set_default_option() {
     RIM_TMP_HOME=0
     RIM_XORG_CONF=0
     RIM_RUN_IN_ONE=0
+    RIM_HOST_TOOLS=0
     RIM_SANDBOX_NET=0
     RIM_TMP_HOME_DL=0
     RIM_UNSHARE_NSS=1
@@ -1641,7 +1668,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_UNSHARE_DEF_MOUNTS$GREEN=1                 Unshares default mount points (/mnt /media /run/media)
         ${YELLOW}RIM_NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
         ${YELLOW}RIM_NVIDIA_DRIVERS_DIR$GREEN=\"/path/dir\"     Specifies custom Nvidia driver images directory
-        ${YELLOW}RIM_CACHEDIR$GREEN=\"/path/dir\"                Specifies custom runimage cache directory
+        ${YELLOW}RIM_CACHEDIR$GREEN=\"/path/dir\"               Specifies custom runimage cache directory
+        ${YELLOW}RIM_OVERFSDIR$GREEN=\"/path/dir\"              Specifies custom runimage OverlayFS directory
         ${YELLOW}RIM_OVERFS_MODE$GREEN=1                        Enables OverlayFS mode
         ${YELLOW}RIM_KEEP_OVERFS$GREEN=1                        Enables OverlayFS mode with saving after closing runimage
         ${YELLOW}RIM_OVERFS_ID$GREEN=ID                         Specifies the OverlayFS ID
@@ -1945,9 +1973,6 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
             FUSE in RunImage, without running it under the root user, because the capabilities are
             disabled, and so on. So it would be better for you to install kernel with
             user namespaces support.
-        I recommend installing the XanMod kernel (${BLUE}https://xanmod.org${GREEN}), because I noticed that the speed
-            of runimage in compressed form on this kernel is much higher due to more correct caching settings
-            and special patches.
     $RESETCOLOR" >&2
 }
 
@@ -1989,7 +2014,25 @@ if [[ -n "$1" && "$1" != 'rim-'* && ! -n "$RIM_AUTORUN" ]]
         unset run_args
 fi
 
-case "$1" in
+unset ARG1
+if [[ "$RIM_AUTORUN" == 'rim-'* ]]
+    then
+        case "$RIM_AUTORUN" in
+            rim-shrink|rim-dinteg) : ;;
+            *) unset RIM_AUTORUN ;;
+        esac
+fi
+if [[ -n "$1" && "$1" == 'rim-'* ]]
+    then
+        case "$1" in
+            rim-shrink|rim-dinteg) : ;;
+            *) ARG1="$1" ; shift ;;
+        esac
+elif [[ "$RUNSRCNAME" == 'rim-'* ]]
+    then ARG1="$RUNSRCNAME"
+fi
+
+case "$ARG1" in
     rim-psmon   ) set_default_option ; RIM_TMP_HOME=1
                     RIM_UNSHARE_PIDS=0 ; RIM_CONFIG=0
                     export SSRV_SOCK="unix:$RUNPIDDIR/rmp"
@@ -2049,8 +2092,14 @@ if [ "$RIM_CONFIG" != 0 ]
 fi
 
 export RUNCACHEDIR="${RIM_CACHEDIR:=$RUNIMAGEDIR/cache}"
+export RUNOVERFSDIR="${RIM_OVERFSDIR:=$RUNIMAGEDIR/overlayfs}"
 
-case "$1" in
+RUNUSER="$(logname 2>/dev/null)"
+RUNUSER="${RUNUSER:=$SUDO_USER}"
+RUNUSER="${RUNUSER:=$USER}"
+RUNUSER="${RUNUSER:=$(id -un "$EUID" 2>/dev/null)}"
+
+case "$ARG1" in
     rim-decfs     ) set_overfs_option crypt ;;
     rim-encfs  |\
     rim-enc-passwd) NO_CRYPTFS_MOUNT=1
@@ -2064,13 +2113,26 @@ case "$1" in
     rim-ofsls  |\
     rim-ofsrm     ) NO_CRYPTFS_MOUNT=1
                     set_default_option ;;
-    rim-exec      ) shift ; if [ "$RIM_RUN_IN_ONE" != 1 ]
+    rim-exec      ) if [ "$RIM_RUN_IN_ONE" != 1 ]
                         then run_attach exec "$@" ; exit $?
                     fi ;;
     rim-portfw    ) if [ "$RIM_RUN_IN_ONE" != 1 ]
-                        then shift ; run_attach portfw "$@" ; exit $?
+                        then run_attach portfw "$@" ; exit $?
                     fi ;;
     rim-update    ) set_overfs_option upd ;;
+    rim-desktop   ) export RIM_UNSHARE_DBUS=1 RIM_UNSHARE_PIDS=1
+                    if [[ "$RUNTTY" =~ "tty" ]]
+                        then
+                            if [ "$EUID" != 0 ] && ! grep -q "^input:.*[:,]$RUNUSER$\|^input:.*[:,]$RUNUSER," /etc/group
+                                then
+                                    error_msg "The user is not a member of the input group!"
+                                    console_info_notify
+                                    echo -e "${YELLOW}Make sure to add yourself to the input group:"
+                                    echo -e "${RED}# ${GREEN}sudo gpasswd -a $RUNUSER input && logout$RESETCOLOR"
+                                    exit 1
+                            fi
+                            export RIM_FORCE_KILL_PPID=1
+                    fi ;;
 esac
 
 if [ "$RIM_RUN_IN_ONE" == 1 ]
@@ -2090,8 +2152,8 @@ if [ "$RIM_RUN_IN_ONE" == 1 ]
         export SSRV_SOCK="unix:$SSRV_SOCK_PATH"
         if [ -e "$SSRV_SOCK_PATH" ]
             then
-                case "$1" in
-                    rim-portfw ) shift ; run_attach portfw "$SSRV_RUNPID" "$@" ;;
+                case "$ARG1" in
+                    rim-portfw ) run_attach portfw "$SSRV_RUNPID" "$@" ;;
                     *) run_attach exec "$SSRV_RUNPID" "$@" ;;
                 esac
         fi
@@ -2100,21 +2162,7 @@ fi
 mkdir -p "$RUNPIDDIR"
 chmod go-rwx "$REUIDDIR"/{,/run}
 
-if logname &>/dev/null
-    then
-        export RUNUSER="$(logname)"
-elif [ -n "$SUDO_USER" ]
-    then
-        export RUNUSER="$SUDO_USER"
-elif [[ "$EUID" != 0 && "$USER" != "root" ]] || \
-     [[ "$EUID" == 0 && "$USER" != "root" ]]
-    then
-        export RUNUSER="$USER"
-elif [ -n "$(who|grep -m1 'tty'|awk '{print$1}')" ]
-    then
-        export RUNUSER="$(who|grep -m1 'tty'|awk '{print$1}')"
-fi
-
+export RUNUSER
 export EGID="$(id -g 2>/dev/null)"
 export RUNGROUP="$(id -gn 2>/dev/null)"
 
@@ -2356,7 +2404,6 @@ if [ "$EUID" != 0 ]
                         echo -e "${RED}# ${GREEN}sudo cp -f /tmp/bwrap /usr/bin/ && sudo chmod u+s /usr/bin/bwrap"
                         echo -e "${RED}\n[NOT RECOMMENDED]: ${YELLOW}Or run as the root user."
                         echo -e "${YELLOW}\nOr install a kernel with user namespaces support."
-                        echo -e "[RECOMMENDED]: XanMod kernel -> ${BLUE}https://xanmod.org$RESETCOLOR"
                         exit 1
                 fi
         elif [ "$(cat '/proc/sys/kernel/unprivileged_userns_clone' 2>/dev/null)" == 0 ]
@@ -2448,7 +2495,7 @@ if [ "$RIM_OVERFS_MODE" != 0 ] && [[ "$RIM_OVERFS_MODE" == 1 || "$RIM_KEEP_OVERF
         try_mkdir "$OVERFS_DIR"
         UNIONFS_ARGS=(
             -f -o max_files=$(ulimit -n -H),nodev,hide_meta_files,cow,noatime,nodev
-            -o $([ "$EUID" != 0 ] && echo relaxed_permissions),uid=$EUID,gid=$EGID
+            -o uid=$EUID,gid=${EGID}$([ "$EUID" != 0 ] && echo ,relaxed_permissions)
         )
         mkdir -p "$OVERFS_DIR"/{layers,mnt}
         [ -e "$OVERFS_DIR/layers/rootfs/.decfs" ] && \
@@ -2605,7 +2652,7 @@ if [ -n "$RIM_AUTORUN" ]
         AUTORUN0ARG=($RIM_AUTORUN)
         info_msg "Autorun mode: ${RIM_AUTORUN[@]}"
         if RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 bwrun \
-            sh -c "[ -x '/usr/bin/$AUTORUN0ARG' ]"
+            sh -c "command -v $AUTORUN0ARG &>/dev/null"
             then
                 export RUNSRCNAME="$AUTORUN0ARG"
             else
@@ -2669,59 +2716,61 @@ if [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 ]]
             HOME_BIND+=("--dir" "/home/$RUNUSER")
         [ "$RIM_TMP_HOME_DL" == 1 ] && \
             HOME_BIND+=(
-                "--dir" "$HOME/Downloads"
-                "--symlink" "$HOME/Downloads" "$HOME/Загрузки"
-                "--bind-try" "$HOME/Downloads" "$HOME/Downloads"
+                "--dir" "$TMP_HOME/Downloads"
+                "--symlink" "Downloads" "$TMP_HOME/Загрузки"
+                "--bind-try" "$SYS_HOME/Downloads" "$TMP_HOME/Downloads"
             )
         HOME_BIND+=('--setenv' 'HOME' "$TMP_HOME")
-        info_msg "Setting temporary \$HOME to: '$HOME'"
+        info_msg "Setting temporary \$HOME to: '$TMP_HOME'"
 elif [[ "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
     then
-        if [ "$EUID" == 0 ]
-            then UNSHARED_HOME="/root"
-            else
-                UNSHARED_HOME="/home/$RUNUSER"
-                if [ -w "$RUNROOTFS" ]
+        [ "$EUID" == 0 ] && \
+            UNSHARED_HOME="/root" || \
+            UNSHARED_HOME="/home/$RUNUSER"
+        if [ -w "$RUNROOTFS" ]
+            then
+                if [ "$EUID" != 0 ]
                     then
-                        HOME_BIND+=('--dir' '/home/runimage')
-                        [[ ! -d "$RUNROOTFS/$HOME" && ! -L "$RUNROOTFS/$HOME" ]] && \
-                            HOME_BIND+=('--symlink' '/home/runimage' "$UNSHARED_HOME")
-                        HOME_BIND+=(
-                            '--dir' "$UNSHARED_HOME"
-                            '--dir' "$UNSHARED_HOME/.cache"
-                            '--dir' "$UNSHARED_HOME/.config"
-                        )
-                        [ "$RIM_UNSHARE_HOME_DL" == 1 ] && \
-                            HOME_BIND+=(
-                                "--dir" "$HOME/Downloads"
-                                "--symlink" "$HOME/Downloads" "$HOME/Загрузки"
-                                "--bind-try" "$HOME/Downloads" "$HOME/Downloads"
-                            )
-                    else
-                        if [[ ! -d "$RUNROOTFS/$UNSHARED_HOME" && ! -L "$RUNROOTFS/$UNSHARED_HOME" && "$NO_CRYPTFS_MOUNT" != 1 ]]
+                        [ ! -d "$RUNROOTFS/home/runimage" ] && \
+                            HOME_BIND+=('--dir' '/home/runimage')
+                        [[ ! -d "$RUNROOTFS/$UNSHARED_HOME" && ! -L "$RUNROOTFS/$UNSHARED_HOME" ]] && \
+                            HOME_BIND+=('--symlink' 'runimage' "$UNSHARED_HOME")
+                fi
+                HOME_BIND+=(
+                    '--dir' "$UNSHARED_HOME/.cache"
+                    '--dir' "$UNSHARED_HOME/.config"
+                )
+                [ "$RIM_UNSHARE_HOME_DL" == 1 ] && \
+                    HOME_BIND+=(
+                        "--dir" "$UNSHARED_HOME/Downloads"
+                        "--symlink" "Downloads" "$UNSHARED_HOME/Загрузки"
+                        "--bind-try" "$HOME/Downloads" "$UNSHARED_HOME/Downloads"
+                    )
+            else
+                if [[ "$EUID" != 0 && ! -d "$RUNROOTFS/$UNSHARED_HOME" && \
+                    ! -L "$RUNROOTFS/$UNSHARED_HOME" && "$NO_CRYPTFS_MOUNT" != 1 ]]
+                    then
+                        warn_msg "The user HOME directory not found in the container!"
+                        if [ -d "$RUNROOTFS/home/runimage" ]
                             then
-                                warn_msg "The user HOME directory not found in the container!"
-                                if [ -d "$RUNROOTFS/home/runimage" ]
-                                    then
-                                        warn_msg "Fallback HOME to: /home/runimage"
-                                        UNSHARED_HOME="/home/runimage"
-                                    else
-                                        error_msg "Fallback HOME directory /home/runimage not found in the container!"
-                                        cleanup force
-                                        exit 1
-                                fi
+                                warn_msg "Fallback HOME to: /home/runimage"
+                                UNSHARED_HOME="/home/runimage"
+                            else
+                                error_msg "Fallback HOME directory /home/runimage not found in the container!"
+                                cleanup force
+                                exit 1
                         fi
-                        if [ "$RIM_UNSHARE_HOME_DL" == 1 ]
-                            then
-                                if [ ! -d "$RUNROOTFS/$UNSHARED_HOME/Downloads" ]
-                                    then warn_msg "Unable to bind Downloads directory!"
-                                    else HOME_BIND+=("--bind-try" "$HOME/Downloads" "$HOME/Downloads")
-                                fi
+                fi
+                if [ "$RIM_UNSHARE_HOME_DL" == 1 ]
+                    then
+                        if [ ! -d "$RUNROOTFS/$UNSHARED_HOME/Downloads" ]
+                            then warn_msg "Unable to bind Downloads directory!"
+                            else HOME_BIND+=("--bind-try" "$SYS_HOME/Downloads" "$UNSHARED_HOME/Downloads")
                         fi
                 fi
         fi
         HOME_BIND+=('--setenv' 'HOME' "$UNSHARED_HOME")
-        info_msg "Host HOME is unshared!"
+        warn_msg "Host HOME is unshared!"
 elif [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || -d "$RIM_SANDBOX_HOME_DIR" ]]
     then
         if [ "$EUID" == 0 ]
@@ -2733,7 +2782,6 @@ elif [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || -d "$RIM_SAND
                     "--dir" "$NEW_HOME"
                 )
         fi
-        HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
         [ ! -n "$RIM_SANDBOX_HOME_DIR" ] && \
             RIM_SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/$RUNSRCNAME"
         if [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 ]] && \
@@ -2746,14 +2794,16 @@ elif [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || -d "$RIM_SAND
         [ "$RIM_SANDBOX_HOME_DL" == 1 ] && \
             HOME_BIND+=(
                 "--dir" "$NEW_HOME/Downloads"
+                "--symlink" "Downloads" "$NEW_HOME/Загрузки"
                 "--bind-try" "$SYS_HOME/Downloads" "$NEW_HOME/Downloads"
             )
+        HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
         info_msg "Setting sandbox \$HOME to: '$RIM_SANDBOX_HOME_DIR'"
 else
     if [[ -n "$SYS_HOME" && "$SYS_HOME" != "/root" && \
         "$(echo "$SYS_HOME"|head -c 6)" != "/home/" ]]
         then
-            case "$(echo "$SYS_HOME"|cut -d '/' -f2)" in
+            case "$(cut -d '/' -f2<<<"$SYS_HOME")" in
                 tmp|mnt|media|run|dev|proc|sys) : ;;
                 *)
                     if [ "$EUID" == 0 ]
@@ -2768,8 +2818,10 @@ else
                                 "--dir" "$NEW_HOME"
                             )
                     fi
-                    HOME_BIND+=("--bind-try" "$SYS_HOME" "$NEW_HOME")
-                    export HOME="$NEW_HOME"
+                    HOME_BIND+=(
+                        "--bind-try" "$SYS_HOME" "$NEW_HOME"
+                        "--setenv" "HOME" "$NEW_HOME"
+                    )
                 ;;
             esac
         else
@@ -3001,7 +3053,10 @@ if [ "$RIM_XORG_CONF" != 0 ]
         warn_msg "Bind xorg.conf is disabled!"
 fi
 
-if [ -n "$RIM_HOST_TOOLS" ]
+[ "$RIM_HOST_XDG_OPEN" == 1 ] && \
+    RIM_HOST_TOOLS+=',xdg-open'
+
+if [[ -n "$RIM_HOST_TOOLS" && "$RIM_HOST_TOOLS" != 0 ]]
     then
         RIM_ENABLE_HOSTEXEC=1
         HOST_TOOLS_BIND=(--dir /var/host/bin)
@@ -3090,6 +3145,8 @@ if [ "$RIM_UNSHARE_USERS" == 1 ]
                         add_unshared_user "$RUNROOTFS/etc/passwd"
                         add_unshared_group "$RUNROOTFS/etc/group"
                     else
+                        UNGROUPFL="$RUNPIDDIR/group"
+                        UNPASSWDFL="$RUNPIDDIR/passwd"
                         cp -f "$RUNROOTFS/etc/group" "$UNGROUPFL" 2>/dev/null
                         cp -f "$RUNROOTFS/etc/passwd" "$UNPASSWDFL" 2>/dev/null
                         add_unshared_user "$UNPASSWDFL"
@@ -3189,32 +3246,32 @@ export -p|grep '^declare -x RIM_.*='|sed 's|^declare -x ||g' > "$RIMENVFL"
 
 ##############################################################################
 
-case "$1" in
-    rim-encfs     ) shift ; encrypt_rootfs "$@" ;;
-    rim-decfs     ) shift ; decrypt_rootfs "$@" ;;
-    rim-enc-passwd) shift ; passwd_cryptfs "$@" ;;
+case "$ARG1" in
+    rim-encfs     ) encrypt_rootfs "$@" ;;
+    rim-decfs     ) decrypt_rootfs "$@" ;;
+    rim-enc-passwd) passwd_cryptfs "$@" ;;
     rim-pkglist   ) pkg_list ;;
     rim-kill      ) force_kill ;;
     rim-help      ) print_help ;;
     rim-binlist   ) bin_list ;;
     rim-version   ) print_version ;;
     rim-ofsls     ) overlayfs_list ;;
-    rim-update    ) shift ; run_update "$@" ;;
-    rim-ofsrm     ) shift ; overlayfs_rm "$@" ;;
+    rim-update    ) run_update "$@" ;;
+    rim-ofsrm     ) overlayfs_rm "$@" ;;
     rim-desktop   ) bwrun rim-desktop ;;
-    rim-shell     ) shift ; bwrun "${RIM_SHELL[@]}" "$@" ;;
-    rim-psmon     ) shift ; bwrun rim-psmon "$@" ;;
-    rim-build     ) shift ; run_build "$@" ;;
+    rim-shell     ) bwrun "${RIM_SHELL[@]}" "$@" ;;
+    rim-psmon     ) bwrun rim-psmon "$@" ;;
+    rim-build     ) run_build "$@" ;;
     *)
         if [ -n "$RIM_AUTORUN" ]
             then
                 [ "$1" != "$(basename "$RUNSRC")" ] && [[ "$1" == "$AUTORUN0ARG" ||\
-                "$1" == "$(basename "${RIM_CONFIG%.rcfg}")" ||\
-                "$1" == "$(basename "${RUNIMAGE_INTERNAL_CONFIG%.rcfg}")" ]] && \
+                  "$1" == "$(basename "${RIM_CONFIG%.rcfg}")" ||\
+                  "$1" == "$(basename "${RUNIMAGE_INTERNAL_CONFIG%.rcfg}")" ]] && \
                     shift
                 if [ "${#RIM_AUTORUN[@]}" == 1 ]
-                    then bwrun /usr/bin/$RIM_AUTORUN "$@"
-                    else bwrun /usr/bin/"${RIM_AUTORUN[@]}" "$@"
+                    then bwrun "$RIM_AUTORUN" "$@"
+                    else bwrun "${RIM_AUTORUN[@]}" "$@"
                 fi
             else
                 if [[ ! -n "$1" && ! -n "$RIM_EXEC_ARGS" ]]
