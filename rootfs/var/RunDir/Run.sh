@@ -266,7 +266,7 @@ try_dl() {
             fi
             if is_url "$URL"
                 then
-                    WGET_ARGS=(--no-check-certificate --content-disposition -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME")
+                    WGET_ARGS=(--no-check-certificate -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME")
                     [ ! -d "$FILEDIR" ] && \
                         try_mkdir "$FILEDIR"
                     if [[ "$NOT_TERM" == 1 && "$NO_DL_GUI" != 1 ]] && \
@@ -335,7 +335,7 @@ try_dl() {
                             elif is_exe_exist curl
                                 then
                                     curl -R --progress-bar --insecure --fail -L "$URL" -o \
-                                        "$FILEDIR/$FILENAME" |& tr '\r' '\n'|\
+                                        "$FILEDIR/$FILENAME" |& tr '\r' '\n'|sed '0,/100/{/100/d;}'|\
                                         sed -ur 's|[# ]+||g;s|.*=.*||g;s|.*|#Downloading at &\n&|g'|\
                                     dl_progress
                             elif is_exe_exist wget2
@@ -818,9 +818,47 @@ try_mkdir() {
     fi
 }
 
+choose_runpid_and() {
+    local run="$1"; shift
+    local runpids_num="$(get_runpids|wc -l)"
+    if [ "$runpids_num" == 0 ]
+        then no_runimage_msg
+    elif [ "$runpids_num" == 1 ]
+        then
+            "$run" "$(get_runpids)" "$@"
+            return $?
+    else
+        while true
+            do
+                local runpids=($(get_runpids))
+                if [ -n "$runpids" ]
+                    then
+                        info_msg "Specify the RunImage RUNPID!"
+                        for i in $(seq 0 $((${#runpids[@]}-1)))
+                            do echo "$((i+1)))" "${runpids[$i]}"
+                        done; echo "0) Exit"
+                        read -p 'Enter RUNPID number: ' runpid_choice
+                        if [ "$runpid_choice" == 0 ]
+                            then exit
+                        elif [[ "$runpid_choice" =~ ^[0-9]+$  && "$runpid_choice" -gt 0 && \
+                            "$runpid_choice" -le ${#runpids[@]} ]]
+                            then
+                                "$run" "${runpids[$(($runpid_choice-1))]}" "$@"
+                                return $?
+                            else
+                                error_msg "Invalid number!"
+                                sleep 1
+                        fi
+                    else
+                        no_runimage_msg
+                        return 1
+                fi
+        done
+    fi
+}
 
 run_attach() {
-    get_sock_runpid() { awk -F'/' '{print $(NF-1)}'<<<"$1" 2>/dev/null ; }
+    get_runpids() { awk -F'/' '{print $(NF-1)}'<<<"$(get_sock '*')" 2>/dev/null ; }
     get_sock() {
         if [ "$act" == "portfw" ]
             then find "$RUNTMPDIR"/$1 -name 'portfw' 2>/dev/null
@@ -860,56 +898,42 @@ run_attach() {
                     return 1
             fi
         else
-            local sockets="$(get_sock '*')"
-            local sock_num="$(sed '/^$/d'<<<"$sockets"|wc -l)"
-            if [ "$sock_num" == 0 ]
-                then no_runimage_msg
-            elif [ "$sock_num" == 1 ]
-                then attach_act "$(get_sock_runpid "$sockets")" "$@"
-            else
-                while true
-                    do
-                        local runpids=($(get_sock_runpid "$sockets"))
-                        if [ -n "$runpids" ]
-                            then
-                                info_msg "Specify the RunImage RUNPID!"
-                                for i in $(seq 0 $((${#runpids[@]}-1)))
-                                    do echo "$((i+1)))" "${runpids[$i]}"
-                                done; echo "0) Exit"
-                                read -p 'Enter RUNPID number: ' runpid_choice
-                                if [ "$runpid_choice" == 0 ]
-                                    then exit
-                                elif [[ "$runpid_choice" =~ ^[0-9]+$  && "$runpid_choice" -gt 0 && \
-                                    "$runpid_choice" -le ${#runpids[@]} ]]
-                                    then attach_act "${runpids[$(($runpid_choice-1))]}" "$@"
-                                    else
-                                        error_msg "Invalid number!"
-                                        sleep 1
-                                fi
-                            else
-                                no_runimage_msg
-                                break
-                        fi
-                done
-            fi
+            choose_runpid_and attach_act "$@"
     fi
 }
 
 force_kill() {
-    unset SUCCKILL MOUNTPOINTS SUCCUMNT
-    MOUNTPOINTS="$(grep -E "$([ -n "$RUNIMAGENAME" ] && \
-                   echo "$RUNIMAGENAME"||echo "$RUNIMAGEDIR")|$RUNPIDDIR/mnt/nv.*drv|unionfs.*$RUNIMAGEDIR" \
-                    /proc/self/mounts|grep -v "$RUNDIR"|awk '{print$2}')"
-    if [ -n "$MOUNTPOINTS" ]
+    local ret=1
+    get_runpids() { ls "$RUNTMPDIR" 2>/dev/null|grep -v "$RUNPID" ; }
+    no_runimage_msg() {
+        error_msg "Running RunImage containers not found!"
+        return 1
+    }
+    if [[ "$1" =~ ^[0-9]+$ ]]
         then
-            (IFS=$'\n' ; for umnt in $MOUNTPOINTS
-                do try_unmount "$umnt"
-            done) && SUCCUMNT=1
+            if [ -e "$RUNTMPDIR/$1" ]
+                then kill "$1" 2>/dev/null && ret=0
+                else
+                    error_msg "RunImage container not found by RUNPID: $1"
+                    exit 1
+            fi
+    elif [ "$1" == 'all' ]
+        then
+            kill $(get_runpids) 2>/dev/null && ret=0
+            local MOUNTPOINTS="$(grep -E "$([ -n "$RUNIMAGENAME" ] && \
+                echo "$RUNIMAGENAME"||echo "$RUNIMAGEDIR")|.*/mnt/cryptfs.*$RUNIMAGEDIR|$RUNPIDDIR/mnt/nv.*drv|unionfs.*$RUNIMAGEDIR" \
+                /proc/self/mounts|grep -v "$RUNDIR"|awk '{print$2}')"
+            if [ -n "$MOUNTPOINTS" ]
+                then
+                    (IFS=$'\n' ; for unmt in $MOUNTPOINTS
+                        do try_unmount "$unmt"
+                    done) && ret=0
+            fi
+    else
+        choose_runpid_and kill 2>/dev/null && ret=0
     fi
-    try_kill "$(cat "$RUNTMPDIR"/*/rpids 2>/dev/null ; ls "$RUNTMPDIR"/*/cpids 2>/dev/null)" && \
-        SUCCKILL=1
-    [[ "$SUCCKILL" == 1 || "$SUCCUMNT" == 1 ]] && \
-        info_msg "RunImage successfully killed!"
+    [ "$ret" != 1 ] && info_msg "RunImage successfully killed!"
+    return "$ret"
 }
 
 try_kill() {
@@ -1405,22 +1429,26 @@ print_version() {
 run_update() {
     info_msg "RunImage update"
     RIM_ROOT=1 RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 \
-        bwrun rim-update
+        bwrun rim-update "$@"
     UPDATE_STATUS="$?"
     if [ "$UPDATE_STATUS" == 0 ]
         then
-            if [ -n "$(ls -A "$RUNROOTFS/var/cache/pacman/pkg/" 2>/dev/null)" ]||\
-               [ -n "$(ls -A "$RUNROOTFS/var/cache/apt/archives"/*.deb 2>/dev/null)" ]||\
-               [ -n "$(ls -A "$RUNROOTFS/var/cache/apk/" 2>/dev/null)" ]||\
-               [ -n "$(ls -A "$RUNROOTFS/var/cache/xbps/" 2>/dev/null)" ]
+            if [ -e "$RUNPIDDIR/is_pkgs" ]
                 then
+                    rm -f "$RUNPIDDIR/is_pkgs"
                     try_rebuild_runimage "$@" && \
                         UPDATE_STATUS="$?"
                     [ "$UPDATE_STATUS" == 0 ] && \
-                        info_msg "Update completed!"
+                        info_msg "The update is complete!"
                 else
                     info_msg "No package updates found!"
             fi
+    fi
+    if [[ "$1" =~ ^(-h|--help)$ ]]
+        then echo -e \
+    "\n    When running outside the container, rim-update can also take rim-build arguments
+    to build a new RunImage in case of successful package updates."
+            exit 1
     fi
     [ "$UPDATE_STATUS" != 0 ] && \
         error_msg "The update failed!"
@@ -1443,9 +1471,7 @@ add_unshared_group() {
 
 try_rebuild_runimage() {
     if [ -n "$1" ]||[[ -n "$RUNIMAGE" && "$RIM_REBUILD_RUNIMAGE" == 1 ]]
-        then
-            (cd "$RUNIMAGEDIR" && \
-            run_build "$@")
+        then (cd "$RUNIMAGEDIR" && run_build "$@")
     fi
 }
 
@@ -1624,7 +1650,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
 
         ${BLUE}rim-help   $GREEN                    Show this usage info
         ${BLUE}rim-version$GREEN                    Show runimage, rootfs, static, runtime version
-        ${BLUE}rim-pkglist$GREEN                    Show packages installed in runimage
+        ${BLUE}rim-pkgls  $GREEN                    Show packages installed in runimage
         ${BLUE}rim-binlist$GREEN                  Show /usr/bin in runimage
         ${BLUE}rim-shell  $YELLOW  {args}$GREEN            Run runimage shell or execute a command in runimage shell
         ${BLUE}rim-desktop$GREEN                    Launch runimage desktop
@@ -1702,9 +1728,9 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_XORG_CONF$GREEN=\"/path/xorg.conf\"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
                                                 (Default: /etc/X11/xorg.conf bind from the system)
         ${YELLOW}RIM_XEPHYR_SIZE$GREEN=\"HEIGHTxWIDTH\"           Sets runimage desktop resolution (Default: 1600x900)
-        ${YELLOW}RIM_XEPHYR_DISPLAY$GREEN=\":9999\"               Sets runimage desktop ${YELLOW}\$DISPLAY$GREEN (Default: :1337)
+        ${YELLOW}RIM_DESKTOP_DISPLAY$GREEN=\":9999\"               Sets runimage desktop ${YELLOW}\$DISPLAY$GREEN (Default: :1337)
         ${YELLOW}RIM_XEPHYR_FULLSCREEN$GREEN=1                  Starts runimage desktop in full screen mode
-        ${YELLOW}RIM_UNSHARE_CLIPBOARD$GREEN=1                  Disables clipboard synchronization for runimage desktop
+        ${YELLOW}RIM_DESKTOP_UNCLIP$GREEN=1                  Disables clipboard synchronization for runimage desktop
 
         ${YELLOW}RIM_SYS_BUWRAP$GREEN=1                         Using system ${BLUE}bwrap
         ${YELLOW}RIM_SYS_SQFUSE$GREEN=1                         Using system ${BLUE}squashfuse
@@ -1992,16 +2018,20 @@ if [ -n "$RIM_AUTORUN" ] && \
       "$RUNSRCNAME" == "runimage"* ]]
     then
         RUNSRCNAME=($RIM_AUTORUN)
+elif [[ "${RUNSRCNAME,,}" =~ .*\.(runimage|rim)$ ]]
+   then
+        RUNSRCNAME="$(sed 's|\.runimage$||i;s|\.rim$||i'<<<"$RUNSRCNAME")"
+        RIM_AUTORUN="$RUNSRCNAME"
 elif [[ "$RUNSRCNAME" != "Run"* && \
         "$RUNSRCNAME" != "runimage"* ]]
    then
         RIM_AUTORUN="$RUNSRCNAME"
 fi
 
+ARGS=("$@")
 if [[ -n "$1" && "$1" != 'rim-'* && ! -n "$RIM_AUTORUN" ]]
     then
-        run_args=("$@")
-        for arg in "${run_args[@]}"
+        for arg in "${ARGS[@]}"
             do
                 case "$arg" in
                     -*) : ;;
@@ -2011,17 +2041,9 @@ if [[ -n "$1" && "$1" != 'rim-'* && ! -n "$RIM_AUTORUN" ]]
                     ;;
                 esac
         done
-        unset run_args
 fi
 
 unset ARG1
-if [[ "$RIM_AUTORUN" == 'rim-'* ]]
-    then
-        case "$RIM_AUTORUN" in
-            rim-shrink|rim-dinteg) : ;;
-            *) unset RIM_AUTORUN ;;
-        esac
-fi
 if [[ -n "$1" && "$1" == 'rim-'* ]]
     then
         case "$1" in
@@ -2038,6 +2060,10 @@ case "$ARG1" in
                     export SSRV_SOCK="unix:$RUNPIDDIR/rmp"
                     RIM_NO_RPIDSMON=1 ; RIM_QUIET_MODE=1
                     RIM_DESKTOP_INTEGRATION=0 ;;
+    rim-kill   |\
+    rim-help   |\
+    rim-ofsls   ) NO_CRYPTFS_MOUNT=1 ; RIM_CONFIG=0
+                    set_default_option ;;
 esac
 
 if [ "$RIM_CONFIG" != 0 ]
@@ -2099,25 +2125,30 @@ RUNUSER="${RUNUSER:=$SUDO_USER}"
 RUNUSER="${RUNUSER:=$USER}"
 RUNUSER="${RUNUSER:=$(id -un "$EUID" 2>/dev/null)}"
 
+if [[ "$RIM_AUTORUN" == 'rim-'* ]]
+    then
+        case "$RIM_AUTORUN" in
+            rim-shrink|rim-dinteg) : ;;
+            *) ARG1="$RIM_AUTORUN" ; ARGS=("${RIM_AUTORUN[@]:1}") ; unset RIM_AUTORUN ;;
+        esac
+fi
+
 case "$ARG1" in
     rim-decfs     ) set_overfs_option crypt ;;
     rim-encfs  |\
     rim-enc-passwd) NO_CRYPTFS_MOUNT=1
                     set_overfs_option crypt ;;
-    rim-pkglist|\
+    rim-pkgls  |\
     rim-binlist|\
     rim-version|\
     rim-build     ) set_default_option ;;
-    rim-kill   |\
-    rim-help   |\
-    rim-ofsls  |\
     rim-ofsrm     ) NO_CRYPTFS_MOUNT=1
                     set_default_option ;;
     rim-exec      ) if [ "$RIM_RUN_IN_ONE" != 1 ]
-                        then run_attach exec "$@" ; exit $?
+                        then run_attach exec "${ARGS[@]}" ; exit $?
                     fi ;;
     rim-portfw    ) if [ "$RIM_RUN_IN_ONE" != 1 ]
-                        then run_attach portfw "$@" ; exit $?
+                        then run_attach portfw "${ARGS[@]}" ; exit $?
                     fi ;;
     rim-update    ) set_overfs_option upd ;;
     rim-desktop   ) export RIM_UNSHARE_DBUS=1 RIM_UNSHARE_PIDS=1
@@ -2153,8 +2184,8 @@ if [ "$RIM_RUN_IN_ONE" == 1 ]
         if [ -e "$SSRV_SOCK_PATH" ]
             then
                 case "$ARG1" in
-                    rim-portfw ) run_attach portfw "$SSRV_RUNPID" "$@" ;;
-                    *) run_attach exec "$SSRV_RUNPID" "$@" ;;
+                    rim-portfw ) run_attach portfw "$SSRV_RUNPID" "${ARGS[@]}" ;;
+                    *) run_attach exec "$SSRV_RUNPID" "${ARGS[@]}" ;;
                 esac
         fi
 fi
@@ -2651,12 +2682,12 @@ if [ -n "$RIM_AUTORUN" ]
     then
         AUTORUN0ARG=($RIM_AUTORUN)
         info_msg "Autorun mode: ${RIM_AUTORUN[@]}"
-        if RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 bwrun \
-            sh -c "command -v $AUTORUN0ARG &>/dev/null"
+        if RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 bwrun \
+            which "$AUTORUN0ARG" &>/dev/null
             then
                 export RUNSRCNAME="$AUTORUN0ARG"
             else
-                error_msg "$AUTORUN0ARG not found in /usr/bin"
+                error_msg "$AUTORUN0ARG not found in PATH!"
                 cleanup force
                 exit 1
         fi
@@ -3247,21 +3278,21 @@ export -p|grep '^declare -x RIM_.*='|sed 's|^declare -x ||g' > "$RIMENVFL"
 ##############################################################################
 
 case "$ARG1" in
-    rim-encfs     ) encrypt_rootfs "$@" ;;
-    rim-decfs     ) decrypt_rootfs "$@" ;;
-    rim-enc-passwd) passwd_cryptfs "$@" ;;
-    rim-pkglist   ) pkg_list ;;
-    rim-kill      ) force_kill ;;
+    rim-encfs     ) encrypt_rootfs "${ARGS[@]}" ;;
+    rim-decfs     ) decrypt_rootfs "${ARGS[@]}" ;;
+    rim-enc-passwd) passwd_cryptfs "${ARGS[@]}" ;;
+    rim-pkgls     ) pkg_list ;;
+    rim-kill      ) force_kill "${ARGS[@]}" ;;
     rim-help      ) print_help ;;
     rim-binlist   ) bin_list ;;
     rim-version   ) print_version ;;
     rim-ofsls     ) overlayfs_list ;;
-    rim-update    ) run_update "$@" ;;
-    rim-ofsrm     ) overlayfs_rm "$@" ;;
-    rim-desktop   ) bwrun rim-desktop ;;
-    rim-shell     ) bwrun "${RIM_SHELL[@]}" "$@" ;;
-    rim-psmon     ) bwrun rim-psmon "$@" ;;
-    rim-build     ) run_build "$@" ;;
+    rim-update    ) run_update "${ARGS[@]}" ;;
+    rim-ofsrm     ) overlayfs_rm "${ARGS[@]}" ;;
+    rim-desktop   ) bwrun rim-desktop "${ARGS[@]}" ;;
+    rim-shell     ) bwrun "${RIM_SHELL[@]}" "${ARGS[@]}" ;;
+    rim-psmon     ) bwrun rim-psmon "${ARGS[@]}" ;;
+    rim-build     ) run_build "${ARGS[@]}" ;;
     *)
         if [ -n "$RIM_AUTORUN" ]
             then
@@ -3270,13 +3301,13 @@ case "$ARG1" in
                   "$1" == "$(basename "${RUNIMAGE_INTERNAL_CONFIG%.rcfg}")" ]] && \
                     shift
                 if [ "${#RIM_AUTORUN[@]}" == 1 ]
-                    then bwrun "$RIM_AUTORUN" "$@"
-                    else bwrun "${RIM_AUTORUN[@]}" "$@"
+                    then bwrun $RIM_AUTORUN "${ARGS[@]}"
+                    else bwrun "${RIM_AUTORUN[@]}" "${ARGS[@]}"
                 fi
             else
                 if [[ ! -n "$1" && ! -n "$RIM_EXEC_ARGS" ]]
                     then bwrun "${RIM_SHELL[@]}"
-                    else bwrun "$@"
+                    else bwrun "${ARGS[@]}"
                 fi
         fi
     ;;

@@ -6,11 +6,11 @@ GREEN='\033[1;92m'
 YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 
-BUILDKEY="$BASHPID"
-EXEPT_RUNSRCNAMES=("Run" "rim-build" "rim-desktop" "rim-update")
-
 [ -f "$RIMENVFL" ] && \
     source "$RIMENVFL"
+
+BUILDKEY="$BASHPID"
+EXEPT_RUNSRCNAMES=("Run" "rim-build" "rim-desktop" "rim-update")
 
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
@@ -210,8 +210,6 @@ if [ -w "$RUNROOTFS" ]
           info_msg "Updating build timestamp..."
           date '+%y.%m.%d.%H%M%S' > "$RUNROOTFS/.build"
           info_msg "Cleanup rootfs..."
-          find "$RUNROOTFS/var/log/" -type f -name '*.log' -exec rm -f {} \; 2>/dev/null
-          rm -rf "$RUNROOTFS/var/tmp"/*
           if [ -f "$PACLOCKFL" ]
                then
                     IS_PACLOCKFL=1
@@ -222,14 +220,9 @@ if [ -w "$RUNROOTFS" ]
                     IS_DECFSFL=1
                     rm -f "$DECFSFL"
           fi
-          rm -rf "$RUNROOTFS/var/lib/pacman/sync"/*
-          rm -rf "$RUNROOTFS/var/cache/pacman/pkg"/*
-          rm -rf "$RUNROOTFS/var/cache/apt/archives"/*.deb
-          rm -rf "$RUNROOTFS/var/cache/apt"/*.bin
-          rm -rf "$RUNROOTFS/var/lib/apt/lists"/deb.*
-          rm -rf "$RUNROOTFS/var/log/apt"/*
-          rm -rf "$RUNROOTFS/var/cache/apk"/*
-          rm -rf "$RUNROOTFS/var/cache/xbps"/*
+          (unset "${!RIM_SHRINK_@}"
+          RIM_QUIET_MODE=1 "$RUNSTATIC/bash" \
+            "$RUNUTILS/rim-shrink" --pkgcache)
      else
           warn_msg "Unable to update build timestamp. Read-only!"
           warn_msg "Unable to cleanup rootfs. Read-only!"
