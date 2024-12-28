@@ -9,6 +9,9 @@ RESETCOLOR='\033[1;00m'
 [ -f "$RIMENVFL" ] && \
     source "$RIMENVFL"
 
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
+    NOT_TERM=1||NOT_TERM=0
+
 export GDK_BACKEND=x11
 export XDG_SESSION_TYPE=x11
 export DESKTOP_KEY="$BASHPID"
@@ -27,7 +30,7 @@ error_msg() {
 info_msg() {
     if [ "$RIM_QUIET_MODE" != 1 ]
         then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
@@ -36,7 +39,7 @@ info_msg() {
 warn_msg() {
     if [[ "$RIM_QUIET_MODE" != 1 && "$RIM_NO_WARN" != 1 ]]
         then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
@@ -96,7 +99,7 @@ if [[ "$RUNTTY" =~ "tty" && "$RIM_FORCE_KILL_PPID" != 1 ]]||\
     [[ "$RIM_UNSHARE_DBUS" != 1 && "$RIM_UNSHARE_PIDS" != 1 ]]
     then
         error_msg "Launch the RunImage desktop from the outside!"
-        echo -e "$GREEN$ runimage rim-desktop"
+        echo -e "$GREEN$ $RUNSRCNAME rim-desktop"
         exit 1
 fi
 

@@ -9,6 +9,9 @@ RESETCOLOR='\033[1;00m'
 [ -f "$RIMENVFL" ] && \
     source "$RIMENVFL"
 
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
+    NOT_TERM=1||NOT_TERM=0
+
 [[ "$RIM_PORTABLE_HOME" == 1 && -d "$SYS_HOME" ]] && \
     HOME="$SYS_HOME"
 
@@ -59,7 +62,7 @@ nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 info_msg() {
     if [ "$RIM_QUIET_MODE" != 1 ]
         then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
@@ -170,13 +173,13 @@ dinteg() {
 }
 
 print_help() {
-    echo -e "[ Usage ]: rim-dinteg [OPTIONS] {apps}
+    echo -e "[ Usage ]: rim-dinteg [OPTIONS] app app...
 
 [ Options ]:
     -a, --add     [num|name|all|mime] Add applications to apps menu
     -h, --help                        Show this message
     -l, --list    [a|added]           List applications
-    -m, --mime                        With MIME types (env: RIM_DINTEG_WITH_MIME=1)
+    -m, --mime                        With MIME types (env: RIM_DINTEG_MIME=1)
     -v, --verbose                     Verbose output
     -r, --remove  [num|name|all|mime] Remove applications from apps menu"
     exit 1
@@ -186,7 +189,7 @@ unset act ret verb
 while [[ $# -gt 0 ]]
     do
         case "$1" in
-            -m|--mime   )   shift ; RIM_DINTEG_WITH_MIME=1 ;;
+            -m|--mime   )   shift ; RIM_DINTEG_MIME=1 ;;
             -v|--verbose)   shift ; verb='-v' ;;
             -a|--add    )   shift ; act=a ;;
             -r|--remove )   shift ; act=r ;;
@@ -219,11 +222,11 @@ if [ -n "$1" ]
                 fi
             ;;
             all) shift
-                [ "$RIM_DINTEG_WITH_MIME" == 1 ] && \
+                [ "$RIM_DINTEG_MIME" == 1 ] && \
                     INTEG_DIRS+=("${MIME_DIRS[@]}")
                 find_fl "${INTEG_DIRS[@]}"|dinteg
                 upd_ddb
-                if [ "$RIM_DINTEG_WITH_MIME" == 1 ]
+                if [ "$RIM_DINTEG_MIME" == 1 ]
                     then upd_mdb
                 fi
             ;;

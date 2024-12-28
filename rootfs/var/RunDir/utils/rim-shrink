@@ -10,6 +10,9 @@ RESETCOLOR='\033[1;00m'
 [ -f "$RIMENVFL" ] && \
     source "$RIMENVFL"
 
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
+    NOT_TERM=1||NOT_TERM=0
+
 count=0
 BATCH_SIZE=100
 wait_batch() {
@@ -18,10 +21,18 @@ wait_batch() {
 }
 
 find_type() {
+    local NAMES
     local type="$1"
-    local name="$2"
+    local names=()
+    IFS='|' read -r -a NAMES <<<"$2"
+    for name in "${NAMES[@]}";
+        do
+            [[ "${#names[@]}" -gt 1 ]] && \
+                names+=(-o)
+            names+=(-iname "$name")
+    done
     shift 2
-    find "$@" -type "$type" -perm -u+w -iname "$name" 2>/dev/null
+    find "$@" -type "$type" -perm -u+w "${names[@]}" 2>/dev/null
 }
 
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
@@ -29,7 +40,7 @@ nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 info_msg() {
     if [ "$RIM_QUIET_MODE" != 1 ]
         then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
@@ -38,7 +49,7 @@ info_msg() {
 warn_msg() {
     if [[ "$RIM_QUIET_MODE" != 1 && "$RIM_NO_WARN" != 1 ]]
         then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
@@ -56,6 +67,7 @@ print_help() {
 
 [ Options ]:
     -a, --all         Shrink all (env: RIM_SHRINK_ALL=1)
+    -b, --back        Shrink backup files '*.old' '*.back' (env: RIM_SHRINK_BACK=1)
     -c, --staticlibs  Shrink static libs '*.a' (env: RIM_SHRINK_STATICLIBS=1)
     -d, --docs        Shrink /usr/share/{man,doc,help,info,gtk-doc} and '*.md' 'README*' (env: RIM_SHRINK_DOCS=1)
     -s, --strip       Strip all debugging symbols & sections (env: RIM_SHRINK_STRIP=1)
@@ -63,6 +75,7 @@ print_help() {
     -o, --objects     Shrink object files '*.o' (env: RIM_SHRINK_OBJECTS=1)
     -p, --pkgcache    Shrink packages cache (env: RIM_SHRINK_PKGCACHE=1)
     -r, --src         Shrink source code files for build (env: RIM_SHRINK_SRC=1)
+    -y, --pycache     Shrink '__pycache__' directories (env: RIM_SHRINK_PYCACHE=1)
     -h, --help        Show this message
     -v, --verbose     Verbose output"
     exit 1
@@ -80,6 +93,8 @@ while [[ $# -gt 0 ]]
             -o|--objects   ) RIM_SHRINK_OBJECTS=1 ;;
             -p|--pkgcache  ) RIM_SHRINK_PKGCACHE=1 ;;
             -r|--src       ) RIM_SHRINK_SRC=1 ;;
+            -b|--back      ) RIM_SHRINK_BACK=1 ;;
+            -y|--pycache   ) RIM_SHRINK_PYCACHE=1 ;;
             -h|--help      ) print_help ;;
             -v|--verbose   ) verb='-v' ;;
             -*) error_msg "Unknown parameter: ${BLUE}$1\n"; print_help ;;
@@ -92,7 +107,8 @@ done
     RIM_SHRINK_SRC=1 RIM_SHRINK_DOCS=1 \
     RIM_SHRINK_STRIP=1 RIM_SHRINK_LOCALES=1 \
     RIM_SHRINK_STATICLIBS=1 RIM_SHRINK_OBJECTS=1 \
-    RIM_SHRINK_PKGCACHE=1
+    RIM_SHRINK_PKGCACHE=1 RIM_SHRINK_BACK=1 \
+    RIM_SHRINK_PYCACHE=1
 
 [[ ! -n "$RUNDIR" && -d "$OVERFS_MNT" ]] && \
     RUNDIR="$OVERFS_MNT"
@@ -112,6 +128,7 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                 info_msg "Shrinking rootfs..."
 
                 IFS=$'\n'
+                unset FSCAN
                 SHRINK_ITEMS=(
                     "$RUNROOTFS"/usr/share/libalpm/hooks/*systemd*
                     "$RUNROOTFS"/usr/share/libalpm/scripts/*systemd*
@@ -130,73 +147,70 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                     "$RUNROOTFS"/usr/share/libalpm/hooks/90-update-appstream-cache.hook
                     "$RUNROOTFS"/var/tmp/*
                     "$RUNROOTFS"/{dev,sys,proc,tmp,run}/*
-                    $(find_type d '__pycache__' "$RUNROOTFS"/)
                     $(find_type f '*.log' "$RUNROOTFS"/var/log/)
-                    $(find_type f '*.old' "$RUNROOTFS"/)
-                    $(find_type f '*.back' "$RUNROOTFS"/)
                 )
 
-                [ "$RIM_SHRINK_PKGCACHE" == 1 ] && PKGCACHE_ITEMS=(
-                    $(find_type f '*.pacnew' "$RUNROOTFS"/)
-                    $(find_type f '*.pacsave' "$RUNROOTFS"/)
-                    "$RUNROOTFS"/var/lib/pacman/sync/*
-                    "$RUNROOTFS"/var/cache/pacman/pkg/*
-                    "$RUNROOTFS"/etc/pacman.d/gnupg/pubring.gpg~
-                    "$RUNROOTFS"/etc/pacman.d/gnupg/S.*
-                    "$RUNROOTFS"/var/lib/pacman/db.lck
-                    "$RUNROOTFS"/var/cache/apt/archives/*.deb
-                    "$RUNROOTFS"/var/cache/apt/*.bin
-                    "$RUNROOTFS"/var/lib/apt/lists/deb.*
-                    "$RUNROOTFS"/var/log/apt/*
-                    "$RUNROOTFS"/var/cache/apk/*
-                    "$RUNROOTFS"/var/cache/xbps/*
+                [ "$RIM_SHRINK_PKGCACHE" == 1 ] && FSCAN+='|*.pacnew|*.pacsave' && \
+                    SHRINK_ITEMS+=(
+                        "$RUNROOTFS"/var/lib/pacman/sync/*
+                        "$RUNROOTFS"/var/cache/pacman/pkg/*
+                        "$RUNROOTFS"/etc/pacman.d/gnupg/pubring.gpg~
+                        "$RUNROOTFS"/etc/pacman.d/gnupg/S.*
+                        "$RUNROOTFS"/var/lib/pacman/db.lck
+                        "$RUNROOTFS"/var/cache/apt/archives/*.deb
+                        "$RUNROOTFS"/var/cache/apt/*.bin
+                        "$RUNROOTFS"/var/lib/apt/lists/deb.*
+                        "$RUNROOTFS"/var/log/apt/*
+                        "$RUNROOTFS"/var/cache/apk/*
+                        "$RUNROOTFS"/var/cache/xbps/*
                 )
-                SHRINK_ITEMS+=("${PKGCACHE_ITEMS[@]}")
 
                 [ "$RIM_SHRINK_LOCALES" == 1 ] && SHRINK_ITEMS+=(
                     "$RUNROOTFS"/usr/share/locale/!(locale.alias|uk|ru|en|en_US)
                 )
 
-                [ "$RIM_SHRINK_SRC" == 1 ] && SHRINK_ITEMS+=(
-                    "$RUNROOTFS"/usr/include/*
-                    "$RUNROOTFS"/usr/src/*
-                    "$RUNROOTFS"/usr/*/*pkgconfig/*
-                    $(find_type f '*.h' "$RUNROOTFS"/)
-                    $(find_type f '*.pc' "$RUNROOTFS"/)
-                    $(find_type f '*.c' "$RUNROOTFS"/)
-                    $(find_type f '*.cc' "$RUNROOTFS"/)
-                    $(find_type f '*.cpp' "$RUNROOTFS"/)
-                    $(find_type f '*.hpp' "$RUNROOTFS"/)
-                    $(find_type f 'CMakeLists*' "$RUNROOTFS"/)
-                    $(find_type f 'Makefile*' "$RUNROOTFS"/)
-                    $(find_type f '*.cmake' "$RUNROOTFS"/)
-                    $(find_type f '*.in' "$RUNROOTFS"/)
-                    $(find_type f '*.inc' "$RUNROOTFS"/)
+                [ "$RIM_SHRINK_PYCACHE" == 1 ] && SHRINK_ITEMS+=(
+                    $(find_type d '__pycache__' "$RUNROOTFS"/)
                 )
 
-                [ "$RIM_SHRINK_DOCS" == 1 ] && SHRINK_ITEMS+=(
-                    "$RUNROOTFS"/usr/share/man/*
-                    "$RUNROOTFS"/usr/share/doc/*
-                    "$RUNROOTFS"/usr/share/info/*
-                    "$RUNROOTFS"/usr/share/help/*
-                    "$RUNROOTFS"/usr/share/gtk-doc/*
-                    $(find_type f '*.md' "$RUNROOTFS"/)
-                    $(find_type f 'README*' "$RUNROOTFS"/)
+                [ "$RIM_SHRINK_SRC" == 1 ] && \
+                    FSCAN+='|*.h|*.pc|*.c|*.cc|*.cpp|*.hpp|CMakeLists*|Makefile*|*.cmake|*.in|*.inc' && \
+                    SHRINK_ITEMS+=(
+                        "$RUNROOTFS"/usr/include/*
+                        "$RUNROOTFS"/usr/src/*
+                        "$RUNROOTFS"/usr/*/*pkgconfig/*
                 )
 
-                [ "$RIM_SHRINK_OBJECTS" == 1 ] && SHRINK_ITEMS+=(
-                    $(find_type f '*.o' "$RUNROOTFS"/)
+                [ "$RIM_SHRINK_DOCS" == 1 ] && FSCAN+='|*.md|README*' && \
+                    SHRINK_ITEMS+=(
+                        "$RUNROOTFS"/usr/share/man/*
+                        "$RUNROOTFS"/usr/share/doc/*
+                        "$RUNROOTFS"/usr/share/info/*
+                        "$RUNROOTFS"/usr/share/help/*
+                        "$RUNROOTFS"/usr/share/gtk-doc/*
                 )
 
-                [ "$RIM_SHRINK_STATICLIBS" == 1 ] && SHRINK_ITEMS+=(
-                    $(find_type f '*.a' "$RUNROOTFS"/)
+                [ "$RIM_SHRINK_BACK" == 1 ] && FSCAN+='|*.old|*.back'
+
+                [ "$RIM_SHRINK_OBJECTS" == 1 ] && FSCAN+='|*.o'
+
+                [ "$RIM_SHRINK_STATICLIBS" == 1 ] && FSCAN+='|*.a'
+
+                LIBDIRS=(
+                    "$RUNROOTFS"/lib "$RUNROOTFS"/lib64 "$RUNROOTFS"/lib32 \
+                    "$RUNROOTFS"/usr/lib "$RUNROOTFS"/usr/lib32 \
+                    "$RUNROOTFS"/usr/lib64 "$RUNROOTFS"/usr/libexec \
+                    "$RUNROOTFS"/usr/local/lib "$RUNROOTFS"/usr/local/lib32 \
+                    "$RUNROOTFS"/usr/local/lib64 "$RUNROOTFS"/usr/local/libexec
                 )
 
                 nv_version="$(cat /sys/module/nvidia/version 2>/dev/null)"
                 nv_version_inside="$(basename "$RUNROOTFS"/usr/lib/libGLX_nvidia.so.*.*|tail -c +18)"
                 [[ -n "$nv_version" && "$nv_version_inside" == '000.00.00' ]] && SHRINK_ITEMS+=(
-                    $(find_type f "*so.$nv_version" "$RUNROOTFS"/usr)
+                    $(find_type f "*so.$nv_version" "${LIBDIRS[@]}")
                 )
+
+                SHRINK_ITEMS+=($(find_type f "$FSCAN" "$RUNROOTFS"/))
 
                 for item in "${SHRINK_ITEMS[@]}"
                     do rm $verb -rf "$item" & wait_batch
@@ -207,14 +221,9 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                         if command -v strip &>/dev/null
                             then
                                 for file in $(find_type f '*' "$RUNROOTFS"/bin "$RUNROOTFS"/sbin \
-                                    "$RUNROOTFS"/usr/bin "$RUNROOTFS"/usr/sbin \
+                                    "$RUNROOTFS"/usr/bin "$RUNROOTFS"/usr/sbin "$RUNROOTFS"/opt \
                                     "$RUNROOTFS"/usr/local/bin "$RUNROOTFS"/usr/local/sbin \
-                                    "$RUNROOTFS"/lib "$RUNROOTFS"/lib64 \
-                                    "$RUNROOTFS"/opt "$RUNROOTFS"/lib32 \
-                                    "$RUNROOTFS"/usr/lib "$RUNROOTFS"/usr/lib32 \
-                                    "$RUNROOTFS"/usr/lib64 "$RUNROOTFS"/usr/libexec \
-                                    "$RUNROOTFS"/usr/local/lib "$RUNROOTFS"/usr/local/lib32 \
-                                    "$RUNROOTFS"/usr/local/lib64 "$RUNROOTFS"/usr/local/libexec)
+                                    "${LIBDIRS[@]}")
                                     do
                                         (if [[ "$(file "$file" 2>/dev/null)" =~ 'ELF' ]]
                                             then strip $verb --strip-debug "$file" 2>/dev/null

@@ -9,6 +9,9 @@ RESETCOLOR='\033[1;00m'
 [ -f "$RIMENVFL" ] && \
     source "$RIMENVFL"
 
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
+    NOT_TERM=1||NOT_TERM=0
+
 BUILDKEY="$BASHPID"
 EXEPT_RUNSRCNAMES=("Run" "rim-build" "rim-desktop" "rim-update")
 
@@ -24,7 +27,7 @@ error_msg() {
 info_msg() {
     if [ "$RIM_QUIET_MODE" != 1 ]
         then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
@@ -33,7 +36,7 @@ info_msg() {
 warn_msg() {
     if [[ "$RIM_QUIET_MODE" != 1 && "$RIM_NO_WARN" != 1 ]]
         then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
-            if [[ "$NOT_TERM" == 1 && "$RIM_DONT_NOTIFY" != 1 ]]
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
     fi
@@ -58,9 +61,6 @@ print_help() {
     -z, --zstd             Use zstd compression (clvl 1-22) (env: RIM_CMPRS_ALGO=zstd)"
     exit 1
 }
-
-[ ! -n "$(tty|grep -v 'not a'|grep -Eo 'tty|pts')" ] && \
-    NOT_TERM=1
 
 if [ ! -x "$RUNRUNTIME" ]
      then
@@ -134,10 +134,8 @@ CMPRS_CMD=()
 case "$RIM_CMPRS_FS" in
     sqfs)
          RUNOFFSET="${RUNOFFSET:="$("$RUNRUNTIME" --runtime-offset)"}"
-         [ ! -x "$MKSQFS" ] && \
-            MKSQFS="$RUNSTATIC/mksquashfs"
           CMPRS_CMD+=(
-            "$MKSQFS" "$RUNDIR" "$NEWRUNIMAGE" -root-owned -offset "$RUNOFFSET"
+            "$RUNSTATIC/mksquashfs" "$RUNDIR" "$NEWRUNIMAGE" -root-owned -offset "$RUNOFFSET"
             -no-recovery -no-xattrs -noappend -mkfs-time 0 -action "chmod(u+rw)@! perm(u+rw)"
             -action "prune @ type(c) || type(s) || type(b) || type(p)" -b
           )
@@ -145,10 +143,8 @@ case "$RIM_CMPRS_FS" in
     ;;
     dwfs)
           trap "rm -f '$NEWRUNIMAGE'" INT TERM
-          [ ! -x "$MKDWFS" ] && \
-            MKDWFS="$RUNSTATIC/mkdwarfs"
           CMPRS_CMD+=(
-            "$MKDWFS" -f --set-owner 0 --set-group 0 --no-history --log-level error
+            "$RUNSTATIC/mkdwarfs" -f --set-owner 0 --set-group 0 --no-history --log-level error
             --no-create-timestamp --header "$RUNRUNTIME" --chmod u+rw
             -i "$RUNDIR" -o "$NEWRUNIMAGE" -B16 --compression
           )
@@ -220,9 +216,8 @@ if [ -w "$RUNROOTFS" ]
                     IS_DECFSFL=1
                     rm -f "$DECFSFL"
           fi
-          (unset "${!RIM_SHRINK_@}"
           RIM_QUIET_MODE=1 "$RUNSTATIC/bash" \
-            "$RUNUTILS/rim-shrink" --pkgcache)
+            "$RUNUTILS/rim-shrink" --pkgcache
      else
           warn_msg "Unable to update build timestamp. Read-only!"
           warn_msg "Unable to cleanup rootfs. Read-only!"

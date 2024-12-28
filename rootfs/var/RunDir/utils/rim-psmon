@@ -6,15 +6,17 @@ export GREEN='\033[1;92m'
 export YELLOW='\033[1;33m'
 export RESETCOLOR='\033[1;00m'
 
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
+    NOT_TERM=1||NOT_TERM=0
+
 red_msg() { echo -e "${RED}${@}${RESETCOLOR}" ; }
 blue_msg() { echo -e "${BLUE}${@}${RESETCOLOR}" ; }
 green_msg() { echo -e "${GREEN}${@}${RESETCOLOR}" ; }
 yellow_msg() { echo -e "${YELLOW}${@}${RESETCOLOR}" ; }
 
 rpids_ps() {
-    args=($@)
     set -o pipefail
-    for rpids in ${args[@]}
+    for rpids in "$@"
         do
             if [ -f "$rpids" ]
                 then
@@ -27,31 +29,61 @@ rpids_ps() {
                 else norpids="$(( norpids + 1 ))"
             fi
     done
-    [ "$norpids" == "${#args[@]}" ] && \
-        kill -2 $(pgrep -fa watch|grep "rpids_check.*$RPIDSMONPID"|awk '{print$1}') 2>/dev/null
+    if [ "$norpids" == "${#@}" ]
+        then kill -2 $(pgrep -fa watch|grep "rpids_check.*$RPIDSMONPID"|awk '{print$1}') 2>/dev/null
+    fi
 }
 
 rpids_check() {
-    if [ -n "$RPIDS" ]
-        then rpids_ps "$(for rpids in ${RPIDS[@]}; do echo "$RUNPIDDIR/rpids"; done)"
+    IFS=$'\n'
+    if [ -n "$A_RPIDS" ]
+        then
+            [[ "$A_RPIDS" =~ ^declare ]] && \
+            eval "$A_RPIDS" && unset A_RPIDS
+            RPIDSFLS=($(for rpid in "${RPIDS[@]}"; do echo "$RUNTMPDIR/$rpid/rpids"; done))
+            rpids_ps "${RPIDSFLS[@]}"
         else
-            RPIDSFLS="$(ls "$RUNTMPDIR"/*/rpids 2>/dev/null)"
+            RPIDSFLS=($(ls "$RUNTMPDIR"/*/rpids 2>/dev/null))
             if [ -n "$RPIDSFLS" ]
-                then rpids_ps "$RPIDSFLS"
-                else green_msg "Waiting for RunImage containers..."
+                then rpids_ps "${RPIDSFLS[@]}"
+                else
+                    green_msg "Waiting for RunImage containers..."
+                    return 1
             fi
     fi
 }
 
 rpids_check_loop() { watch -ctn 0.5 -x bash -c rpids_check $RPIDSMONPID ; }
 
-if [ "$1" == '-ps' ]
-    then shift ; RPIDS_PS=1
-    else unset RPIDS_PS
+error_msg() {
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    if [ "$NOT_TERM" == 1 ]
+        then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+    fi
+}
+
+print_help() {
+    echo -e "[ Usage ]: rim-psmon [OPTIONS] RUNPIDs
+
+[ Options ]:
+    -p, --ps       Print the list of RunImage processes
+    -h, --help     Show this message"
+    exit 1
+}
+
+unset RPIDS_PS A_RPIDS RPIDS
+case "$1" in
+    -h|--help) print_help ;;
+    -p|--ps  ) shift ; RPIDS_PS=1 ;;
+    -*) error_msg "Unknown parameter: ${BLUE}$1\n"; print_help ;;
+esac
+
+if [ -n "$1" ]
+    then
+        RPIDS=("$@")
+        export A_RPIDS="$(declare -p RPIDS 2>/dev/null)"
 fi
-[ -n "$1" ] && \
-    export RPIDS="$@"||\
-    unset RPIDS
+
 export RPIDSMONPID=$BASHPID
 export -f rpids_check rpids_ps blue_msg \
           red_msg green_msg yellow_msg

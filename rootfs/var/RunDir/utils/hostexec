@@ -11,6 +11,9 @@ SELFNAME="$(basename "$0")"
 [ -f "$RIMENVFL" ] && \
     source "$RIMENVFL"
 
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
+    NOT_TERM=1||NOT_TERM=0
+
 error_msg() {
     echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
     if [ "$NOT_TERM" == 1 ]
