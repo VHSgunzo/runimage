@@ -734,9 +734,12 @@ check_nvidia_driver() {
                                             add_lib_pth "$nvidia_driver_dir/64:$nvidia_driver_dir/32"
                                     fi
                                     update_ld_cache
-                                    NVXSOCKET="$(ls /run/nvidia-xdriver-* 2>/dev/null|head -1)"
-                                    if [ -S "$NVXSOCKET" ]
-                                        then XDG_RUN_BIND+=("--bind-try" "$NVXSOCKET" "$NVXSOCKET")
+                                    if [ "$RIM_UNSHARE_RUN" != 1 ]
+                                        then
+                                            NVXSOCKET="$(ls /run/nvidia-xdriver-* 2>/dev/null|head -1)"
+                                            if [ -S "$NVXSOCKET" ]
+                                                then XDG_RUN_BIND+=("--bind-try" "$NVXSOCKET" "$NVXSOCKET")
+                                            fi
                                     fi
                                 else
                                     error_msg "Nvidia driver not found!"
@@ -1196,6 +1199,8 @@ bwrun() {
                 "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}"
                 "${UNSHARE_BIND[@]}" "${HOME_BIND[@]}"
                 "${XORG_CONF_BIND[@]}" "${BWRAP_BIND[@]}"
+                "${FONTS_BIND[@]}" "${BOOT_BIND[@]}"
+                "${PKGCACHE_BIND[@]}" "${THEMES_BIND[@]}"
                 --setenv INSIDE_RUNIMAGE '1'
                 --setenv RUNPID "$RUNPID"
                 --setenv PATH "$BIN_PATH"
@@ -1608,7 +1613,7 @@ decrypt_rootfs() {
 run_build() { "$RUNSTATIC/bash" "$RUNUTILS/rim-build" "$@" ; }
 
 check_unshare_tmp() {
-    if [ "$UNSHARE_TMP" == 1 ]
+    if [ "$RIM_UNSHARE_TMP" == 1 ]
         then
             warn_msg "Host /tmp is unshared!"
             TMP_BIND+=("--tmpfs" "/tmp" "--bind-try" "$REUIDDIR" "$REUIDDIR")
@@ -1629,12 +1634,15 @@ set_default_option() {
     RIM_NO_WARN=1
     RIM_TMP_HOME=0
     RIM_XORG_CONF=0
+    RIM_SHARE_BOOT=0
     RIM_RUN_IN_ONE=0
     RIM_HOST_TOOLS=0
     RIM_SANDBOX_NET=0
     RIM_TMP_HOME_DL=0
     RIM_UNSHARE_NSS=1
+    RIM_SHARE_FONTS=0
     RIM_UNSHARE_HOME=1
+    RIM_SHARE_THEMES=0
     RIM_SANDBOX_HOME=0
     RIM_PORTABLE_HOME=0
     RIM_UNSHARE_USERS=1
@@ -2128,6 +2136,9 @@ RUNUSER="${RUNUSER:=$SUDO_USER}"
 RUNUSER="${RUNUSER:=$USER}"
 RUNUSER="${RUNUSER:=$(id -un "$EUID" 2>/dev/null)}"
 
+SSRV_ELF="$RUNSTATIC/ssrv"
+CHISEL="$RUNSTATIC/chisel"
+
 if [[ "$RIM_AUTORUN" == 'rim-'* ]]
     then
         case "$RIM_AUTORUN" in
@@ -2157,7 +2168,7 @@ case "$ARG1" in
                     fi ;;
     rim-update    ) set_overfs_option upd ;;
     rim-desktop   ) export RIM_UNSHARE_DBUS=1 RIM_UNSHARE_PIDS=1
-                    if [[ "$RUNTTY" =~ "tty" ]]
+                    if [[ "$RUNTTY" =~ "tty" && ! "${ARGS[0]}" =~ ^(-h|--help)$ ]]
                         then
                             if [ "$EUID" != 0 ] && ! grep -q "^input:.*[:,]$RUNUSER$\|^input:.*[:,]$RUNUSER," /etc/group
                                 then
@@ -2217,6 +2228,7 @@ xhost +si:localuser:$RUNUSER &>/dev/null
 
 ulimit -n $(ulimit -n -H) &>/dev/null
 
+runbinds=()
 DEF_MOUNTS_BIND=()
 if [ "$RIM_UNSHARE_DEF_MOUNTS" != 1 ]
     then
@@ -2224,68 +2236,128 @@ if [ "$RIM_UNSHARE_DEF_MOUNTS" != 1 ]
             '--bind-try' '/mnt' '/mnt'
             '--bind-try' '/media' '/media'
         )
-        runbinds=("/run/media")
+        [ "$RIM_UNSHARE_RUN" != 1 ] && \
+            runbinds+=("/run/media")
     else
         warn_msg "Default mount points are unshared!"
-        unset runbinds
 fi
 
-[[ ! -n "$XDG_RUNTIME_DIR" || "$XDG_RUNTIME_DIR" != "/run/user/$EUID" ]] && \
-    export XDG_RUNTIME_DIR="/run/user/$EUID"
+RUNXDGRUNTIME="/run/user/$EUID"
+[[ ! -n "$XDG_RUNTIME_DIR" && -d "$RUNXDGRUNTIME" ]] && \
+    export XDG_RUNTIME_DIR="$RUNXDGRUNTIME"
 XDG_RUN_BIND=(
     "--tmpfs" "/run"
     "--chmod" "0775" "/run"
-    "--dir" "$XDG_RUNTIME_DIR"
-    "--chmod" "0700" "$XDG_RUNTIME_DIR"
+    "--dir" "$RUNXDGRUNTIME"
+    "--tmpfs" "$RUNXDGRUNTIME"
+    "--chmod" "0700" "$RUNXDGRUNTIME"
+    "--setenv" "XDG_RUNTIME_DIR" "$RUNXDGRUNTIME"
 )
-[ "$RIM_UNSHARE_UDEV" != 1 ] && \
-    runbinds+=("/run/udev")||\
-    warn_msg "Host UDEV is unshared!"
-if [[ "$RIM_SHARE_SYSTEMD" == 1 && -d "/run/systemd" ]]
-    then
-        warn_msg "Host SystemD is shared!"
-        runbinds+=("/run/systemd")
-fi
-XDG_DBUS=(
-    "$XDG_RUNTIME_DIR/bus"
-    "$XDG_RUNTIME_DIR/dbus-1"
-)
+
 UNSHARE_BIND=()
 if [ "$RIM_UNSHARE_PIDS" == 1 ]
     then
         warn_msg "Host PIDs are unshared!"
         UNSHARE_BIND+=("--unshare-pid" "--as-pid-1")
-        [ "$RIM_UNSHARE_DBUS" != 1 ] && \
-            runbinds+=(
-                "/run/dbus"
-                "${XDG_DBUS[@]}"
-            )
-        runbinds+=(
-            "$XDG_RUNTIME_DIR/pulse"
-            "$XDG_RUNTIME_DIR/pipewire-0"
-            "$XDG_RUNTIME_DIR/pipewire-0.lock"
-            "$XDG_RUNTIME_DIR/pipewire-0-manager"
-            "$XDG_RUNTIME_DIR/pipewire-0-manager.lock"
-        )
-    else
-        runbinds+=("/run/utmp")
-        [ "$RIM_UNSHARE_DBUS" != 1 ] && \
-            runbinds+=(
-                "/run/dbus"
-                "$XDG_RUNTIME_DIR"
-            )
 fi
 if [ "$RIM_UNSHARE_DBUS" == 1 ]
     then
         warn_msg "Host DBUS is unshared!"
         UNSHARE_BIND+=("--unsetenv" "DBUS_SESSION_BUS_ADDRESS")
-        if [ "$RIM_UNSHARE_PIDS" != 1 ]
+fi
+if [ "$RIM_UNSHARE_RUN" == 1 ]
+    then
+        warn_msg "Host RUN is unshared!"
+        [[ "$DBUS_SESSION_BUS_ADDRESS" =~ /run/* ]] && \
+        UNSHARE_BIND+=("--unsetenv" "DBUS_SESSION_BUS_ADDRESS")
+    else
+        [ "$RIM_UNSHARE_UDEV" != 1 ] && \
+            runbinds+=("/run/udev")||\
+            warn_msg "Host UDEV is unshared!"
+
+        XDGRUN_UNSHARE=()
+        if [[ "$RIM_SHARE_SYSTEMD" == 1 && -d "/run/systemd" ]]
             then
-                for runbind in "$XDG_RUNTIME_DIR"/* "$XDG_RUNTIME_DIR"/.*
-                    do
-                        [[ ! "${XDG_DBUS[@]}" =~ "$runbind" ]] && \
-                            runbinds+=("$runbind")
-                done
+                warn_msg "Host SystemD is shared!"
+                runbinds+=("/run/systemd")
+                [[ "$XDG_RUNTIME_DIR" == "$RUNXDGRUNTIME" ]] && \
+                    runbinds+=("$XDG_RUNTIME_DIR/systemd")||\
+                    XDG_RUN_BIND+=("--bind-try" "$XDG_RUNTIME_DIR/systemd" "$RUNXDGRUNTIME/systemd")
+            else
+                XDGRUN_UNSHARE+=("$XDG_RUNTIME_DIR/systemd")
+        fi
+
+        XDGRUN_DBUS=()
+        XDGRUN_SOUND=()
+        if [ -d "$XDG_RUNTIME_DIR" ]
+            then
+                XDGRUN_DBUS+=(
+                    "$XDG_RUNTIME_DIR/bus"
+                    "$XDG_RUNTIME_DIR/dbus-1"
+                )
+                XDGRUN_SOUND+=(
+                    "$XDG_RUNTIME_DIR/pulse"
+                    "$XDG_RUNTIME_DIR/pipewire-0"
+                    "$XDG_RUNTIME_DIR/pipewire-0.lock"
+                    "$XDG_RUNTIME_DIR/pipewire-0-manager"
+                    "$XDG_RUNTIME_DIR/pipewire-0-manager.lock"
+                )
+        fi
+
+        if [[ -n "$XDGRUN_SOUND" && "$RIM_UNSHARE_XDGSOUND" == 1 ]]
+            then
+                warn_msg "Host XDG sound sockets are unshared!"
+                XDGRUN_UNSHARE+=("${XDGRUN_SOUND[@]}")
+        fi
+
+        [ "$RIM_UNSHARE_DBUS" != 1 ] && \
+            runbinds+=("/run/dbus")
+
+        [ "$RIM_UNSHARE_PIDS" != 1 ] && \
+            runbinds+=("/run/utmp")
+
+        if [ "$RIM_UNSHARE_XDGRUN" == 1 ]
+            then warn_msg "Host XDG_RUNTIME_DIR is unshared!"
+            else
+                if [ "$RIM_UNSHARE_PIDS" == 1 ]
+                    then
+                        if [ "$RIM_UNSHARE_DBUS" != 1 ]
+                            then
+                                [[ "$XDG_RUNTIME_DIR" == "$RUNXDGRUNTIME" ]] && \
+                                    runbinds+=(
+                                        "${XDGRUN_DBUS[@]}"
+                                    )||\
+                                    for item in "${XDGRUN_DBUS[@]}"
+                                        do XDG_RUN_BIND+=("--bind-try" "$item" "${item/"$XDG_RUNTIME_DIR"/"$RUNXDGRUNTIME"}")
+                                    done
+                        fi
+                        if [ "$RIM_UNSHARE_XDGSOUND" != 1 ]
+                            then
+                                [[ "$XDG_RUNTIME_DIR" == "$RUNXDGRUNTIME" ]] && \
+                                    runbinds+=(
+                                        "${XDGRUN_SOUND[@]}"
+                                    )||\
+                                    for item in "${XDGRUN_SOUND[@]}"
+                                        do XDG_RUN_BIND+=("--bind-try" "$item" "${item/"$XDG_RUNTIME_DIR"/"$RUNXDGRUNTIME"}")
+                                    done
+                        fi
+                    else
+                        [ "$RIM_UNSHARE_DBUS" == 1 ] && \
+                            XDGRUN_UNSHARE+=("${XDGRUN_DBUS[@]}")
+                fi
+
+                if [[ "$RIM_UNSHARE_PIDS" != 1 && -d "$XDG_RUNTIME_DIR" ]]
+                    then
+                        for runbind in "$XDG_RUNTIME_DIR"/* "$XDG_RUNTIME_DIR"/.*
+                            do
+                                if [[ -e "$runbind" && ! "${XDGRUN_UNSHARE[@]}" =~ "$runbind" ]]
+                                    then
+                                        [[ "$XDG_RUNTIME_DIR" == "$RUNXDGRUNTIME" ]] && \
+                                            runbinds+=("$runbind")||\
+                                            XDG_RUN_BIND+=("--bind-try" "$runbind" "${runbind/"$XDG_RUNTIME_DIR"/"$RUNXDGRUNTIME"}")
+                                fi
+                        done
+                fi
         fi
 fi
 for bind in "${runbinds[@]}"
@@ -2333,7 +2405,7 @@ if [ "$RIM_NO_RPIDSMON" != 1 ]
         done) &
 fi
 
-if [ ! -n "$DBUS_SESSION_BUS_ADDRESS" ]
+if [[ ! -n "$DBUS_SESSION_BUS_ADDRESS" && "$RIM_UNSHARE_DBUS" != 1 ]]
     then
         if [ -S "$XDG_RUNTIME_DIR/bus" ]
             then export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
@@ -2382,9 +2454,6 @@ if [ "$SYS_GOCRYPTFS" == 1 ] && is_sys_exe gocryptfs
     else
         GOCRYPTFS="$RUNSTATIC/gocryptfs"
 fi
-
-SSRV_ELF="$RUNSTATIC/ssrv"
-CHISEL="$RUNSTATIC/chisel"
 
 TMP_PATH_DIR='/tmp/.path'
 [ -d "$TMP_PATH_DIR" ] && \
@@ -2624,9 +2693,9 @@ RUNDIR_BIND=(
 )
 
 TMP_BIND=()
-if [[ -d "/tmp/.X11-unix" && "$UNSHARE_TMP" != 1 ]]
+if [[ -d "/tmp/.X11-unix" && "$RIM_UNSHARE_TMP" != 1 ]]
     then
-        if [  "$UNSHARE_TMPX11UNIX" != 1 ] # Gamecope X11 sockets bug
+        if [  "$RIM_UNSHARE_TMPX11UNIX" != 1 ] # Gamecope X11 sockets bug
             then
                 if [ -L "/tmp/.X11-unix" ] # WSL
                     then
@@ -3199,6 +3268,47 @@ if [ "$RIM_UNSHARE_USERS" == 1 ]
         )
 fi
 
+FONTS_BIND=()
+if [[ "$RIM_SHARE_FONTS" == 1 && -d '/usr/share/fonts' ]]
+    then
+        info_msg "Host /usr/share/fonts is shared!"
+        FONTS_BIND+=('--ro-bind-try' '/usr/share/fonts' '/usr/share/fonts')
+fi
+
+THEMES_BIND=()
+if [[ "$RIM_SHARE_THEMES" == 1 && -d '/usr/share/themes' ]]
+    then
+        info_msg "Host /usr/share/themes is shared!"
+        THEMES_BIND+=('--ro-bind-try' '/usr/share/themes' '/usr/share/themes')
+fi
+
+BOOT_BIND=()
+if [[ "$RIM_SHARE_BOOT" == 1 && -d '/boot' ]]
+    then
+        info_msg "Host /boot is shared!"
+        BOOT_BIND+=('--ro-bind-try' '/boot' '/boot')
+fi
+
+PKGCACHE_BIND=()
+if [ "$RIM_SHARE_PKGCACHE" == 1 ]
+    then
+        unset pkgcache
+        if [ -d '/var/cache/pacman' ]
+            then pkgcache='/var/cache/pacman'
+        elif [ -d '/var/cache/apk' ]
+            then pkgcache='/var/cache/apk'
+        elif [ -d '/var/cache/xbps' ]
+            then pkgcache='/var/cache/xbps'
+        elif [ -d '/var/cache/apt' ]
+            then pkgcache='/var/cache/apt'
+        fi
+        if [ -n "$pkgcache" ]
+            then
+                info_msg "Host $pkgcache is shared!"
+                PKGCACHE_BIND+=("--ro-bind-try" "$pkgcache" "$pkgcache")
+        fi
+fi
+
 MODULES_BIND=()
 if [ "$RIM_UNSHARE_MODULES" != 1 ]
     then
@@ -3208,7 +3318,7 @@ if [ "$RIM_UNSHARE_MODULES" != 1 ]
         elif [ -d "/usr/lib/modules" ]
             then libmodules="/usr/lib/modules"
         fi
-        [ -d "$libmodules" ] && \
+        [ -n "$libmodules" ] && \
         MODULES_BIND+=("--ro-bind-try" "$libmodules" "/usr/lib/modules")
     else
         warn_msg "Kernel modules are unshared!"
