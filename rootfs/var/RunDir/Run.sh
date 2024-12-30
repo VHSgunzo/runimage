@@ -17,6 +17,7 @@ export RUNTMPDIR="$REUIDDIR/run"
 export RUNPIDDIR="$RUNTMPDIR/$RUNPID"
 export BWINFFL="$RUNPIDDIR/bwinf"
 export RIMENVFL="$RUNPIDDIR/rimenv"
+export RUNDIRFL="$RUNPIDDIR/rundir"
 export SSRV_CPIDS_DIR="$RUNPIDDIR/cpids"
 export SSRV_PID_FILE="$RUNPIDDIR/ssrv.pid"
 export SSRV_NOSEP_CPIDS=1
@@ -483,7 +484,8 @@ check_nvidia_driver() {
         if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
             then
                 info_msg "Updating the nvidia library cache..."
-                if (RIM_SANDBOX_NET=0 RIM_NO_NET=0 bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null)
+                if (RIM_SANDBOX_NET=0 RIM_NO_NET=0 RIM_WAIT_RPIDS_EXIT=0 \
+                    bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null)
                     then
                         try_mkdir "$RUNCACHEDIR"
                         if mv -f "$RUNPIDDIR/ld.so.cache" \
@@ -563,7 +565,7 @@ check_nvidia_driver() {
                                         [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/nvidia_drv.so" ] && \
                                         [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_driver_image" ]
                                         then
-                                            if RIM_NOTIFY=0 RIM_QUIET_MODE=0 get_nvidia_driver_image
+                                            if RIM_NOTIFY=1 RIM_QUIET_MODE=0 get_nvidia_driver_image
                                                 then
                                                     mount_nvidia_driver_image "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image"
                                                 else
@@ -784,12 +786,12 @@ try_unmount() {
                         error_msg "Failed to unmount: '$1'"
                         return 1
                     fi
-            elif [ -d "$1" ]
+            elif [[ -d "$1" && ! -n "$(ls -A "$1" 2>/dev/null)" ]]
                 then DORM=1
             fi
             if [[ "$DORM" == 1 && -w "$1" ]]
                 then
-                    if ! rm -rf "$1" 2>/dev/null
+                    if ! rmdir "$1" 2>/dev/null
                         then
                             error_msg "Failed to remove: '$1'"
                             return 1
@@ -861,11 +863,31 @@ run_attach() {
         fi
     }
     attach_act() {
+        try_unmount_rundir() {
+            (sleep 0.1; [ -n "$RUNIMAGE" ] && \
+            try_unmount "$RUNDIR") &
+        }
+        local ATT_RUNDIRFL="${RUNTMPDIR}/$1/rundir"
+        if [ -f "$ATT_RUNDIRFL" ]
+            then
+                RUNDIRFL="$ATT_RUNDIRFL"
+                local ATT_RUNDIR="$(cat "$RUNDIRFL" 2>/dev/null)"
+                if [ -d "$ATT_RUNDIR" ]
+                    then
+                        local ATT_SSRV_ELF="$ATT_RUNDIR/static/ssrv"
+                        local ATT_CHISEL="$ATT_RUNDIR/static/chisel"
+                        [ -x "$ATT_SSRV_ELF" ] && \
+                        SSRV_ELF="$ATT_SSRV_ELF"
+                        [ -x "$ATT_CHISEL" ] && \
+                        CHISEL="$ATT_CHISEL"
+                fi
+        fi
         if [ "$act" == "portfw" ]
             then
                 info_msg "Port forwarding RunImage RUNPID: $1"
-                RUNPORTFW="$(get_sock "$1")"
+                local RUNPORTFW="$(get_sock "$1")"
                 shift
+                try_unmount_rundir
                 exec "$CHISEL" client "unix:$RUNPORTFW" "$@"
             else
                 info_msg "Exec RunImage RUNPID: $1"
@@ -873,6 +895,7 @@ run_attach() {
                 export SSRV_ENV="all-:$(tr ' ' ','<<<"${!RIM_@}")"
                 export SSRV_ENV_PIDS="$(get_child_pids "$(cat "$RUNTMPDIR/$1/ssrv.pid" 2>/dev/null)"|head -1)"
                 shift
+                try_unmount_rundir
                 exec "$SSRV_ELF" "$@"
         fi
     }
@@ -1307,11 +1330,14 @@ bwrun() {
     fi
     "$SSRV_ELF" "${RIM_EXEC_ARGS[@]}" "$@"
     EXEC_STATUS="$?"
-    [ -f "$BWINFFL" ] && \
-        rm -f "$BWINFFL" 2>/dev/null
-    kill $SSRV_PID 2>/dev/null
-    [ -e "$SSRV_SOCK_PATH" ] && \
-        rm -f "$SSRV_SOCK_PATH" 2>/dev/null
+    if [ "$RIM_WAIT_RPIDS_EXIT" != 1 ]
+        then
+            [ -f "$BWINFFL" ] && \
+                rm -f "$BWINFFL" 2>/dev/null
+            kill $SSRV_PID 2>/dev/null
+            [ -e "$SSRV_SOCK_PATH" ] && \
+                rm -f "$SSRV_SOCK_PATH" 2>/dev/null
+    fi
     return $EXEC_STATUS
 }
 
@@ -1421,9 +1447,6 @@ try_mkhome() {
 }
 
 pkg_list() (
-    RIM_QUIET_MODE=1
-    RIM_SANDBOX_NET=0
-    RIM_NO_NVIDIA_CHECK=1
     if bwrun which pacman &>/dev/null
         then bwrun pacman -Q 2>/dev/null
     elif bwrun which apt &>/dev/null
@@ -1439,8 +1462,8 @@ pkg_list() (
 )
 
 bin_list() {
-    RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 bwrun find /usr/bin/ /bin/ \
-    -executable -type f -maxdepth 1 2>/dev/null|sed 's|/usr/bin/||g;s|/bin/||g'|sort -u
+    bwrun find /usr/bin/ /bin/ -executable -type f -maxdepth 1 \
+    2>/dev/null|sed 's|/usr/bin/||g;s|/bin/||g'|sort -u
 }
 
 print_version() {
@@ -1453,7 +1476,7 @@ print_version() {
 
 run_update() {
     info_msg "RunImage update"
-    RIM_ROOT=1 RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 \
+    RIM_ROOT=1 RIM_QUIET_MODE=1 \
         bwrun rim-update "$@"
     UPDATE_STATUS="$?"
     case "$1" in
@@ -1610,6 +1633,11 @@ decrypt_rootfs() {
     fi
 }
 
+is_rio_running() {
+    [[ -n "$SSRV_RUNPID" && -e "$SSRV_SOCK_PATH" ]] && \
+        is_pid "$SSRV_RUNPID"
+}
+
 run_build() { "$RUNSTATIC/bash" "$RUNUTILS/rim-build" "$@" ; }
 
 check_unshare_tmp() {
@@ -1647,6 +1675,7 @@ set_default_option() {
     RIM_PORTABLE_HOME=0
     RIM_UNSHARE_USERS=1
     RIM_UNSHARE_HOSTS=1
+    RIM_WAIT_RPIDS_EXIT=0
     RIM_SANDBOX_HOME_DL=0
     RIM_NO_NVIDIA_CHECK=1
     RIM_UNSHARE_MODULES=1
@@ -1679,7 +1708,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}rim-help   $GREEN                    Show this usage info
         ${BLUE}rim-version$GREEN                    Show runimage, rootfs, static, runtime version
         ${BLUE}rim-pkgls  $GREEN                    Show packages installed in runimage
-        ${BLUE}rim-binlist$GREEN                  Show /usr/bin in runimage
+        ${BLUE}rim-binls  $GREEN                  Show /usr/bin in runimage
         ${BLUE}rim-shell  $YELLOW  {args}$GREEN            Run runimage shell or execute a command in runimage shell
         ${BLUE}rim-desktop$GREEN                    Launch runimage desktop
         ${BLUE}rim-ofsls$GREEN                    Show the list of runimage OverlayFS
@@ -1692,7 +1721,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
 
     ${RED}Only for not extracted (RunImage runtime options):
         ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
-        ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run runimage afer extraction without using FUSE
+        ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run runimage after extraction without using FUSE
         ${BLUE}--runtime-help$GREEN                       Show runimage runtime help (Shown in this help)
         ${BLUE}--runtime-mount$GREEN                      Mount embedded filesystem image and print
         ${BLUE}--runtime-offset$GREEN                     Print byte offset to start of embedded
@@ -1738,7 +1767,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_QUIET_MODE$GREEN=1                         Disables all non-error runimage messages
         ${YELLOW}RIM_NO_WARN$GREEN=1                            Disables all warning runimage messages
         ${YELLOW}RIM_NOTIFY$GREEN=1                        Disables all non-error runimage notification
-        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1                Run runimage afer extraction without using FUSE
+        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1                Run runimage after extraction without using FUSE
         ${YELLOW}TMPDIR$GREEN=\"/path/{TMPDIR}\"                Used for extract and run options
         ${YELLOW}RIM_CONFIG$GREEN=\"/path/{config}\"            runimage сonfiguration file (0 to disable)
         ${YELLOW}RIM_ENABLE_HOSTEXEC$GREEN=1                    Enables the ability to execute commands at the host level
@@ -2056,7 +2085,7 @@ ARG1="${ARGS[0]}"
 if [[ -n "${ARGS[0]}" && "${ARGS[0]}" == 'rim-'* ]]
     then
         case "${ARGS[0]}" in
-            rim-shrink|rim-dinteg) : ;;
+            rim-shrink|rim-dinteg);;
             *) ARGS=("${ARGS[@]:1}") ;;
         esac
 elif [[ "$RUNSRCNAME" == 'rim-'* ]]
@@ -2071,9 +2100,8 @@ case "$ARG1" in
                     RIM_DESKTOP_INTEGRATION=0 ;;
     rim-kill   |\
     rim-help   |\
-    rim-ofsls   ) NO_CRYPTFS_MOUNT=1 ; RIM_CONFIG=0
-                  RIM_NO_RPIDSMON=1 ; RIM_DESKTOP_INTEGRATION=0
-                  set_default_option ;;
+    rim-ofsls   ) set_default_option ; NO_CRYPTFS_MOUNT=1 ; RIM_CONFIG=0
+                  RIM_NO_RPIDSMON=1 ; RIM_DESKTOP_INTEGRATION=0 ;;
 esac
 
 unset SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG
@@ -2142,46 +2170,14 @@ CHISEL="$RUNSTATIC/chisel"
 if [[ "$RIM_AUTORUN" == 'rim-'* ]]
     then
         case "$RIM_AUTORUN" in
-            rim-shrink|rim-dinteg) : ;;
+            rim-shrink|rim-dinteg);;
             *) ARG1="$RIM_AUTORUN"
                ARGS=("${RIM_AUTORUN[@]:1}" "${ARGS[@]}")
                unset RIM_AUTORUN ;;
         esac
 fi
 
-case "$ARG1" in
-    rim-decfs     ) set_overfs_option crypt ;;
-    rim-encfs  |\
-    rim-enc-passwd) NO_CRYPTFS_MOUNT=1
-                    set_overfs_option crypt ;;
-    rim-pkgls  |\
-    rim-binlist|\
-    rim-version|\
-    rim-build     ) set_default_option ;;
-    rim-ofsrm     ) NO_CRYPTFS_MOUNT=1
-                    set_default_option ;;
-    rim-exec      ) if [ "$RIM_RUN_IN_ONE" != 1 ]
-                        then run_attach exec "${ARGS[@]}" ; exit $?
-                    fi ;;
-    rim-portfw    ) if [ "$RIM_RUN_IN_ONE" != 1 ]
-                        then run_attach portfw "${ARGS[@]}" ; exit $?
-                    fi ;;
-    rim-update    ) set_overfs_option upd ;;
-    rim-desktop   ) export RIM_UNSHARE_DBUS=1 RIM_UNSHARE_PIDS=1
-                    if [[ "$RUNTTY" =~ "tty" && ! "${ARGS[0]}" =~ ^(-h|--help)$ ]]
-                        then
-                            if [ "$EUID" != 0 ] && ! grep -q "^input:.*[:,]$RUNUSER$\|^input:.*[:,]$RUNUSER," /etc/group
-                                then
-                                    error_msg "The user is not a member of the input group!"
-                                    console_info_notify
-                                    echo -e "${YELLOW}Make sure to add yourself to the input group:"
-                                    echo -e "${RED}# ${GREEN}sudo gpasswd -a $RUNUSER input && logout$RESETCOLOR"
-                                    exit 1
-                            fi
-                            export RIM_FORCE_KILL_PPID=1
-                    fi ;;
-esac
-
+unset SSRV_RUNPID SSRV_SOCK_PATH
 if [ "$RIM_RUN_IN_ONE" == 1 ]
     then
         RUNIMAGEDIR_SUM=($(sha1sum<<<"$RUNIMAGEDIR"))
@@ -2193,21 +2189,66 @@ if [ "$RIM_RUN_IN_ONE" == 1 ]
                     then
                         RUNPORTFW="${RUNTMPDIR}/${SSRV_RUNPID}/portfw"
                         SSRV_SOCK_PATH="${RUNTMPDIR}/${SSRV_RUNPID}/${RUNIMAGEDIR_SUM}.sock"
+                        ret=0
                     else rm -f "${RUNTMPDIR}/${SSRV_RUNPID}.${RUNIMAGEDIR_SUM}.sock"
                 fi
         fi
         export SSRV_SOCK="unix:$SSRV_SOCK_PATH"
-        if [ -e "$SSRV_SOCK_PATH" ]
-            then
-                case "$ARG1" in
-                    rim-portfw ) run_attach portfw "$SSRV_RUNPID" "${ARGS[@]}" ;;
-                    *) run_attach exec "$SSRV_RUNPID" "${ARGS[@]}" ;;
-                esac
-        fi
+fi
+
+if is_rio_running
+    then
+        RIO_ARGS=(run_attach)
+        case "$ARG1" in
+            rim-portfw ) RIO_ARGS+=(portfw) ;;
+            *) RIO_ARGS+=(exec) ;;
+        esac
+        RIO_ARGS+=("$SSRV_RUNPID")
+        case "$ARG1" in
+            rim-portfw|rim-exec|rim-shrink|rim-dinteg);;
+            rim-desktop|\
+            rim-update |\
+            rim-build  ) RIO_ARGS+=("$ARG1") ;;
+            rim-*) error_msg "Option is not supported for a running RunImage container: $ARG1"
+                   exit 1 ;;
+        esac
+        "${RIO_ARGS[@]}" "${ARGS[@]}"
+    else
+        case "$ARG1" in
+            rim-pkgls  |\
+            rim-binls     ) set_default_option ; RIM_QUIET_MODE=1 ; RIM_CONFIG=0
+                            RIM_NO_RPIDSMON=1 ; RIM_DESKTOP_INTEGRATION=0 ;;
+            rim-decfs     ) set_overfs_option crypt ;;
+            rim-encfs  |\
+            rim-enc-passwd) NO_CRYPTFS_MOUNT=1
+                            set_overfs_option crypt ;;
+            rim-version|\
+            rim-build     ) set_default_option ; RIM_DESKTOP_INTEGRATION=0 ;;
+            rim-ofsrm     ) NO_CRYPTFS_MOUNT=1
+                            set_default_option ; RIM_DESKTOP_INTEGRATION=0 ;;
+            rim-exec      ) run_attach exec "${ARGS[@]}"; exit $? ;;
+            rim-portfw    ) run_attach portfw "${ARGS[@]}"; exit $? ;;
+            rim-update    ) set_overfs_option upd ;;
+            rim-desktop   ) export RIM_UNSHARE_DBUS=1 RIM_UNSHARE_PIDS=1
+                            if [[ "$RUNTTY" =~ "tty" && ! "${ARGS[0]}" =~ ^(-h|--help)$ ]]
+                                then
+                                    if [ "$EUID" != 0 ] && ! grep -q "^input:.*[:,]$RUNUSER$\|^input:.*[:,]$RUNUSER," /etc/group
+                                        then
+                                            error_msg "The user is not a member of the input group!"
+                                            console_info_notify
+                                            echo -e "${YELLOW}Make sure to add yourself to the input group:"
+                                            echo -e "${RED}# ${GREEN}sudo gpasswd -a $RUNUSER input && logout$RESETCOLOR"
+                                            exit 1
+                                    fi
+                                    export RIM_FORCE_KILL_PPID=1
+                            fi ;;
+        esac
 fi
 
 mkdir -p "$RUNPIDDIR"
 chmod go-rwx "$REUIDDIR"/{,/run}
+
+echo "$RUNDIR" > "$RUNDIRFL"
 
 export RUNUSER
 export EGID="$(id -g 2>/dev/null)"
@@ -2740,7 +2781,7 @@ fi
 add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
 /usr/lib/jvm/default/bin:/usr/local/bin:/usr/local/sbin:\
 /opt/cuda/bin:$HOME/.cargo/bin:$SYS_PATH:/usr/bin/vendor_perl:\
-/var/RunDir/static:/var/RunDir/utils"
+/var/RunDir/static:/var/RunDir/utils:/var/RunDir/sharun/bin"
 [ -n "$LD_LIBRARY_PATH" ] && \
     add_lib_pth "$LD_LIBRARY_PATH"
 
@@ -2748,7 +2789,7 @@ if [ -n "$RIM_AUTORUN" ]
     then
         AUTORUN0ARG=($RIM_AUTORUN)
         info_msg "Autorun mode: ${RIM_AUTORUN[@]}"
-        if RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 bwrun \
+        if RIM_WAIT_RPIDS_EXIT=0 RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 bwrun \
             which "$AUTORUN0ARG" &>/dev/null
             then
                 export RUNSRCNAME="$AUTORUN0ARG"
@@ -3398,7 +3439,7 @@ case "$ARG1" in
     rim-pkgls     ) pkg_list ;;
     rim-kill      ) force_kill "${ARGS[@]}" ;;
     rim-help      ) print_help ;;
-    rim-binlist   ) bin_list ;;
+    rim-binls     ) bin_list ;;
     rim-version   ) print_version ;;
     rim-ofsls     ) overlayfs_list ;;
     rim-update    ) run_update "${ARGS[@]}" ;;
@@ -3426,6 +3467,38 @@ case "$ARG1" in
         fi
     ;;
 esac
+
+if [ "$RIM_WAIT_RPIDS_EXIT" == 1 ]
+    then
+        trap cleanup INT
+        find_processes() {
+            processes="$(ps -ocmd= -p $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null)"
+            for ps in "${IGNPS[@]}"
+                do processes="$(grep -v "$ps"<<<"$processes")"
+            done
+        }
+        IGNPS=(
+            "$RUNPIDDIR" "$RUNDIR"
+            '/var/RunDir' "$RUNIMAGEDIR"
+        )
+        [ -n "$SSRV_PID" ] && IGNPS+=("slirp4netns.*$SSRV_PID")
+        find_processes
+        wait_rpids=100
+        while is_pid "$RUNPID" && \
+            [[ "$wait_rpids" -gt 0 && ! -n "$processes" ]]
+            do
+                (( wait_rpids-- ))
+                sleep 0.01 2>/dev/null
+                find_processes
+        done
+        while is_pid "$RUNPID" && \
+            [ -n "$processes" ]
+            do
+                sleep 1
+                find_processes
+        done
+        sleep 0.5
+fi
 
 exit $?
 

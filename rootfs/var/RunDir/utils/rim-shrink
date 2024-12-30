@@ -210,7 +210,7 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                     $(find_type f "*so.$nv_version" "${LIBDIRS[@]}")
                 )
 
-                SHRINK_ITEMS+=($(find_type f "$FSCAN" "$RUNROOTFS"/))
+                [ -n "$FSCAN" ] && SHRINK_ITEMS+=($(find_type f "$FSCAN" "$RUNROOTFS"/))
 
                 for item in "${SHRINK_ITEMS[@]}"
                     do rm $verb -rf "$item" & wait_batch
