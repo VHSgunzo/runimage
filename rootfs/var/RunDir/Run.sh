@@ -24,7 +24,7 @@ export SSRV_NOSEP_CPIDS=1
 export SSRV_ENV='SSRV_PID'
 
 unset SESSION_MANAGER POSIXLY_CORRECT LD_PRELOAD ENV \
-    NO_CRYPTFS_MOUNT NVIDIA_DRIVER_BIND BIND_LDSO_CACHE FUSE_PIDS
+    NVIDIA_DRIVER_BIND BIND_LDSO_CACHE FUSE_PIDS
 
 if [ ! -n "$SYS_PATH" ]
     then
@@ -313,7 +313,7 @@ try_dl() {
                                             --auto-close --no-cancel --title="Download: $FILENAME"
                                         ret="$?"
                                 fi
-                                return "$ret"
+                                return $ret
                             }
                             if [ "$NO_ARIA2C" != 1 ] && \
                                 is_exe_exist aria2c
@@ -370,7 +370,9 @@ try_dl() {
 }
 
 get_nvidia_driver_image() {
-    (if [[ -n "$1" || -n "$nvidia_version" ]]
+    (local ret=1
+    unset rmnvsrc
+    if [[ -n "$1" || -n "$nvidia_version" ]]
         then
             [ ! -n "$nvidia_version" ] && \
                 nvidia_version="$1"
@@ -381,74 +383,192 @@ get_nvidia_driver_image() {
             [ ! -n "$nvidia_driver_image" ] && \
                 nvidia_driver_image="$nvidia_version.nv.drv"
             try_mkdir "$NVIDIA_DRIVERS_DIR"
-            info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
-            nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
-            driver_url_list=(
-                "https://huggingface.co/runimage/nvidia-drivers/resolve/main/releases/$nvidia_driver_image"
-                "https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image"
-                "https://us.download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run"
-                "https://us.download.nvidia.com/tesla/${nvidia_version}/$nvidia_driver_run"
-                "https://developer.nvidia.com/downloads/vulkan-beta-${nvidia_version//.}-linux"
-                "https://developer.nvidia.com/vulkan-beta-${nvidia_version//.}-linux"
-                "https://developer.nvidia.com/linux-${nvidia_version//.}"
+            NVBINS=(
+                'mkprecompiled' 'nvidia-cuda-mps-control' 'nvidia-cuda-mps-server'
+                'nvidia-debugdump' 'nvidia-installer' 'nvidia-modprobe'
+                'nvidia-ngx-updater' 'tls_test' 'nvidia-persistenced' 'nvidia-powerd'
+                'nvidia-settings' 'nvidia-smi' 'nvidia-xconfig' 'nvidia-pcc'
+                'nvidia-cuda-mps-srv' 'nvidia-bug-report.sh' 'nvidia-sleep.sh'
             )
-            if try_dl "${driver_url_list[0]}" "$NVIDIA_DRIVERS_DIR"||\
-               try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"
-                then return 0
-            elif try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"||\
-                 try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"||\
-                 try_dl "${driver_url_list[4]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
-                 try_dl "${driver_url_list[5]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
-                 try_dl "${driver_url_list[6]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"
+            if [ "$RIM_SYS_NVLIBS" == 1 ]
                 then
-                    binary_files="mkprecompiled nvidia-cuda-mps-control nvidia-cuda-mps-srv \
-                        nvidia-debugdump nvidia-installer nvidia-modprobe nvidia-ngx-updater tls_test \
-                        nvidia-persistenced nvidia-powerd nvidia-settings nvidia-smi nvidia-xconfig"
-                    trash_libs="libEGL.so* libGLdispatch.so* *.swidtag libnvidia-egl-wayland.so* \
-                         libGLESv!(*nvidia).so* libGL.so* libGLX.so* libOpenCL.so* libOpenGL.so* \
-                         libnvidia-compiler* *.la"
-                    chmod u+x "$NVIDIA_DRIVERS_DIR/$nvidia_driver_run"
-                    info_msg "Unpacking $nvidia_driver_run..."
-                    (cd "$NVIDIA_DRIVERS_DIR" && \
-                        "./$nvidia_driver_run" --target "$nvidia_version" -x &>/dev/null
-                        rm -f "$nvidia_driver_run")
+                    info_msg "Find Nvidia ${nvidia_version} local libs, please wait..."
+                    cp_nvfiles() (
+                        local sys_pth
+                        local dir="$1"
+                        shift
+                        mkdir -p "$dir" && \
+                        cd "$dir"||return 1
+                        for file in "$@"
+                            do
+                                case "$dir" in
+                                    64|32) sys_pth="$(realpath "$file" 2>/dev/null)" ;;
+                                    bin) sys_pth="$(command -v "$file" 2>/dev/null)" ;;
+                                    wine) sys_pth="$(find /usr -type f -name "$file" 2>/dev/null|head -1)" ;;
+                                    .) sys_pth="$(ls "$file" 2>/dev/null|head -1)" ;;
+                                    *) sys_pth="$(find /etc/ /usr/share -name "*${file}" -type f 2>/dev/null|head -1)" ;;
+                                esac
+                                if [ -n "$sys_pth" ]
+                                    then
+                                        local file="$(basename "$sys_pth")"
+                                        if [[ ! -e "$file" && -e "$sys_pth" ]]
+                                            then cp -f "$sys_pth" "$file"
+                                        fi
+                                fi
+                        done
+                    )
+                    NVTRASH_LIBS=('libnvidia-container*')
+                    NVCONFS=('nvidia-dbus.conf' '-nvidia-drm-outputclass.conf' 'nvidia.icd' '-nvidia.conf')
+                    NVJSONS=(
+                        '_nvidia.json' '_nvidia_wayland.json' '_nvidia_gbm.json'
+                        'nvidia_icd.json' 'nvidia_layers.json' '_nvidia_xcb.json'
+                        '_nvidia_xlib.json' 'nvidia_icd_vksc.json'
+                    )
+                    PROFS=(
+                        "nvidia-application-profiles-${nvidia_version}-key-documentation"
+                        "nvidia-application-profiles-${nvidia_version}-rc"
+                        'nvoptix.bin'
+                    )
+                    NVWINELS=('_nvngx.dll'  'nvngx.dll')
+                    LICENSES=(
+                        '/usr/share/licenses/nvidia-utils/LICENSE'
+                        /usr/share/doc/nvidia-driver-*/LICENSE
+                    )
+                    NVLIBS="$(ldconfig -p|grep -E 'nvidia|nvoptix|libcuda|libnvcuvid'|sed 's|.*=> ||g'|sort -u)"
+                    for lib in "${NVTRASH_LIBS[@]}"
+                        do NVLIBS="$(grep -v "$lib"<<<"$NVLIBS")"
+                    done
+                    NVLIBS64=($(grep -E '/lib/|/x86_64-linux-gnu/'<<<"$NVLIBS"))
+                    for pth in lib x86_64-linux-gnu
+                        do
+                            libs=(
+                                "/usr/$pth/vdpau/libvdpau_nvidia.so"
+                                "/usr/$pth/xorg/modules/drivers/nvidia_drv.so"
+                                "/usr/$pth/nvidia/xorg/libglxserver_nvidia.so"
+                            )
+                            for lib in "${libs[@]}"
+                                do [ -e "$lib" ] && NVLIBS64+=("$lib")
+                            done
+                    done
+                    if [ ! -n "$NVLIBS64" ]
+                        then
+                            error_msg "Nvidia libraries are not found in your system!"
+                            if [ "$NVLIBS_DLFAILED" == 1 ]
+                                then return 1
+                                else
+                                    RIM_SYS_NVLIBS=0 get_nvidia_driver_image
+                                    return $?
+                            fi
+                    fi
+                    NVLIBS32=($(grep -E '/lib32/|/i386-linux-gnu/'<<<"$NVLIBS"))
+                    for pth in lib32 i386-linux-gnu
+                        do
+                            nvvdpau="/usr/$pth/vdpau/libvdpau_nvidia.so"
+                            [ -e "$nvvdpau" ] && NVLIBS32+=("$nvvdpau")
+                    done
+                    if [[ ! -n "$NVLIBS32" && "$RIM_NO_32BIT_NVLIBS_CHECK" != 1 ]]
+                        then
+                            error_msg "Nvidia 32-bit libraries are not found in your system!"
+                            info_msg "Use ${YELLOW}RIM_NO_32BIT_NVLIBS_CHECK=1 ${GREEN}if they are not required."
+                            if [ "$NVLIBS_DLFAILED" == 1 ]
+                                then return 1
+                                else
+                                    RIM_SYS_NVLIBS=0 get_nvidia_driver_image
+                                    return $?
+                            fi
+                    fi
                     info_msg "Creating a driver directory structure..."
-                    (cd "$NVIDIA_DRIVERS_DIR/$nvidia_version" && \
-                        rm -rf html kernel* libglvnd_install_checker 32/libglvnd_install_checker \
-                            supported-gpus systemd *.gz *.bz2 *.txt .manifest *.desktop *.png firmware *.h
-                        for temp in $(ls *.template 2>/dev/null) ; do mv "$temp" "${temp%.template}" ; done
-                        try_mkdir profiles && mv *application-profiles* profiles
-                        [ -f "nvoptix.bin" ] && mv nvoptix.bin profiles
-                        [ -n "$(ls *nvngx.dll 2>/dev/null)" ] && try_mkdir wine && mv *nvngx.dll wine
-                        try_mkdir json && mv *.json json
-                        try_mkdir conf && mv *.conf *.icd conf
-                        for lib in $trash_libs ; do rm -f $lib 32/$lib ; done
-                        try_mkdir bin && mv *.sh bin
-                        for binary in $binary_files ; do [ -f "$binary" ] && mv $binary bin ; done
-                        try_mkdir 64 && mv *.so* 64
-                        [ -d "tls" ] && mv tls/* 64 && rm -rf tls
-                        [ -d "32/tls" ] && mv 32/tls/* 32 && rm -rf 32/tls)
-                    info_msg "Creating a squashfs driver image..."
+                    (cd "$NVIDIA_DRIVERS_DIR" && \
+                    mkdir -p "$nvidia_version" && \
+                    cd "$nvidia_version"
+                    cp_nvfiles 32 "${NVLIBS32[@]}"
+                    cp_nvfiles 64 "${NVLIBS64[@]}"
+                    cp_nvfiles bin "${NVBINS[@]}"
+                    cp_nvfiles conf "${NVCONFS[@]}"
+                    cp_nvfiles json "${NVJSONS[@]}"
+                    if [[ ! -e 'profiles' && -d '/usr/share/nvidia' ]]
+                        then cp -rf '/usr/share/nvidia' 'profiles'
+                        else cp_nvfiles profiles "${NVJSONS[@]}"
+                    fi
+                    if [[ ! -e 'wine' && -d '/usr/lib/nvidia/wine' ]]
+                        then cp -rf '/usr/lib/nvidia/wine' 'wine'
+                        else cp_nvfiles wine "${NVWINELS[@]}"
+                    fi
+                    cp_nvfiles . "${LICENSES[@]}")
+                else
+                    info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
+                    nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
+                    driver_url_list=(
+                        "https://huggingface.co/runimage/nvidia-drivers/resolve/main/releases/$nvidia_driver_image"
+                        "https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image"
+                        "https://download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run"
+                        "https://download.nvidia.com/tesla/${nvidia_version}/$nvidia_driver_run"
+                        "https://developer.nvidia.com/downloads/vulkan-beta-${nvidia_version//.}-linux"
+                        "https://developer.nvidia.com/vulkan-beta-${nvidia_version//.}-linux"
+                        "https://developer.nvidia.com/linux-${nvidia_version//.}"
+                    )
+                    if try_dl "${driver_url_list[0]}" "$NVIDIA_DRIVERS_DIR"||\
+                        try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"
+                        then return 0
+                    elif try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"||\
+                        try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"||\
+                        try_dl "${driver_url_list[4]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
+                        try_dl "${driver_url_list[5]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
+                        try_dl "${driver_url_list[6]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"
+                        then
+                            trash_libs="libEGL.so* libGLdispatch.so* *.swidtag *.la \
+                                libGLESv!(*nvidia).so* libGL.so* libGLX.so* libOpenCL.so* libOpenGL.so*"
+                            chmod u+x "$NVIDIA_DRIVERS_DIR/$nvidia_driver_run"
+                            info_msg "Unpacking $nvidia_driver_run..."
+                            (cd "$NVIDIA_DRIVERS_DIR" && \
+                                "./$nvidia_driver_run" --target "$nvidia_version" -x &>/dev/null
+                                rm -f "$nvidia_driver_run")
+                            info_msg "Creating a driver directory structure..."
+                            (cd "$NVIDIA_DRIVERS_DIR/$nvidia_version" && \
+                                rm -rf html kernel* libglvnd_install_checker 32/libglvnd_install_checker \
+                                    supported-gpus systemd *.gz *.bz2 *.txt .manifest *.desktop *.png firmware *.h
+                                for temp in $(ls *.template 2>/dev/null) ; do mv "$temp" "${temp%.template}" ; done
+                                try_mkdir profiles && mv *application-profiles* profiles
+                                [ -f "nvoptix.bin" ] && mv nvoptix.bin profiles
+                                [ -n "$(ls *nvngx.dll 2>/dev/null)" ] && try_mkdir wine && mv *nvngx.dll wine
+                                try_mkdir json && mv *.json json
+                                try_mkdir conf && mv *.conf *.icd conf
+                                for lib in $trash_libs ; do rm -f $lib 32/$lib ; done
+                                try_mkdir bin && mv *.sh bin
+                                for binary in "${NVBINS[@]}" ; do [ -f "$binary" ] && mv $binary bin ; done
+                                try_mkdir 64 && mv *.so* 64
+                                [ -d "tls" ] && mv tls/* 64 && rm -rf tls
+                                [ -d "32/tls" ] && mv 32/tls/* 32 && rm -rf 32/tls)
+                        else
+                            error_msg "Failed to download nvidia driver!"
+                            RIM_SYS_NVLIBS=1 NVLIBS_DLFAILED=1 get_nvidia_driver_image
+                            return $?
+                    fi
+            fi
+            if [ -e "$NVIDIA_DRIVERS_DIR/$nvidia_version/64/libGLX_nvidia.so.$nvidia_version" ]
+                then
+                    info_msg "Creating a SquashFS driver image..."
                     info_msg "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image"
                     echo -en "$BLUE"
                     if "$MKSQFS" "$NVIDIA_DRIVERS_DIR/$nvidia_version" "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image" \
-                        -root-owned -no-xattrs -noappend -b 1M -comp zstd -Xcompression-level 19 -quiet
-                        then
-                            info_msg "Deleting the source directory of the driver..."
-                            rm -rf "$NVIDIA_DRIVERS_DIR/$nvidia_version"
-                            return 0
-                        else
-                            return 1
+                        -root-owned -no-xattrs -noappend -b 1M -comp zstd -Xcompression-level 1 -quiet
+                        then ret=0
+                        else error_msg "Failed to create Nvidia driver image!"
                     fi
                     echo -en "$RESETCOLOR"
                 else
-                    error_msg "Failed to download nvidia driver!"
-                    return 1
+                    error_msg "libGLX_nvidia.so.$nvidia_version not found in the source directory of the driver!"
+                    rmnvsrc=1
+            fi
+            if [ -d "$NVIDIA_DRIVERS_DIR/$nvidia_version" ] && [[ "$ret" == 0 || "$rmnvsrc" == 1 ]]
+                then
+                    info_msg "Deleting the source directory of the driver..."
+                    rm -rf "$NVIDIA_DRIVERS_DIR/$nvidia_version"
             fi
         else
             error_msg "You must specify the nvidia driver version!"
-            return 1
-    fi)
+    fi
+    return $ret)
 }
 
 mount_nvidia_driver_image() {
@@ -478,10 +598,13 @@ mount_nvidia_driver_image() {
 }
 
 check_nvidia_driver() {
-    unset NVIDIA_DRIVER_BIND
+    unset NVIDIA_DRIVER_BIND NVLIBS_DLFAILED
+    is_inside_ver_eq() { [ "$(cat "$RUNROOTFS/etc/ld.so.version" 2>/dev/null)" == "$RUNROOTFS_VERSION-$nvidia_version" ] ; }
     print_nv_drv_dir() { info_msg "Found nvidia driver directory: $(basename "$nvidia_driver_dir")" ; }
     update_ld_cache() {
-        if [ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
+        if [[ "$(cat "$RUNCACHEDIR/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]]||\
+           ([ -f "$RUNROOTFS/etc/ld.so.version" ] && ! is_inside_ver_eq)||\
+           ([ -w "$RUNROOTFS" ] && ! is_inside_ver_eq)
             then
                 info_msg "Updating the nvidia library cache..."
                 if (RIM_SANDBOX_NET=0 RIM_NO_NET=0 RIM_WAIT_RPIDS_EXIT=0 \
@@ -509,19 +632,6 @@ check_nvidia_driver() {
                     else
                         error_msg "Failed to update nvidia library cache!"
                         return 1
-                fi
-            else
-                if [ -w "$RUNROOTFS" ]
-                    then
-                        if [ "$(cat "$RUNROOTFS/etc/ld.so.version" 2>/dev/null)" != "$RUNROOTFS_VERSION-$nvidia_version" ]
-                            then
-                                cp -f "$RUNCACHEDIR/ld.so.cache" \
-                                    "$RUNROOTFS/etc/ld.so.cache" 2>/dev/null
-                                echo "$RUNROOTFS_VERSION-$nvidia_version" > \
-                                            "$RUNROOTFS/etc/ld.so.version"
-                        fi
-                    else
-                        BIND_LDSO_CACHE=1
                 fi
         fi
     }
@@ -558,11 +668,11 @@ check_nvidia_driver() {
                                     NVDRVMNT="$RUNPIDDIR/mnt/nv${nvidia_version}drv"
                                     [ "$nvidia_version_inside" != "000.00.00" ] && \
                                         warn_msg "Nvidia driver version mismatch detected, trying to fix it"
-                                    if [ ! -f "$NVIDIA_DRIVERS_DIR/$nvidia_version/64/nvidia_drv.so" ] && \
+                                    if [ ! -f "$NVIDIA_DRIVERS_DIR/$nvidia_version/64/libGLX_nvidia.so.$nvidia_version" ] && \
                                         [ ! -f "$RUNIMAGEDIR/$nvidia_driver_image" ] && \
                                         [ ! -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image" ] && \
-                                        [ ! -f "$NVDRVMNT/64/nvidia_drv.so" ] && \
-                                        [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/nvidia_drv.so" ] && \
+                                        [ ! -f "$NVDRVMNT/64/libGLX_nvidia.so.$nvidia_version" ] && \
+                                        [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/libGLX_nvidia.so.$nvidia_version" ] && \
                                         [ ! -f "$RUNDIR/nvidia-drivers/$nvidia_driver_image" ]
                                         then
                                             if RIM_NOTIFY=1 RIM_QUIET_MODE=0 get_nvidia_driver_image
@@ -572,11 +682,11 @@ check_nvidia_driver() {
                                                     nvidia_driver_dir="$NVIDIA_DRIVERS_DIR/$nvidia_version"
                                             fi
                                         else
-                                            if [ -f "$NVDRVMNT/64/nvidia_drv.so" ]
+                                            if [ -f "$NVDRVMNT/64/libGLX_nvidia.so.$nvidia_version" ]
                                                 then
                                                     nvidia_driver_dir="$NVDRVMNT"
                                                     print_nv_drv_dir
-                                            elif [ -f "$NVIDIA_DRIVERS_DIR/$nvidia_version/64/nvidia_drv.so" ]
+                                            elif [ -f "$NVIDIA_DRIVERS_DIR/$nvidia_version/64/libGLX_nvidia.so.$nvidia_version" ]
                                                 then
                                                     nvidia_driver_dir="$NVIDIA_DRIVERS_DIR/$nvidia_version"
                                                     print_nv_drv_dir
@@ -586,7 +696,7 @@ check_nvidia_driver() {
                                             elif [ -f "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image" ]
                                                 then
                                                     mount_nvidia_driver_image "$NVIDIA_DRIVERS_DIR/$nvidia_driver_image"
-                                            elif [ -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/nvidia_drv.so" ]
+                                            elif [ -f "$RUNDIR/nvidia-drivers/$nvidia_version/64/libGLX_nvidia.so.$nvidia_version" ]
                                                 then
                                                     nvidia_driver_dir="$RUNDIR/nvidia-drivers/$nvidia_version"
                                                     print_nv_drv_dir
@@ -599,7 +709,7 @@ check_nvidia_driver() {
                                     error_msg "No nvidia driver found in RunImage!"
                                     return 1
                             fi
-                            if [ -f "$nvidia_driver_dir/64/nvidia_drv.so" ]
+                            if [ -f "$nvidia_driver_dir/64/libGLX_nvidia.so.$nvidia_version" ]
                                 then
                                     nvidia_libs_list="libcuda.so libEGL_nvidia.so libGLESv1_CM_nvidia.so libnvidia-opencl.so \
                                         libGLESv2_nvidia.so libGLX_nvidia.so libnvcuvid.so libnvidia-allocator.so \
@@ -607,98 +717,99 @@ check_nvidia_driver() {
                                         libnvidia-glcore.so libnvidia-glsi.so libnvidia-glvkspirv.so libnvidia-ml.so \
                                         libnvidia-ngx.so libnvidia-opticalflow.so libnvidia-ptxjitcompiler.so libcudadebugger.so \
                                         libnvidia-rtcore.so libnvidia-tls.so libnvidia-vulkan-producer.so libnvoptix.so \
-                                        libnvidia-nvvm.so libnvidia-pkcs11.so libnvidia-pkcs11-openssl3.so libnvidia-wayland-client.so"
+                                        libnvidia-nvvm.so libnvidia-pkcs11.so libnvidia-pkcs11-openssl3.so libnvidia-wayland-client.so \
+                                        libnvidia-vksc-core.so libnvidia-gpucomp.so libnvidia-sandboxutils.so"
                                     for lib in ${nvidia_libs_list}
                                         do
                                             if [ -f "$RUNROOTFS/usr/lib/${lib}.${nvidia_version_inside}" ]
                                                 then
-                                                    NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                        "$nvidia_driver_dir/64/${lib}.${nvidia_version}" \
+                                                    NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                        "$nvidia_driver_dir/64/${lib}.${nvidia_version}"
                                                         "/usr/lib/${lib}.${nvidia_version_inside}")
                                             fi
                                             if [ -f "$RUNROOTFS/usr/lib32/${lib}.${nvidia_version_inside}" ]
                                                 then
-                                                    NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                        "$nvidia_driver_dir/32/${lib}.${nvidia_version}" \
+                                                    NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                        "$nvidia_driver_dir/32/${lib}.${nvidia_version}"
                                                         "/usr/lib32/${lib}.${nvidia_version_inside}")
                                             fi
                                     done
                                     if [ -f "$RUNROOTFS/usr/lib/libnvidia-api.so.1" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/64/libnvidia-api.so.1" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/64/libnvidia-api.so.1"
                                                 "/usr/lib/libnvidia-api.so.1")
-                                    fi
-                                    if [ -f "$RUNROOTFS/usr/lib/libnvidia-egl-gbm.so.1.1.0" ]
-                                        then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/64/libnvidia-egl-gbm.so.1.1.0" \
-                                                "/usr/lib/libnvidia-egl-gbm.so.1.1.0")
                                     fi
                                     if [ -f "$RUNROOTFS/usr/lib/xorg/modules/drivers/nvidia_drv.so" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/64/nvidia_drv.so" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/64/nvidia_drv.so"
                                                 "/usr/lib/xorg/modules/drivers/nvidia_drv.so")
                                     fi
                                     if [ -f "$RUNROOTFS/usr/lib/nvidia/xorg/libglxserver_nvidia.so.${nvidia_version_inside}" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/64/libglxserver_nvidia.so.${nvidia_version}" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/64/libglxserver_nvidia.so.${nvidia_version}"
                                                 "/usr/lib/nvidia/xorg/libglxserver_nvidia.so.${nvidia_version_inside}")
                                     fi
                                     if [ -f "$RUNROOTFS/usr/lib/vdpau/libvdpau_nvidia.so.${nvidia_version_inside}" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/64/libvdpau_nvidia.so.${nvidia_version}" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/64/libvdpau_nvidia.so.${nvidia_version}"
                                                 "/usr/lib/vdpau/libvdpau_nvidia.so.${nvidia_version_inside}")
                                     fi
                                     if [ -f "$RUNROOTFS/usr/lib32/vdpau/libvdpau_nvidia.so.${nvidia_version_inside}" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/32/libvdpau_nvidia.so.${nvidia_version}" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/32/libvdpau_nvidia.so.${nvidia_version}"
                                                 "/usr/lib32/vdpau/libvdpau_nvidia.so.${nvidia_version_inside}")
                                     fi
                                     if [ -f "$RUNROOTFS/usr/share/egl/egl_external_platform.d/15_nvidia_gbm.json" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/json/15_nvidia_gbm.json" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/json/15_nvidia_gbm.json"
                                                 "/usr/share/egl/egl_external_platform.d/15_nvidia_gbm.json")
                                     fi
                                     if [ -f "$RUNROOTFS/usr/share/glvnd/egl_vendor.d/10_nvidia.json" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/json/10_nvidia.json" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/json/10_nvidia.json"
                                                 "/usr/share/glvnd/egl_vendor.d/10_nvidia.json")
                                     fi
                                     if [ -f "$RUNROOTFS/usr/share/vulkan/icd.d/nvidia_icd.json" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/json/nvidia_icd.json" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/json/nvidia_icd.json"
                                                 "/usr/share/vulkan/icd.d/nvidia_icd.json")
                                     fi
                                     if [ -f "$RUNROOTFS/usr/share/vulkan/implicit_layer.d/nvidia_layers.json" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/json/nvidia_layers.json" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/json/nvidia_layers.json"
                                                 "/usr/share/vulkan/implicit_layer.d/nvidia_layers.json")
+                                    fi
+                                    if [ -f "$RUNROOTFS/usr/share/vulkansc/icd.d/nvidia_icd_vksc.json" ]
+                                        then
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/json/nvidia_icd_vksc.json"
+                                                "/usr/share/vulkansc/icd.d/nvidia_icd_vksc.json")
                                     fi
                                     if [ -f "$RUNROOTFS/etc/OpenCL/vendors/nvidia.icd" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/conf/nvidia.icd" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/conf/nvidia.icd"
                                                 "/etc/OpenCL/vendors/nvidia.icd")
                                     fi
                                     if [ -d "$RUNROOTFS/usr/share/nvidia" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/profiles" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/profiles"
                                                 "/usr/share/nvidia")
                                     fi
                                     if [ -d "$RUNROOTFS/usr/lib/nvidia/wine" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" \
-                                                "$nvidia_driver_dir/wine" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try"
+                                                "$nvidia_driver_dir/wine"
                                                 "/usr/lib/nvidia/wine")
                                     fi
                                     if [ -w "$RUNROOTFS" ]
@@ -723,8 +834,8 @@ check_nvidia_driver() {
                                         [ -d "$RUNROOTFS/usr/lib/nvidia/64" ] && \
                                         [ -d "$RUNROOTFS/usr/lib/nvidia/32" ]
                                         then
-                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" "$nvidia_driver_dir/bin" "/usr/bin/nvidia" \
-                                                "--ro-bind-try" "$nvidia_driver_dir/64" "/usr/lib/nvidia/64" \
+                                            NVIDIA_DRIVER_BIND+=("--ro-bind-try" "$nvidia_driver_dir/bin" "/usr/bin/nvidia"
+                                                "--ro-bind-try" "$nvidia_driver_dir/64" "/usr/lib/nvidia/64"
                                                 "--ro-bind-try" "$nvidia_driver_dir/32" "/usr/lib/nvidia/32")
                                             add_bin_pth '/usr/bin/nvidia'
                                             add_lib_pth '/usr/lib/nvidia/64:/usr/lib/nvidia/32'
@@ -967,7 +1078,7 @@ force_kill() {
         rm -rf "$runtmpdir" 2>/dev/null
     fi
     [ "$ret" != 1 ] && info_msg "RunImage successfully killed!"
-    return "$ret"
+    return $ret
 }
 
 try_kill() {
@@ -1091,7 +1202,7 @@ wait_exist() {
                     if [ -e "$1" ]
                         then return 0
                         else
-                            wait_time="$(( $wait_time - 1 ))"
+                            (( wait_time-- ))
                             sleep 0.01 2>/dev/null
                     fi
             done
@@ -1118,23 +1229,28 @@ enable_portfw() {
     if [[ -n "$RIM_SNET_PORTFW" && "$RIM_SNET_PORTFW" != 0 ]]
         then
             info_msg "Enable port forwarding..."
-            "$SSRV_ELF" /var/RunDir/static/chisel server -usock "$RUNPORTFW" -socks5 -reverse &>/dev/null &
+            "$SSRV_ELF" /var/RunDir/static/chisel server -usock "$RUNPORTFW" -socks5 -reverse 1>/dev/null &
             CHISEL_PID="$!"
+            wait_exist "$RUNPORTFW"
             if ! is_pid "$CHISEL_PID"
                 then
                     error_msg "Failed to start port forwarding server!"
                     cleanup force
                     exit 1
             fi
+            CHISEL_PIDS="$CHISEL_PID"
             if [ "$RIM_SNET_PORTFW" != 1 ]
                 then
-                    "$CHISEL" client "unix:$RUNPORTFW" $RIM_SNET_PORTFW &>/dev/null &
+                    "$CHISEL" client "unix:$RUNPORTFW" $RIM_SNET_PORTFW 1>/dev/null &
+                    CHISEL_PID="$!"
+                    sleep 0.01
                     if ! is_pid "$!"
                         then
                             error_msg "Failed to start port forwarding: $RIM_SNET_PORTFW"
                             cleanup force
                             exit 1
                     fi
+                    CHISEL_PIDS+=" $CHISEL_PID"
             fi
     fi
 }
@@ -1178,6 +1294,7 @@ create_sandbox_net() {
 }
 
 bwrun() {
+    unset EXEC_STATUS
     if [ "$RIM_NO_NVIDIA_CHECK" == 1 ]
         then warn_msg "Nvidia driver check is disabled!"
     elif [[ "$RIM_NO_NVIDIA_CHECK" != 1 && ! -n "$NVIDIA_DRIVER_BIND" ]]
@@ -1199,7 +1316,7 @@ bwrun() {
                 then
                     BWRAP_EXEC+=(
                         --overlay-src "$BOVERLAY_SRC"
-                        --overlay "${OVERFS_DIR}/bwrap/rootfs"
+                        --overlay "${OVERFS_DIR}/layers/rootfs"
                         "${OVERFS_DIR}/workdir"
                     )
                 else
@@ -1281,7 +1398,7 @@ bwrun() {
                         "$@"
                         while is_pid "$RUNPID" && is_pid "$SSRV_PID"
                             do sleep 0.5
-                        done; try_kill "$SLIRP_PID $CHISEL_PID"
+                        done; try_kill "$SLIRP_PID $CHISEL_PIDS"
                     }
                     bwin() {
                         unfbwin() { unset -f bwin wait_exist is_pid is_snet ; unset "${!RIM_@}" ; }
@@ -1289,17 +1406,14 @@ bwrun() {
                         eval "$A_EXEC_ARGS" && unset A_EXEC_ARGS
                         [[ "$A_BWRUNARGS" =~ ^declare ]] && \
                         eval "$A_BWRUNARGS" && unset A_BWRUNARGS
-                        (unfbwin ; exec setsid /var/RunDir/static/ssrv -srv -env all &>/dev/null) &
+                        (unfbwin ; exec setsid /var/RunDir/static/ssrv -srv -env all 1>/dev/null) &
                         wait_exist "$SSRV_PID_FILE"
                         is_snet && sleep 0.1
                         if [[ "$RUNTTY" =~ 'tty' && "$RIM_TTY_ALLOC_PTY" == 1 ]]
                             then unfbwin ; /var/RunDir/static/ssrv "${EXEC_ARGS[@]}" "${BWRUNARGS[@]}"
                             else unfbwin ; unset "${!SSRV_@}" ; "${EXEC_ARGS[@]}" "${BWRUNARGS[@]}"
                         fi
-                        EXEC_STATUS="$?"
-                        [ -e "$SSRV_SOCK_PATH" ] && \
-                            rm -f "$SSRV_SOCK_PATH" 2>/dev/null
-                        return $EXEC_STATUS
+                        return $?
                     }
                     BWRUNARGS=("$@")
                     [ -n "$RIM_NO_NET" ] && export RIM_NO_NET
@@ -1314,11 +1428,10 @@ bwrun() {
                         then (configure_net enable_portfw) &
                     fi
                     "${BWRAP_EXEC[@]}" sh -c bwin 8>"$BWINFFL"
-                    [ -f "$BWINFFL" ] && rm -f "$BWINFFL" 2>/dev/null
-                    return $?
+                    EXEC_STATUS="$?"
                 else
                     SSRV_UENV="$(tr ' ' ','<<<"${!RIM_@}")" \
-                    "${BWRAP_EXEC[@]}" /var/RunDir/static/ssrv -srv -env all 8>"$BWINFFL" &>/dev/null &
+                    "${BWRAP_EXEC[@]}" /var/RunDir/static/ssrv -srv -env all 8>"$BWINFFL" 1>/dev/null &
                     wait_exist "$SSRV_PID_FILE"
                     export_ssrv_pid
                     if is_snet
@@ -1328,7 +1441,9 @@ bwrun() {
                     fi
             fi
     fi
-    "$SSRV_ELF" "${RIM_EXEC_ARGS[@]}" "$@"
+    if [ ! -n "$EXEC_STATUS" ]
+        then "$SSRV_ELF" "${RIM_EXEC_ARGS[@]}" "$@"
+    fi
     EXEC_STATUS="$?"
     if [ "$RIM_WAIT_RPIDS_EXIT" != 1 ]
         then
@@ -1425,7 +1540,7 @@ overlayfs_rm() {
         else
             error_msg "OverlayFS not found!"
     fi
-    return "$ret"
+    return $ret
 }
 
 get_dbus_session_bus_address() {
@@ -1504,22 +1619,29 @@ run_update() {
 }
 
 add_unshared_user() {
+    [ -f "$1" ] && \
     if grep -qo ".*:x:$EUID:" "$1" &>/dev/null
         then sed -i "s|.*:x:$EUID:.*|$RUNUSER:x:$EUID:0:[^_^]:$HOME:/bin/sh|g" "$1"
-        else echo "$RUNUSER:x:$EUID:0:[^_^]:$HOME:/bin/sh" >> "$1"
+        else [ -w "$1" ] && echo "$RUNUSER:x:$EUID:0:[^_^]:$HOME:/bin/sh" >> "$1"
     fi
 }
 
 add_unshared_group() {
+    [ -f "$1" ] && \
     if grep -o ".*:x:$EGID:" "$1" &>/dev/null
         then sed -i "s|.*:x:$EGID:.*|$RUNGROUP:x:$EGID:|g" "$1"
-        else echo "$RUNGROUP:x:$EGID:" >> "$1"
+        else [ -w "$1" ] && echo "$RUNGROUP:x:$EGID:" >> "$1"
     fi
 }
 
 try_rebuild_runimage() {
     if [ -n "$1" ]||[[ -n "$RUNIMAGE" && "$RIM_REBUILD_RUNIMAGE" == 1 ]]
-        then (cd "$RUNIMAGEDIR" && run_build "$@")
+        then
+            cd "$RUNIMAGEDIR"
+            run_build "$@"
+            local ret="$?"
+            cd "$OLDPWD"
+            return $ret
     fi
 }
 
@@ -1532,10 +1654,10 @@ passwd_cryptfs() {
     if is_cryptfs
         then
             info_msg "Changing GoCryptFS rootfs password..."
-            if gocryptfs --passwd "$CRYPTFS_DIR"
+            if "$GOCRYPTFS" --passwd "$CRYPTFS_DIR"
                 then
                     try_rebuild_runimage "$@"
-                    exit
+                    exit $?
                 else
                     error_msg "Failed to change GoCryptFS rootfs password!"
                     exit 1
@@ -1568,9 +1690,9 @@ encrypt_rootfs() {
                             if bwrun sh -c upd_sharun
                                 then
                                     info_msg "Encrypting RunImage rootfs..."
-                                    if chmod u+rw -R "$RUNROOTFS" && mv -f "$RUNROOTFS"/{.,}* "$CRYPTFS_MNT"/
+                                    if chmod u+rw -R "$RUNROOTFS" && cp -rf "$RUNROOTFS"/{.,}* "$CRYPTFS_MNT"/
                                         then
-                                            rm -rf "$RUNROOTFS"
+                                            rm -rf "$RUNROOTFS"/{.,}*
                                             export RUNROOTFS="$CRYPTFS_MNT"
                                             export RIM_ZSDT_CMPRS_LVL=1
                                             try_rebuild_runimage "$@"
@@ -1605,7 +1727,7 @@ decrypt_rootfs() {
             info_msg "Decrypting RunImage rootfs..."
             export RUNROOTFS="$BRUNDIR/rootfs"
             try_mkdir "$RUNROOTFS"
-            if mv -f "$CRYPTFS_MNT"/{.,}* "$RUNROOTFS"/
+            if cp -rf "$CRYPTFS_MNT"/{.,}* "$RUNROOTFS"/
                 then
                     rm -rf "$BRUNDIR/sharun/shared"/*
                     if (for dir in bin lib
@@ -1614,7 +1736,6 @@ decrypt_rootfs() {
                         then
                             rm -rf "$CRYPTFS_DIR"
                             unset RIM_ZSDT_CMPRS_LVL
-                            touch "$RUNROOTFS/.decfs"
                             try_rebuild_runimage "$@"
                             try_unmount "$CRYPTFS_MNT"
                             info_msg "Decryption is complete!"
@@ -1633,12 +1754,39 @@ decrypt_rootfs() {
     fi
 }
 
+rim_start() {
+    if [ -n "$RIM_AUTORUN" ]
+        then
+            [ "$ARG1" != "$(basename "$RUNSRC")" ] && [[ "$ARG1" == "$AUTORUN0ARG" ||\
+              "$ARG1" == "$(basename "${RIM_CONFIG%.rcfg}")" ||\
+              "$ARG1" == "$(basename "${RUNIMAGE_INTERNAL_CONFIG%.rcfg}")" ]] && \
+                ARGS=("${ARGS[@]:1}")
+            if [ "${#RIM_AUTORUN[@]}" == 1 ]
+                then "$@" $RIM_AUTORUN "${ARGS[@]}"
+                else "$@" "${RIM_AUTORUN[@]}" "${ARGS[@]}"
+            fi
+        else
+            if [[ ! -n "$ARG1" && ! -n "$RIM_EXEC_ARGS" ]]
+                then "$@" "${RIM_SHELL[@]}"
+                else "$@" "${ARGS[@]}"
+            fi
+    fi
+}
+
 is_rio_running() {
     [[ -n "$SSRV_RUNPID" && -e "$SSRV_SOCK_PATH" ]] && \
         is_pid "$SSRV_RUNPID"
 }
 
-run_build() { "$RUNSTATIC/bash" "$RUNUTILS/rim-build" "$@" ; }
+run_build() {
+    if [ -d "$RIM_ROOTFS" ]
+        then bwrun rim-build "$@"
+        else "$RUNSTATIC/bash" "$RUNUTILS/rim-build" "$@"
+    fi
+    if [ "$?" != 0 ]
+        then [[ -d "$OVERFS_DIR" && "$RIM_KEEP_OVERFS" == 0 ]] && RIM_KEEP_OVERFS=1
+    fi
+}
 
 check_unshare_tmp() {
     if [ "$RIM_UNSHARE_TMP" == 1 ]
@@ -2041,7 +2189,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
 
 trap cleanup EXIT
 
-if [[ "$EUID" == 0 && "$RIM_ALLOW_ROOT" != 1 ]]
+if [[ "$EUID" == 0 && "$RIM_ALLOW_ROOT" != 1 && "$INSIDE_RUNIMAGE" != 1 ]]
     then
         error_msg "root user is not allowed!"
         console_info_notify
@@ -2084,6 +2232,7 @@ fi
 ARG1="${ARGS[0]}"
 if [[ -n "${ARGS[0]}" && "${ARGS[0]}" == 'rim-'* ]]
     then
+        unset RIM_AUTORUN
         case "${ARGS[0]}" in
             rim-shrink|rim-dinteg);;
             *) ARGS=("${ARGS[@]:1}") ;;
@@ -2100,7 +2249,7 @@ case "$ARG1" in
                     RIM_DESKTOP_INTEGRATION=0 ;;
     rim-kill   |\
     rim-help   |\
-    rim-ofsls   ) set_default_option ; NO_CRYPTFS_MOUNT=1 ; RIM_CONFIG=0
+    rim-ofsls   ) set_default_option ; RIM_NO_CRYPTFS_MOUNT=1 ; RIM_CONFIG=0
                   RIM_NO_RPIDSMON=1 ; RIM_DESKTOP_INTEGRATION=0 ;;
 esac
 
@@ -2156,8 +2305,26 @@ if [ "$RIM_CONFIG" != 0 ]
         fi
 fi
 
-export RUNCACHEDIR="${RIM_CACHEDIR:=$RUNIMAGEDIR/cache}"
-export RUNOVERFSDIR="${RIM_OVERFSDIR:=$RUNIMAGEDIR/overlayfs}"
+if [ "$RIM_ROOTFS" != 0 ]
+    then
+        [[ ! -d "$RIM_ROOTFS" && -d "$RUNIMAGEDIR/rootfs" ]] && \
+            export RIM_ROOTFS="$RUNIMAGEDIR/rootfs"
+        if [ -d "$RIM_ROOTFS" ]
+            then
+                info_msg "Found custom rootfs: '$RIM_ROOTFS'"
+                export RUNROOTFS="$RIM_ROOTFS"
+        fi
+fi
+
+[ -d "$RIM_CACHEDIR" ] && \
+RUNCACHEDIR="$RIM_CACHEDIR"||\
+RUNCACHEDIR="$RUNIMAGEDIR/cache"
+export RUNCACHEDIR
+
+[ -d "$RIM_OVERFSDIR" ] && \
+RUNOVERFSDIR="$RIM_OVERFSDIR"||\
+RUNOVERFSDIR="$RUNIMAGEDIR/overlayfs"
+export RUNOVERFSDIR
 
 RUNUSER="$(logname 2>/dev/null)"
 RUNUSER="${RUNUSER:=$SUDO_USER}"
@@ -2175,7 +2342,12 @@ if [[ "$RIM_AUTORUN" == 'rim-'* ]]
                ARGS=("${RIM_AUTORUN[@]:1}" "${ARGS[@]}")
                unset RIM_AUTORUN ;;
         esac
+elif [[ "$ARG1" == 'rim-'* ]]
+    then unset RIM_AUTORUN
 fi
+
+[ -n "$RIM_AUTORUN" ] && \
+AUTORUN0ARG=($RIM_AUTORUN)
 
 unset SSRV_RUNPID SSRV_SOCK_PATH
 if [ "$RIM_RUN_IN_ONE" == 1 ]
@@ -2186,10 +2358,7 @@ if [ "$RIM_RUN_IN_ONE" == 1 ]
         if [ -n "$SSRV_RUNPID" ]
             then
                 if is_pid "$SSRV_RUNPID"
-                    then
-                        RUNPORTFW="${RUNTMPDIR}/${SSRV_RUNPID}/portfw"
-                        SSRV_SOCK_PATH="${RUNTMPDIR}/${SSRV_RUNPID}/${RUNIMAGEDIR_SUM}.sock"
-                        ret=0
+                    then SSRV_SOCK_PATH="${RUNTMPDIR}/${SSRV_RUNPID}/${RUNIMAGEDIR_SUM}.sock"
                     else rm -f "${RUNTMPDIR}/${SSRV_RUNPID}.${RUNIMAGEDIR_SUM}.sock"
                 fi
         fi
@@ -2209,10 +2378,11 @@ if is_rio_running
             rim-desktop|\
             rim-update |\
             rim-build  ) RIO_ARGS+=("$ARG1") ;;
+            rim-shell) [ -n "$RIM_SHELL" ]||RIM_SHELL=sh ; RIO_ARGS+=("${RIM_SHELL[@]}") ;; # FIXME
             rim-*) error_msg "Option is not supported for a running RunImage container: $ARG1"
                    exit 1 ;;
         esac
-        "${RIO_ARGS[@]}" "${ARGS[@]}"
+        rim_start "${RIO_ARGS[@]}"
     else
         case "$ARG1" in
             rim-pkgls  |\
@@ -2220,11 +2390,12 @@ if is_rio_running
                             RIM_NO_RPIDSMON=1 ; RIM_DESKTOP_INTEGRATION=0 ;;
             rim-decfs     ) set_overfs_option crypt ;;
             rim-encfs  |\
-            rim-enc-passwd) NO_CRYPTFS_MOUNT=1
+            rim-enc-passwd) RIM_NO_CRYPTFS_MOUNT=1
                             set_overfs_option crypt ;;
             rim-version|\
-            rim-build     ) set_default_option ; RIM_DESKTOP_INTEGRATION=0 ;;
-            rim-ofsrm     ) NO_CRYPTFS_MOUNT=1
+            rim-build     ) set_default_option ; RIM_DESKTOP_INTEGRATION=0
+                            [ -d "$RIM_ROOTFS" ] && RIM_UNSHARE_HOME=0 ;;
+            rim-ofsrm     ) RIM_NO_CRYPTFS_MOUNT=1
                             set_default_option ; RIM_DESKTOP_INTEGRATION=0 ;;
             rim-exec      ) run_attach exec "${ARGS[@]}"; exit $? ;;
             rim-portfw    ) run_attach portfw "${ARGS[@]}"; exit $? ;;
@@ -2591,7 +2762,7 @@ if [[ "$SUID_BWRAP" == 1 || "$RIM_NO_CAP" == 1 ]]
         warn_msg "Bubblewrap capabilities is disabled!"
         BWRAP_CAP=("--cap-drop" "ALL")
     else
-        BWRAP_CAP=("--cap-add" "ALL" "${BWRAP_CAP[@]}")
+        BWRAP_CAP=("--cap-add" "ALL")
         BWRAP_CAP+=("--cap-drop" "CAP_SYS_NICE") # Gamecope bug https://github.com/Plagman/gamescope/issues/309
 fi
 
@@ -2626,40 +2797,66 @@ if [ "$RIM_OVERFS_MODE" != 0 ] && [[ "$RIM_OVERFS_MODE" == 1 || "$RIM_KEEP_OVERF
         fi
         export OVERFS_DIR="$RUNOVERFSDIR/$RIM_OVERFS_ID"
         try_mkdir "$OVERFS_DIR"
-        UNIONFS_ARGS=(
-            -f -o max_files=$(ulimit -n -H),nodev,hide_meta_files,cow,noatime,nodev
-            -o uid=$EUID,gid=${EGID}$([ "$EUID" != 0 ] && echo ,relaxed_permissions)
-        )
-        mkdir -p "$OVERFS_DIR"/{layers,mnt}
-        [ -e "$OVERFS_DIR/layers/rootfs/.decfs" ] && \
-            export RIM_NO_BWRAP_OVERLAY=1
-        if ! is_cryptfs && [ "$RIM_NO_BWRAP_OVERLAY" != 1 ]
+        if [ -d "$RIM_ROOTFS" ]
             then
-                try_mkdir "$OVERFS_DIR/workdir"
-                try_mkdir "$OVERFS_DIR/bwrap/rootfs"
-                UNIONFS_ARGS+=(-o dirs="$OVERFS_DIR/layers"=RW:"$OVERFS_DIR/bwrap"=RW:"$RUNDIR"=RO)
-                BOVERLAY_SRC="$RUNROOTFS"
+                warn_msg "UnionFS and CryptFS mode are not supported for custom RunImage rootfs!"
+                RIM_OVERFS_MODE=0
+                RIM_NO_CRYPTFS_MOUNT=1
+                if [ "$RIM_NO_BWRAP_OVERLAY" != 1 ]
+                    then
+                        try_mkdir "$OVERFS_DIR/workdir"
+                        try_mkdir "$OVERFS_DIR/layers/rootfs"
+                        BOVERLAY_SRC="$RUNROOTFS"
+                    else
+                        warn_msg "Bubblewrap OverlayFS is disabled!"
+                fi
             else
-                warn_msg "Bubblewrap OverlayFS is disabled!"
-                UNIONFS_ARGS+=(-o dirs="$OVERFS_DIR/layers"=RW:"$RUNDIR"=RO)
+                mkdir -p "$OVERFS_DIR"/{layers,mnt}
+                UNIONFS_ARGS=(
+                    -f -o max_files=$(ulimit -n -H),nodev,hide_meta_files,cow,noatime,nodev
+                    -o uid=$EUID,gid=${EGID}$([ "$EUID" != 0 ] && echo ,relaxed_permissions)
+                    -o dirs="$OVERFS_DIR/layers"=RW:"$RUNDIR"=RO
+                )
+                if ! is_cryptfs && [ "$RIM_NO_BWRAP_OVERLAY" != 1 ]
+                    then
+                        try_mkdir "$OVERFS_DIR/workdir"
+                        try_mkdir "$OVERFS_DIR/layers/rootfs"
+                        BOVERLAY_SRC="$RUNROOTFS"
+                    else
+                        warn_msg "Bubblewrap OverlayFS is disabled!"
+                fi
+                [ ! -L "$OVERFS_DIR/RunDir" ] && \
+                ln -sfr "$OVERFS_DIR/mnt" "$OVERFS_DIR/RunDir"
+                export OVERFS_MNT="$OVERFS_DIR/mnt"
+                BRUNDIR="$OVERFS_MNT"
+                "$UNIONFS" "${UNIONFS_ARGS[@]}" "$OVERFS_MNT" &>/dev/null &
+                UNIONFS_PID="$!"
+                FUSE_PIDS="$UNIONFS_PID $FUSE_PIDS"
+                if ! mount_exist "$UNIONFS_PID" "$OVERFS_MNT"
+                    then
+                        error_msg "Failed to mount RunImage in UnionFS overlay mode!"
+                        cleanup force
+                        exit 1
+                fi
+                export RUNROOTFS="$OVERFS_MNT/rootfs"
+                CRYPTFS_MNT="$OVERFS_DIR/rootfs"
+                CRYPTFS_DIR="$OVERFS_MNT/cryptfs"
+                export_rootfs_info
         fi
-        [ ! -L "$OVERFS_DIR/RunDir" ] && \
-        ln -sfr "$OVERFS_DIR/mnt" "$OVERFS_DIR/RunDir"
-        export OVERFS_MNT="$OVERFS_DIR/mnt"
-        BRUNDIR="$OVERFS_MNT"
-        "$UNIONFS" "${UNIONFS_ARGS[@]}" "$OVERFS_MNT" &>/dev/null &
-        UNIONFS_PID="$!"
-        FUSE_PIDS="$UNIONFS_PID $FUSE_PIDS"
-        if ! mount_exist "$UNIONFS_PID" "$OVERFS_MNT"
-            then
-                error_msg "Failed to mount RunImage in OverlayFS mode!"
-                cleanup force
-                exit 1
-        fi
-        export RUNROOTFS="$OVERFS_MNT/rootfs"
-        CRYPTFS_MNT="$OVERFS_DIR/rootfs"
-        CRYPTFS_DIR="$OVERFS_MNT/cryptfs"
 fi
+
+[[ -d "$BRUNDIR" && "$OVERFS_MNT" == "$BRUNDIR" ]]||\
+    BRUNDIR="$RUNDIR"
+RUNDIR_BIND=(
+    "--bind-try" "$BRUNDIR" "/var/RunDir"
+    "--setenv" "RUNDIR" "/var/RunDir"
+    "--setenv" "RUNUTILS" "/var/RunDir/utils"
+    "--setenv" "RUNSTATIC" "/var/RunDir/static"
+    "--setenv" "RUNROOTFS" "/var/RunDir/rootfs"
+    "--setenv" "RUNRUNTIME" "/var/RunDir/static/uruntime"
+)
+
+[ -d "$RIM_ROOTFS" ] && RUNDIR_BIND+=("--bind-try" "$RUNROOTFS" "/var/RunDir/rootfs")
 
 CRYPTFS_ARGS=("$GOCRYPTFS" "$CRYPTFS_DIR" "$CRYPTFS_MNT" '--nosyslog')
 if [ ! -n "$CRYPTFS_PASSFILE" ]
@@ -2678,7 +2875,7 @@ if [ -f "$CRYPTFS_PASSFILE" ]
 fi
 
 unset KEEP_CRYPTFS
-if is_cryptfs && [ "$NO_CRYPTFS_MOUNT" != 1 ]
+if is_cryptfs && [ "$RIM_NO_CRYPTFS_MOUNT" != 1 ]
     then
         export RIM_ZSDT_CMPRS_LVL=1
         try_mkdir "$CRYPTFS_MNT"
@@ -2717,21 +2914,11 @@ if is_cryptfs && [ "$NO_CRYPTFS_MOUNT" != 1 ]
         [ -d "$OVERFS_DIR" ] && \
         export RIM_NO_BWRAP_OVERLAY=1
         export RUNROOTFS="$CRYPTFS_MNT"
+        RUNDIR_BIND+=("--bind-try" "$RUNROOTFS" "/var/RunDir/rootfs")
         export CRYPTFS_DIR
         export CRYPTFS_MNT
         export_rootfs_info
 fi
-
-[[ -d "$BRUNDIR" && "$OVERFS_MNT" == "$BRUNDIR" ]]||\
-    BRUNDIR="$RUNDIR"
-RUNDIR_BIND=(
-    "--bind-try" "$BRUNDIR" "/var/RunDir"
-    "--setenv" "RUNDIR" "/var/RunDir"
-    "--setenv" "RUNUTILS" "/var/RunDir/utils"
-    "--setenv" "RUNSTATIC" "/var/RunDir/static"
-    "--setenv" "RUNROOTFS" "/var/RunDir/rootfs"
-    "--setenv" "RUNRUNTIME" "/var/RunDir/static/uruntime"
-)
 
 TMP_BIND=()
 if [[ -d "/tmp/.X11-unix" && "$RIM_UNSHARE_TMP" != 1 ]]
@@ -2789,7 +2976,8 @@ if [ -n "$RIM_AUTORUN" ]
     then
         AUTORUN0ARG=($RIM_AUTORUN)
         info_msg "Autorun mode: ${RIM_AUTORUN[@]}"
-        if RIM_WAIT_RPIDS_EXIT=0 RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 bwrun \
+        if RIM_NO_NVIDIA_CHECK=1 RIM_WAIT_RPIDS_EXIT=0 \
+            RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 bwrun \
             which "$AUTORUN0ARG" &>/dev/null
             then
                 export RUNSRCNAME="$AUTORUN0ARG"
@@ -2888,7 +3076,7 @@ elif [[ "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
                     )
             else
                 if [[ "$EUID" != 0 && ! -d "$RUNROOTFS/$UNSHARED_HOME" && \
-                    ! -L "$RUNROOTFS/$UNSHARED_HOME" && "$NO_CRYPTFS_MOUNT" != 1 ]]
+                    ! -L "$RUNROOTFS/$UNSHARED_HOME" && "$RIM_NO_CRYPTFS_MOUNT" != 1 ]]
                     then
                         warn_msg "The user HOME directory not found in the container!"
                         if [ -d "$RUNROOTFS/home/runimage" ]
@@ -3282,7 +3470,7 @@ if [ "$RIM_UNSHARE_USERS" == 1 ]
     then
         warn_msg "Users are unshared!"
         USERS_BIND+=("--unshare-user-try")
-        if ! grep -wo "^$RUNUSER:x:$EUID:0" "$RUNROOTFS/etc/passwd" &>/dev/null || \
+        if ! grep -wo "^$RUNUSER:x:$EUID:0" "$RUNROOTFS/etc/passwd" &>/dev/null||\
            ! grep -wo "^$RUNGROUP:x:$EGID:" "$RUNROOTFS/etc/group" &>/dev/null
             then
                 if [ -w "$RUNROOTFS" ]
@@ -3448,24 +3636,7 @@ case "$ARG1" in
     rim-shell     ) bwrun "${RIM_SHELL[@]}" "${ARGS[@]}" ;;
     rim-psmon     ) bwrun rim-psmon "${ARGS[@]}" ;;
     rim-build     ) run_build "${ARGS[@]}" ;;
-    *)
-        if [ -n "$RIM_AUTORUN" ]
-            then
-                [ "$ARG1" != "$(basename "$RUNSRC")" ] && [[ "$ARG1" == "$AUTORUN0ARG" ||\
-                  "$ARG1" == "$(basename "${RIM_CONFIG%.rcfg}")" ||\
-                  "$ARG1" == "$(basename "${RUNIMAGE_INTERNAL_CONFIG%.rcfg}")" ]] && \
-                    ARGS=("${ARGS[@]:1}")
-                if [ "${#RIM_AUTORUN[@]}" == 1 ]
-                    then bwrun $RIM_AUTORUN "${ARGS[@]}"
-                    else bwrun "${RIM_AUTORUN[@]}" "${ARGS[@]}"
-                fi
-            else
-                if [[ ! -n "$ARG1" && ! -n "$RIM_EXEC_ARGS" ]]
-                    then bwrun "${RIM_SHELL[@]}"
-                    else bwrun "${ARGS[@]}"
-                fi
-        fi
-    ;;
+    *) rim_start bwrun ;;
 esac
 
 if [ "$RIM_WAIT_RPIDS_EXIT" == 1 ]

@@ -121,6 +121,17 @@ if is_exe_exist pacman
                 pac --noconfirm -Rdd xfce4-screensaver xfce4-power-manager||\
                 exit 1
         fi
+elif is_exe_exist apk
+    then
+        if [ "$(apk list xorg-server xorg-server-xephyr tk tcl xclip xfce4-session pavucontrol pulseaudio 2>/dev/null|\
+        grep installed|\
+        grep -E '^xorg-server-[0-9]|^xorg-server-xephyr-[0-9]|^tk-[0-9]|^tcl-[0-9]|^xclip-[0-9]|^xfce4-session-[0-9]|^pavucontrol-[0-9]|^pulseaudio-[0-9]'|wc -l)" != "8" ] && \
+            is_not_ro
+            then
+                info_msg "Installing the necessary dependencies..."
+                apk add xorg-server xorg-server-xephyr tk tcl xclip xfce4 xfce4-terminal pavucontrol pulseaudio||\
+                exit 1
+        fi
 elif is_exe_exist apt
     then
         if [ "$(dpkg --get-selections|awk '{print$1}'|\
@@ -140,7 +151,7 @@ else
 fi
 
 [ ! -e '/usr/bin/pm-is-supported' ] && \
-ln -sf /usr/bin/false /usr/bin/pm-is-supported
+ln -sf /bin/false /usr/bin/pm-is-supported
 
 # PID randomizer (UNSHARE_PIDS ICEauthority bug)
 [ "$RIM_UNSHARE_PIDS" == 1 ] && \

@@ -22,17 +22,21 @@ wait_batch() {
 
 find_type() {
     local NAMES
-    local type="$1"
     local names=()
+    [ "$1" == '*' ] && unset type||\
+        local type=(-type "$1")
     IFS='|' read -r -a NAMES <<<"$2"
-    for name in "${NAMES[@]}";
+    for name in "${NAMES[@]}"
         do
-            [[ "${#names[@]}" -gt 1 ]] && \
-                names+=(-o)
-            names+=(-iname "$name")
+            if [ -n "$name" ]
+                then
+                    [[ "${#names[@]}" -gt 1 ]] && \
+                        names+=(-o)
+                    names+=(-iname "$name")
+            fi
     done
     shift 2
-    find "$@" -type "$type" -perm -u+w "${names[@]}" 2>/dev/null
+    find "$@" "${type[@]}" -perm -u+w "${names[@]}" 2>/dev/null
 }
 
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
@@ -146,11 +150,13 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                     "$RUNROOTFS"/usr/share/libalpm/scripts/mkinitcpio
                     "$RUNROOTFS"/usr/share/libalpm/hooks/90-update-appstream-cache.hook
                     "$RUNROOTFS"/var/tmp/*
+                    "$RUNROOTFS"/var/cache/ldconfig/aux-cache~
+                    "$RUNROOTFS"/etc/ld.so.cache~
                     "$RUNROOTFS"/{dev,sys,proc,tmp,run}/*
                     $(find_type f '*.log' "$RUNROOTFS"/var/log/)
                 )
 
-                [ "$RIM_SHRINK_PKGCACHE" == 1 ] && FSCAN+='|*.pacnew|*.pacsave' && \
+                [ "$RIM_SHRINK_PKGCACHE" == 1 ] && FSCAN+='*.pacnew|*.pacsave|' && \
                     SHRINK_ITEMS+=(
                         "$RUNROOTFS"/var/lib/pacman/sync/*
                         "$RUNROOTFS"/var/cache/pacman/pkg/*
@@ -174,14 +180,14 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                 )
 
                 [ "$RIM_SHRINK_SRC" == 1 ] && \
-                    FSCAN+='|*.h|*.pc|*.c|*.cc|*.cpp|*.hpp|CMakeLists*|Makefile*|*.cmake|*.in|*.inc' && \
+                    FSCAN+='*.h|*.pc|*.c|*.cc|*.cpp|*.hpp|CMakeLists*|Makefile*|*.cmake|*.in|*.inc|' && \
                     SHRINK_ITEMS+=(
                         "$RUNROOTFS"/usr/include/*
                         "$RUNROOTFS"/usr/src/*
                         "$RUNROOTFS"/usr/*/*pkgconfig/*
                 )
 
-                [ "$RIM_SHRINK_DOCS" == 1 ] && FSCAN+='|*.md|README*' && \
+                [ "$RIM_SHRINK_DOCS" == 1 ] && FSCAN+='*.md|README*|' && \
                     SHRINK_ITEMS+=(
                         "$RUNROOTFS"/usr/share/man/*
                         "$RUNROOTFS"/usr/share/doc/*
@@ -190,11 +196,11 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                         "$RUNROOTFS"/usr/share/gtk-doc/*
                 )
 
-                [ "$RIM_SHRINK_BACK" == 1 ] && FSCAN+='|*.old|*.back'
+                [ "$RIM_SHRINK_BACK" == 1 ] && FSCAN+='*.old|*.back|'
 
-                [ "$RIM_SHRINK_OBJECTS" == 1 ] && FSCAN+='|*.o'
+                [ "$RIM_SHRINK_OBJECTS" == 1 ] && FSCAN+='*.o|'
 
-                [ "$RIM_SHRINK_STATICLIBS" == 1 ] && FSCAN+='|*.a'
+                [ "$RIM_SHRINK_STATICLIBS" == 1 ] && FSCAN+='*.a|'
 
                 LIBDIRS=(
                     "$RUNROOTFS"/lib "$RUNROOTFS"/lib64 "$RUNROOTFS"/lib32 \
@@ -207,7 +213,7 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                 nv_version="$(cat /sys/module/nvidia/version 2>/dev/null)"
                 nv_version_inside="$(basename "$RUNROOTFS"/usr/lib/libGLX_nvidia.so.*.*|tail -c +18)"
                 [[ -n "$nv_version" && "$nv_version_inside" == '000.00.00' ]] && SHRINK_ITEMS+=(
-                    $(find_type f "*so.$nv_version" "${LIBDIRS[@]}")
+                    $(find_type '*' "*so.$nv_version" "${LIBDIRS[@]}")
                 )
 
                 [ -n "$FSCAN" ] && SHRINK_ITEMS+=($(find_type f "$FSCAN" "$RUNROOTFS"/))
@@ -223,7 +229,7 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                                 for file in $(find_type f '*' "$RUNROOTFS"/bin "$RUNROOTFS"/sbin \
                                     "$RUNROOTFS"/usr/bin "$RUNROOTFS"/usr/sbin "$RUNROOTFS"/opt \
                                     "$RUNROOTFS"/usr/local/bin "$RUNROOTFS"/usr/local/sbin \
-                                    "${LIBDIRS[@]}")
+                                    "${LIBDIRS[@]}"|grep -Ev 'libc\.so.*|ld-linux.*\.so.*')
                                     do
                                         (if [[ "$(file "$file" 2>/dev/null)" =~ 'ELF' ]]
                                             then strip $verb --strip-debug "$file" 2>/dev/null
@@ -237,10 +243,22 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                 if [ -f "$RUNROOTFS"/etc/ld.so.version ]
                     then
                         info_msg "Found ld.so.version!"
-                        rm $verb -rf "$RUNROOTFS"/etc/ld.so.version
-                        NO_NVIDIA_CHECK=1 QUIET_MODE=1 SANDBOX_NET=0 RIM_CONFIG=0 \
-                        RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 \
+                        rm $verb -f "$RUNROOTFS"/etc/ld.so.version
+                        [ "$RUNROOTFS" != "$RUNDIR/rootfs" ] && \
+                            export RIM_ROOTFS="$RUNROOTFS"
+                        RIM_TMP_HOME=0 RIM_XORG_CONF=0 RIM_SHARE_BOOT=0 \
+                        RIM_RUN_IN_ONE=0 RIM_HOST_TOOLS=0 RIM_SANDBOX_NET=0 \
+                        RIM_TMP_HOME_DL=0 RIM_UNSHARE_NSS=1 RIM_SHARE_FONTS=0 \
+                        RIM_UNSHARE_HOME=1 RIM_SHARE_THEMES=0 RIM_SANDBOX_HOME=0 \
+                        RIM_PORTABLE_HOME=0 RIM_UNSHARE_USERS=1 RIM_UNSHARE_HOSTS=1 \
+                        RIM_WAIT_RPIDS_EXIT=0 RIM_SANDBOX_HOME_DL=0 RIM_NO_NVIDIA_CHECK=1 \
+                        RIM_UNSHARE_MODULES=1 RIM_ENABLE_HOSTEXEC=0 RIM_UNSHARE_HOSTNAME=1 \
+                        RIM_UNSHARE_LOCALTIME=1 RIM_UNSHARE_RESOLVCONF=1 RIM_OVERFS_MODE=0 \
+                        RIM_NO_CRYPTFS_MOUNT=1 NO_NVIDIA_CHECK=1 QUIET_MODE=1 SANDBOX_NET=0 \
+                        RIM_CONFIG=0 RIM_QUIET_MODE=1 \
                             "$RUNDIR/Run" ldconfig
+                        rm $verb -f "$RUNROOTFS"/etc/ld.so.cache~ \
+                        "$RUNROOTFS"/var/cache/ldconfig/aux-cache~
                 fi
 
                 wait

@@ -131,20 +131,27 @@ OLDRUNIMAGE="${NEWRUNIMAGE%.new$BUILDKEY}"
      RUNDIR="$OVERFS_MNT"
 
 CMPRS_CMD=()
+CMPRS_EXCLUDE=()
 case "$RIM_CMPRS_FS" in
     sqfs)
          RUNOFFSET="${RUNOFFSET:="$("$RUNRUNTIME" --runtime-offset)"}"
+          CMPRS_CMD+=("$RUNSTATIC/mksquashfs" "$RUNDIR" "$NEWRUNIMAGE")
+          [ -f "$RUNDIR/cryptfs/gocryptfs.conf" ] && \
+          CMPRS_EXCLUDE+=(-wildcards -e 'rootfs/*' 'rootfs/.*')
           CMPRS_CMD+=(
-            "$RUNSTATIC/mksquashfs" "$RUNDIR" "$NEWRUNIMAGE" -root-owned -offset "$RUNOFFSET"
-            -no-recovery -no-xattrs -noappend -mkfs-time 0 -action "chmod(u+rw)@! perm(u+rw)"
+            -root-owned -offset "$RUNOFFSET" -no-recovery -no-xattrs
+            -noappend -mkfs-time 0 -action "chmod(u+rw)@! perm(u+rw)"
             -action "prune @ type(c) || type(s) || type(b) || type(p)" -b
           )
           info_msg "Compression file system: SquashFS"
     ;;
     dwfs)
-          trap "rm -f '$NEWRUNIMAGE'" INT TERM
+          trap "rm -f '$NEWRUNIMAGE'" INT TERM EXIT
+          CMPRS_CMD+=("$RUNSTATIC/mkdwarfs")
+          [ -f "$RUNDIR/cryptfs/gocryptfs.conf" ] && \
+          CMPRS_EXCLUDE+=("--filter=- rootfs/*/**" "--filter=- rootfs/.*"  "--filter=- rootfs/*")
           CMPRS_CMD+=(
-            "$RUNSTATIC/mkdwarfs" -f --set-owner 0 --set-group 0 --no-history --log-level error
+            -f --set-owner 0 --set-group 0 --no-history --log-level error
             --no-create-timestamp --header "$RUNRUNTIME" --chmod u+rw
             -i "$RUNDIR" -o "$NEWRUNIMAGE" -B16 --compression
           )
@@ -195,11 +202,12 @@ case "$RIM_CMPRS_ALGO" in
 esac
 info_msg "Compression block size: $RIM_CMPRS_BSIZE"
 
+[ -n "$CMPRS_EXCLUDE" ] && CMPRS_CMD+=("${CMPRS_EXCLUDE[@]}")
+
 [[ "$INSIDE_RUNIMAGE" == 1 && ! -d "$RUNROOTFS" ]] && \
      RUNROOTFS='/'
 
-unset IS_PACLOCKFL IS_DECFSFL
-DECFSFL="$RUNROOTFS/.decfs"
+unset IS_PACLOCKFL
 PACLOCKFL="$RUNROOTFS/var/lib/pacman/db.lck"
 if [ -w "$RUNROOTFS" ]
      then
@@ -210,11 +218,6 @@ if [ -w "$RUNROOTFS" ]
                then
                     IS_PACLOCKFL=1
                     rm -f "$PACLOCKFL"
-          fi
-          if [ -f "$DECFSFL" ]
-               then
-                    IS_DECFSFL=1
-                    rm -f "$DECFSFL"
           fi
           RIM_QUIET_MODE=1 "$RUNSTATIC/bash" \
             "$RUNUTILS/rim-shrink" --pkgcache
@@ -230,10 +233,8 @@ cmprs_stat=$?
 
 [ "$IS_PACLOCKFL" == 1 ] && \
      touch "$PACLOCKFL"
-[ "$IS_DECFSFL" == 1 ] && \
-     touch "$DECFSFL"
 
-if [[ "$cmprs_stat" == 0 && -f "$NEWRUNIMAGE" ]]
+if [[ "$cmprs_stat" != 1 && -f "$NEWRUNIMAGE" ]]
     then
         if [ "$RIM_CMPRS_FS" == 'sqfs' ]
             then
@@ -266,6 +267,7 @@ if [[ "$cmprs_stat" == 0 && -f "$NEWRUNIMAGE" ]]
         fi
         if ! mv -f "$NEWRUNIMAGE" "$OLDRUNIMAGE"
             then
+                trap - EXIT
                 error_msg "Failed to rename new RunImage: [$NEWRUNIMAGE] -> [$OLDRUNIMAGE]"
                 exit 1
         fi
