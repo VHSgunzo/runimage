@@ -580,7 +580,8 @@ mount_nvidia_driver_image() {
                 NVDRVMNT="$RUNPIDDIR/mnt/nv${nvidia_version}drv"
             info_msg "Mounting the nvidia driver image: $(basename "$1")"
             try_mkdir "$NVDRVMNT"
-            "$SQFUSE" -f "$1" "$NVDRVMNT" -o ro &>/dev/null &
+            "$SQFUSE" -f -o ro,nodev,noatime,uid=$EUID,gid=$EGID \
+                "$1" "$NVDRVMNT" &>/dev/null &
             FUSE_PID="$!"
             FUSE_PIDS="$FUSE_PID $FUSE_PIDS"
             if mount_exist "$FUSE_PID" "$NVDRVMNT"
@@ -2390,13 +2391,16 @@ if is_rio_running
                             RIM_NO_RPIDSMON=1 ; RIM_DESKTOP_INTEGRATION=0 ;;
             rim-decfs     ) set_overfs_option crypt ;;
             rim-encfs  |\
-            rim-enc-passwd) RIM_NO_CRYPTFS_MOUNT=1
-                            set_overfs_option crypt ;;
-            rim-version|\
+            rim-enc-passwd) set_overfs_option crypt ; RIM_NO_CRYPTFS_MOUNT=1 ;;
+            rim-version   ) set_default_option ; RIM_DESKTOP_INTEGRATION=0 ;;
             rim-build     ) set_default_option ; RIM_DESKTOP_INTEGRATION=0
-                            [ -d "$RIM_ROOTFS" ] && RIM_UNSHARE_HOME=0 ;;
-            rim-ofsrm     ) RIM_NO_CRYPTFS_MOUNT=1
-                            set_default_option ; RIM_DESKTOP_INTEGRATION=0 ;;
+                            if [ -d "$RIM_ROOTFS" ]
+                                then
+                                    RIM_TMP_HOME=0
+                                    RIM_UNSHARE_HOME=0
+                                    RIM_SANDBOX_HOME=0
+                            fi ;;
+            rim-ofsrm     ) set_default_option ; RIM_NO_CRYPTFS_MOUNT=1 ; RIM_DESKTOP_INTEGRATION=0 ;;
             rim-exec      ) run_attach exec "${ARGS[@]}"; exit $? ;;
             rim-portfw    ) run_attach portfw "${ARGS[@]}"; exit $? ;;
             rim-update    ) set_overfs_option upd ;;
@@ -3029,7 +3033,7 @@ if [[ "$RIM_SANDBOX_HOME" != 0 && "$RIM_SANDBOX_HOME_DL" != 0 ]]
 fi
 
 unset HOME_BIND SET_HOME_DIR NEW_HOME
-if [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 ]]
+if [ "$RIM_TMP_HOME" != 0 ] && [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 ]]
     then
         [ "$EUID" == 0 ] && \
             TMP_HOME="/root" || \
@@ -3050,7 +3054,7 @@ if [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 1 ]]
             )
         HOME_BIND+=('--setenv' 'HOME' "$TMP_HOME")
         info_msg "Setting temporary \$HOME to: '$TMP_HOME'"
-elif [[ "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
+elif [ "$RIM_UNSHARE_HOME" != 0 ] && [[ "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
     then
         [ "$EUID" == 0 ] && \
             UNSHARED_HOME="/root" || \
@@ -3099,7 +3103,7 @@ elif [[ "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
         fi
         HOME_BIND+=('--setenv' 'HOME' "$UNSHARED_HOME")
         warn_msg "Host HOME is unshared!"
-elif [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || -d "$RIM_SANDBOX_HOME_DIR" ]]
+elif [ "$RIM_SANDBOX_HOME" != 0 ] && [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || -d "$RIM_SANDBOX_HOME_DIR" ]]
     then
         if [ "$EUID" == 0 ]
             then NEW_HOME="/root"
