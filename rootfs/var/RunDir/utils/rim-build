@@ -64,13 +64,17 @@ print_help() {
 
 if [ ! -x "$RUNRUNTIME" ]
      then
-          error_msg "RunImage runtime not found!"
-          exit 1
+          if [ -x "$RUNSTATIC/uruntime" ]
+                then RUNRUNTIME="$RUNSTATIC/uruntime"
+                else
+                    error_msg "RunImage runtime not found!"
+                    exit 1
+          fi
 fi
 
-RIM_CMPRS_FS="${RIM_CMPRS_FS:=sqfs}"
+RIM_CMPRS_FS="${RIM_CMPRS_FS:=dwfs}"
 RIM_CMPRS_ALGO="${RIM_CMPRS_ALGO:=zstd}"
-RIM_CMPRS_LVL="${RIM_CMPRS_LVL:=1}"
+RIM_CMPRS_LVL="${RIM_CMPRS_LVL:=22}"
 
 unset RUNBASENAME clvl
 while [[ $# -gt 0 ]]
@@ -134,7 +138,7 @@ CMPRS_CMD=()
 CMPRS_EXCLUDE=()
 case "$RIM_CMPRS_FS" in
     sqfs)
-         RUNOFFSET="${RUNOFFSET:="$("$RUNRUNTIME" --runtime-offset)"}"
+          RUNOFFSET="$("$RUNRUNTIME" --runtime-offset)"
           CMPRS_CMD+=("$RUNSTATIC/mksquashfs" "$RUNDIR" "$NEWRUNIMAGE")
           [ -f "$RUNDIR/cryptfs/gocryptfs.conf" ] && \
           CMPRS_EXCLUDE+=(-wildcards -e 'rootfs/*' 'rootfs/.*')
@@ -219,6 +223,7 @@ if [ -w "$RUNROOTFS" ]
                     IS_PACLOCKFL=1
                     rm -f "$PACLOCKFL"
           fi
+          RUNUTILS="${RUNUTILS:=$RUNDIR/utils}"
           RIM_QUIET_MODE=1 "$RUNSTATIC/bash" \
             "$RUNUTILS/rim-shrink" --pkgcache
      else

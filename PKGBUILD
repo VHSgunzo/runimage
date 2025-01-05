@@ -8,7 +8,7 @@ pkgdesc='Utilities and scripts for RunImage container'
 url="https://github.com/VHSgunzo/runimage"
 arch=('any')
 license=('MIT')
-source=('runimage-utils.tar.gz')
+source=('runimage-utils.tar')
 sha256sums=('SKIP')
 depends=('pacutils')
 

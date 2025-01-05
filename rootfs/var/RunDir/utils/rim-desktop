@@ -134,7 +134,7 @@ elif is_exe_exist apk
         fi
 elif is_exe_exist apt
     then
-        if [ "$(dpkg --get-selections|awk '{print$1}'|\
+        if [ "$(dpkg --get-selections|gawk '{print$1}'|\
                 grep -Ew '^xserver-xorg$|^xserver-xephyr$|^tk$|^tcl$|^xclip$|^xfce4-session$|^pavucontrol$|^pulseaudio$|^qt5ct$'|\
                 wc -l)" != "9" ] && is_not_ro
             then
@@ -253,7 +253,7 @@ if [ "$RUN_X" == 1 ]
             bash /etc/xdg/xfce4/xinitrc
             EXEC_STATUS="$?"
             kill $XCLIPSYNC_PID $XFWM_PID $XEPHYR_PID $XORG_PID 2>/dev/null
-            kill $(pgrep -fa xclipfrom|grep "$DESKTOP_KEY"|awk '{print$1}') 2>/dev/null
+            kill $(pgrep -fa xclipfrom|grep "$DESKTOP_KEY"|gawk '{print$1}') 2>/dev/null
             rm -rf "/tmp/.X$RIM_DESKTOP_DISPLAY-lock" 2>/dev/null
             [ "$XORG_PID" ] && reset
             return $EXEC_STATUS

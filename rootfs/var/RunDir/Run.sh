@@ -222,7 +222,7 @@ try_dl() {
         [ "$NO_DL_REPEAT" == 1 ] && \
             return 1
         DL_REP_TITLE="Download interrupted!"
-        DL_REP_TEXT="Failed to download: $FILENAME from $(echo "$URL"|awk -F/ '{print$3"/"$4}') \nWould you like to repeat it?"
+        DL_REP_TEXT="Failed to download: $FILENAME from $(echo "$URL"|gawk -F/ '{print$3"/"$4}') \nWould you like to repeat it?"
         if [[ "$NOT_TERM" != 1 || "$NO_DL_GUI" == 1 ]]
             then
                 yn_case "$DL_REP_TEXT"||return 1
@@ -321,7 +321,7 @@ try_dl() {
                                     aria2c --no-conf -R -x 13 -s 13 --allow-overwrite --summary-interval=1 -o \
                                         "$FILENAME" -d "$FILEDIR" "$URL"|grep --line-buffered 'ETA'|\
                                         sed -u 's|(.*)| &|g;s|(||g;s|)||g;s|\[||g;s|\]||g'|\
-                                        awk '{print$3"\n#Downloading at "$3,$2,$5,$6;system("")}'|\
+                                        gawk '{print$3"\n#Downloading at "$3,$2,$5,$6;system("")}'|\
                                     dl_progress
                             elif is_exe_exist curl
                                 then
@@ -360,7 +360,7 @@ try_dl() {
                             dl_ret "$?"||return 1
                     fi
                 else
-                    error_msg "$FILENAME not found in $(echo "$URL"|awk -F/ '{print$3"/"$4}')"
+                    error_msg "$FILENAME not found in $(echo "$URL"|gawk -F/ '{print$3"/"$4}')"
                     return 1
             fi
         else
@@ -707,7 +707,7 @@ check_nvidia_driver() {
                                             fi
                                     fi
                                 else
-                                    error_msg "No nvidia driver found in RunImage!"
+                                    error_msg "Nvidia driver not found in RunImage!"
                                     return 1
                             fi
                             if [ -f "$nvidia_driver_dir/64/libGLX_nvidia.so.$nvidia_version" ]
@@ -967,7 +967,7 @@ choose_runpid_and() {
 }
 
 run_attach() {
-    get_runpids() { awk -F'/' '{print $(NF-1)}'<<<"$(get_sock '*')" 2>/dev/null ; }
+    get_runpids() { gawk -F'/' '{print $(NF-1)}'<<<"$(get_sock '*')" 2>/dev/null ; }
     get_sock() {
         if [ "$act" == "portfw" ]
             then find "$RUNTMPDIR"/$1 -name 'portfw' 2>/dev/null
@@ -1063,7 +1063,7 @@ force_kill() {
             kill $(cat "$RUNTMPDIR"/*/rpids 2>/dev/null) 2>/dev/null) && ret=0
             local MOUNTPOINTS="$(grep -E "$([ -n "$RUNIMAGENAME" ] && \
                 echo "$RUNIMAGENAME"||echo "$RUNIMAGEDIR")|.*/mnt/cryptfs.*$RUNIMAGEDIR|$RUNTMPDIR/.*/mnt/nv.*drv|unionfs.*$RUNIMAGEDIR" \
-                /proc/self/mounts|grep -v "$RUNDIR"|awk '{print$2}')"
+                /proc/self/mounts|grep -v "$RUNDIR"|gawk '{print$2}')"
             if [ -n "$MOUNTPOINTS" ]
                 then
                     (IFS=$'\n' ; for unmt in $MOUNTPOINTS
@@ -1114,6 +1114,9 @@ try_kill() {
 }
 
 cleanup() {
+    if [[ -n "$RUNIMAGE" && -e "$RUNPIDDIR/rebuild" && ! -d "$RIM_ROOTFS" ]]
+        then try_rebuild_runimage && RIM_KEEP_OVERFS=0
+    fi
     if [[ "$RIM_NO_CLEANUP" != 1 || "$1" == "force" ]]
         then
             if [ "$1" == "force" ]
@@ -1179,7 +1182,7 @@ get_child_pids() {
                 do child_pids[$ppid]+=" $pid"
             done < <(ps -eo user=,pid=,ppid=,cmd= 2>/dev/null|grep "^$RUNUSER"|\
                      grep -v "bash $RUNDIR/Run.sh"|grep -wv "$RUNPPID"|\
-                     grep -Pv '\d+ sleep \d+'|awk '{print$2,$3}'|sort -nu)
+                     grep -Pv '\d+ sleep \d+'|gawk '{print$2,$3}'|sort -nu)
             for i in "$@"
                 do ps -o pid= -p $(child_pids_walk "$i") 2>/dev/null|grep -v "$i"
             done|sed 's|^[[:space:]]*||g'
@@ -1216,7 +1219,7 @@ export_ssrv_pid() {
         then
             export SSRV_PID="$(ps -opid=,cmd= -p $(get_child_pids \
                 "$(grep 'child-pid' "$BWINFFL" 2>/dev/null|grep -Po '\d+')") \
-                    2>/dev/null|grep 'ssrv -srv'|awk 'NR==1{print$1}')"
+                    2>/dev/null|grep 'ssrv -srv'|gawk 'NR==1{print$1}')"
             echo "$SSRV_PID" > "$SSRV_PID_FILE"
         else export SSRV_PID="$(cat "$SSRV_PID_FILE" 2>/dev/null)"
     fi
@@ -1245,7 +1248,7 @@ enable_portfw() {
                     "$CHISEL" client "unix:$RUNPORTFW" $RIM_SNET_PORTFW 1>/dev/null &
                     CHISEL_PID="$!"
                     sleep 0.01
-                    if ! is_pid "$!"
+                    if ! is_pid "$CHISEL_PID"
                         then
                             error_msg "Failed to start port forwarding: $RIM_SNET_PORTFW"
                             cleanup force
@@ -1378,7 +1381,7 @@ bwrun() {
                     if [ "$RIM_SNET_DROP_CIDRS" == 1 ]
                         then
                             DROP_CIDRS=
-                            for cidr in $(ip -o -4 a|grep -wv lo|awk '{print$4}')
+                            for cidr in $(ip -o -4 a|grep -wv lo|gawk '{print$4}')
                                 do DROP_CIDRS+="iptables -A OUTPUT -d $cidr -j DROP ; "
                             done
                     fi
@@ -1496,7 +1499,7 @@ overlayfs_rm() {
                         info_msg "Removing OverlayFS: $overfs_id"
                         if [ "$1" == 'force' ]
                             then
-                                try_kill "$(lsof -n "$RMOVERFS_MNT" 2>/dev/null|sed 1d|awk '{print$2}'|sort -u)"
+                                try_kill "$(lsof -n "$RMOVERFS_MNT" 2>/dev/null|sed 1d|gawk '{print$2}'|sort -u)"
                                 try_unmount "$RMOVERFS_MNT"
                         fi
                         chmod 777 -R "${RMOVERFS_DIR}/workdir" 2>/dev/null
@@ -1636,8 +1639,11 @@ add_unshared_group() {
 }
 
 try_rebuild_runimage() {
-    if [ -n "$1" ]||[[ -n "$RUNIMAGE" && "$RIM_REBUILD_RUNIMAGE" == 1 ]]
+    if [ -n "$1" ]||\
+        [[ -n "$RUNIMAGE" && "$RIM_REBUILD_RUNIMAGE" == 1 ]]||\
+        [[ -n "$RUNIMAGE" && -e "$RUNPIDDIR/rebuild" ]]
         then
+            rm -f "$RUNPIDDIR/rebuild"
             cd "$RUNIMAGEDIR"
             run_build "$@"
             local ret="$?"
@@ -1837,7 +1843,7 @@ set_default_option() {
 set_overfs_option() {
     set_default_option
     RIM_DESKTOP_INTEGRATION=0
-    if [[ -n "$RUNIMAGE" && ! -n "$RIM_OVERFS_ID" ]]
+    if [[ -n "$RUNIMAGE" && ! -n "$RIM_OVERFS_ID" && ! -d "$RIM_ROOTFS" ]]
         then
             RIM_OVERFS_MODE=1
             RIM_KEEP_OVERFS=0
@@ -1847,7 +1853,7 @@ set_overfs_option() {
 }
 
 print_help() {
-    RUNHOSTNAME="$(uname -a|awk '{print$2}')"
+    RUNHOSTNAME="$(uname -a|gawk '{print$2}')"
     echo -e "
 ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
     ${RED}Usage:
@@ -2199,7 +2205,7 @@ if [[ "$EUID" == 0 && "$RIM_ALLOW_ROOT" != 1 && "$INSIDE_RUNIMAGE" != 1 ]]
         exit 1
 fi
 
-if [ -n "$RIM_AUTORUN" ] && \
+if [[ -n "$RIM_AUTORUN" && "$RIM_AUTORUN" != 0 ]] && \
    [[ "$RUNSRCNAME" == "Run"* || \
       "$RUNSRCNAME" == "runimage"* ]]
     then
@@ -2209,13 +2215,13 @@ elif [[ "${RUNSRCNAME,,}" =~ .*\.(runimage|rim)$ ]]
         RUNSRCNAME="$(sed 's|\.runimage$||i;s|\.rim$||i'<<<"$RUNSRCNAME")"
         RIM_AUTORUN="$RUNSRCNAME"
 elif [[ "$RUNSRCNAME" != "Run"* && \
-        "$RUNSRCNAME" != "runimage"* ]]
+        "$RUNSRCNAME" != "runimage"* && "$RIM_AUTORUN" != 0 ]]
    then
         RIM_AUTORUN="$RUNSRCNAME"
 fi
 
 ARGS=("$@")
-if [[ -n "$1" && "$1" != 'rim-'* && ! -n "$RIM_AUTORUN" ]]
+if [[ -n "$1" && "$1" != 'rim-'* ]] && [[ ! -n "$RIM_AUTORUN" || "$RIM_AUTORUN" == 0 ]]
     then
         for arg in "${ARGS[@]}"
             do
@@ -2347,15 +2353,15 @@ elif [[ "$ARG1" == 'rim-'* ]]
     then unset RIM_AUTORUN
 fi
 
-[ -n "$RIM_AUTORUN" ] && \
-AUTORUN0ARG=($RIM_AUTORUN)
+[[ -n "$RIM_AUTORUN" && "$RIM_AUTORUN" != 0 ]] && \
+AUTORUN0ARG=($RIM_AUTORUN)||unset RIM_AUTORUN AUTORUN0ARG
 
 unset SSRV_RUNPID SSRV_SOCK_PATH
 if [ "$RIM_RUN_IN_ONE" == 1 ]
     then
         RUNIMAGEDIR_SUM=($(sha1sum<<<"$RUNIMAGEDIR"))
         SSRV_SOCK_PATH="$RUNPIDDIR/${RUNIMAGEDIR_SUM}.sock"
-        SSRV_RUNPID="$(ls -1 "$RUNTMPDIR"/*/"${RUNIMAGEDIR_SUM}.sock" 2>/dev/null|awk -F'/' 'NR==1{print $(NF-1)}')"
+        SSRV_RUNPID="$(ls -1 "$RUNTMPDIR"/*/"${RUNIMAGEDIR_SUM}.sock" 2>/dev/null|gawk -F'/' 'NR==1{print $(NF-1)}')"
         if [ -n "$SSRV_RUNPID" ]
             then
                 if is_pid "$SSRV_RUNPID"
@@ -2976,7 +2982,7 @@ add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
 [ -n "$LD_LIBRARY_PATH" ] && \
     add_lib_pth "$LD_LIBRARY_PATH"
 
-if [ -n "$RIM_AUTORUN" ]
+if [[ -n "$RIM_AUTORUN" && "$RIM_AUTORUN" != 0 ]]
     then
         AUTORUN0ARG=($RIM_AUTORUN)
         info_msg "Autorun mode: ${RIM_AUTORUN[@]}"

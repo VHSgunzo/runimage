@@ -1,0 +1,14 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = var/RunDir/Run*
+Target = var/RunDir/utils/*
+Target = var/RunDir/sharun/*
+Target = var/RunDir/static/*
+Target = var/RunDir/config/*
+
+[Action]
+Description = Updating RunDir...
+When = PostTransaction
+Exec = /usr/bin/sh -c 'if [[ -n "$RUNIMAGE" && -d "$RUNPIDDIR" ]];then /usr/bin/touch "$RUNPIDDIR/rebuild";fi'
