@@ -11,6 +11,7 @@ license=('MIT')
 source=('runimage-utils.tar')
 sha256sums=('SKIP')
 depends=('pacutils')
+install='utils.install'
 
 package() {
   find "${srcdir}" -type f -name '.keep' -exec rm -f {} \;

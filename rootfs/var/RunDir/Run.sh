@@ -376,6 +376,8 @@ get_nvidia_driver_image() {
         then
             [ ! -n "$nvidia_version" ] && \
                 nvidia_version="$1"
+            [ ! -n "$NVDRVARCH" ] && \
+                NVDRVARCH="$(uname -m)"
             [[ -d "$2" && ! -n "$NVIDIA_DRIVERS_DIR" ]] && \
                 export NVIDIA_DRIVERS_DIR="$2"
             [[ ! -d "$2" && ! -n "$NVIDIA_DRIVERS_DIR" ]] && \
@@ -390,7 +392,7 @@ get_nvidia_driver_image() {
                 'nvidia-settings' 'nvidia-smi' 'nvidia-xconfig' 'nvidia-pcc'
                 'nvidia-cuda-mps-srv' 'nvidia-bug-report.sh' 'nvidia-sleep.sh'
             )
-            if [ "$RIM_SYS_NVLIBS" == 1 ]
+            if [[ "$RIM_SYS_NVLIBS" == 1 || "$NVDRVARCH" != 'x86_64' ]]
                 then
                     info_msg "Find Nvidia ${nvidia_version} local libs, please wait..."
                     cp_nvfiles() (
@@ -417,6 +419,8 @@ get_nvidia_driver_image() {
                                 fi
                         done
                     )
+                    [ "$NVDRVARCH" != 'x86_64' ] && \
+                        RIM_NO_32BIT_NVLIBS_CHECK=1
                     NVTRASH_LIBS=('libnvidia-container*')
                     NVCONFS=('nvidia-dbus.conf' '-nvidia-drm-outputclass.conf' 'nvidia.icd' '-nvidia.conf')
                     NVJSONS=(
@@ -438,8 +442,8 @@ get_nvidia_driver_image() {
                     for lib in "${NVTRASH_LIBS[@]}"
                         do NVLIBS="$(grep -v "$lib"<<<"$NVLIBS")"
                     done
-                    NVLIBS64=($(grep -E '/lib/|/x86_64-linux-gnu/'<<<"$NVLIBS"))
-                    for pth in lib x86_64-linux-gnu
+                    NVLIBS64=($(grep -E "/lib/|/${NVDRVARCH}-linux-gnu/"<<<"$NVLIBS"))
+                    for pth in lib "${NVDRVARCH}-linux-gnu"
                         do
                             libs=(
                                 "/usr/$pth/vdpau/libvdpau_nvidia.so"
@@ -453,7 +457,7 @@ get_nvidia_driver_image() {
                     if [ ! -n "$NVLIBS64" ]
                         then
                             error_msg "Nvidia libraries are not found in your system!"
-                            if [ "$NVLIBS_DLFAILED" == 1 ]
+                            if [[ "$NVLIBS_DLFAILED" == 1 || "$NVDRVARCH" != 'x86_64' ]]
                                 then return 1
                                 else
                                     RIM_SYS_NVLIBS=0 get_nvidia_driver_image
@@ -636,6 +640,7 @@ check_nvidia_driver() {
                 fi
         fi
     }
+    NVDRVARCH="$(uname -m)"
     if [ -e '/sys/module/nvidia/version' ]||\
         grep -owm1 nvidia /proc/modules &>/dev/null
         then
@@ -651,9 +656,9 @@ check_nvidia_driver() {
                 then
                     nvidia_version="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader|head -1)"
             else
-                if [ -d '/usr/lib/x86_64-linux-gnu' ]
+                if [ -d "/usr/lib/${NVDRVARCH}-linux-gnu" ]
                     then
-                        nvidia_version="$(basename /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.*.*|tail -c +18)"
+                        nvidia_version="$(basename /usr/lib/${NVDRVARCH}-linux-gnu/libGLX_nvidia.so.*.*|tail -c +18)"
                     else
                         nvidia_version="$(basename /usr/lib/libGLX_nvidia.so.*.*|tail -c +18)"
                 fi
@@ -1513,30 +1518,33 @@ overlayfs_rm() {
                     OVERFSRMLIST=("$@" "$RIM_OVERFS_ID")
                     for overfs_id in "${OVERFSRMLIST[@]}"
                         do
-                            RMOVERFS_DIR="$RUNOVERFSDIR/$overfs_id"
-                            if [ -d "$RMOVERFS_DIR" ]
+                            if [ -n "$overfs_id" ]
                                 then
-                                    RMOVERFS_MNT="$RMOVERFS_DIR/mnt"
-                                    if [ -n "$(ls -A "$RMOVERFS_MNT" 2>/dev/null)" ]
+                                    RMOVERFS_DIR="$RUNOVERFSDIR/$overfs_id"
+                                    if [ -d "$RMOVERFS_DIR" ]
                                         then
-                                            info_msg "Maybe OverlayFS is currently in use: $overfs_id"
-                                            while true
-                                                do
-                                                    read -p "$(echo -e "\t${RED}Are you sure you want to delete it? ${GREEN}(y/n) ${BLUE}> $RESETCOLOR")" yn
-                                                    case $yn in
-                                                        [Yy] ) overfsrm force && ret=0
-                                                               break ;;
-                                                        [Nn] ) break ;;
-                                                    esac
-                                            done
+                                            RMOVERFS_MNT="$RMOVERFS_DIR/mnt"
+                                            if [ -n "$(ls -A "$RMOVERFS_MNT" 2>/dev/null)" ]
+                                                then
+                                                    info_msg "Maybe OverlayFS is currently in use: $overfs_id"
+                                                    while true
+                                                        do
+                                                            read -p "$(echo -e "\t${RED}Are you sure you want to delete it? ${GREEN}(y/n) ${BLUE}> $RESETCOLOR")" yn
+                                                            case $yn in
+                                                                [Yy] ) overfsrm force && ret=0
+                                                                    break ;;
+                                                                [Nn] ) break ;;
+                                                            esac
+                                                    done
+                                                else
+                                                    overfsrm && ret=0
+                                            fi
+                                            unset RMOVERFS_MNT
                                         else
-                                            overfsrm && ret=0
+                                            error_msg "Not found OverlayFS: $overfs_id"
                                     fi
-                                    unset RMOVERFS_MNT
-                                else
-                                    error_msg "Not found OverlayFS: $overfs_id"
+                                    unset RMOVERFS_DIR
                             fi
-                            unset RMOVERFS_DIR
                     done
                 else
                     error_msg "Specify the OverlayFS ID!"
@@ -1586,8 +1594,8 @@ bin_list() {
 }
 
 print_version() {
-    info_msg "RunImage version: ${RED}$RUNIMAGE_VERSION"
-    info_msg "RootFS version: ${RED}$RUNROOTFS_VERSION"
+    info_msg "RunImage version: ${RED}v$RUNIMAGE_VERSION"
+    info_msg "RootFS version: ${RED}v$RUNROOTFS_VERSION"
     info_msg "Static version: ${RED}$RUNSTATIC_VERSION"
     [ -n "$RUNRUNTIME_VERSION" ] && \
         info_msg "RunImage runtime version: ${RED}$RUNRUNTIME_VERSION"
@@ -1690,7 +1698,7 @@ encrypt_rootfs() {
                             upd_sharun() {
                                 unset -f upd_sharun
                                 rm -rf "$RUNDIR/sharun/shared"
-                                "$RUNDIR/sharun/sharun" lib4bin -p -g -d "$RUNDIR/sharun" \
+                                "$RUNDIR/sharun/sharun" lib4bin -s -p -g -d "$RUNDIR/sharun" \
                                     $(cat "$RUNDIR/sharun/bin.list")
                             }
                             export -f upd_sharun
@@ -2241,7 +2249,7 @@ if [[ -n "${ARGS[0]}" && "${ARGS[0]}" == 'rim-'* ]]
     then
         unset RIM_AUTORUN
         case "${ARGS[0]}" in
-            rim-shrink|rim-dinteg);;
+            rim-shrink|rim-dinteg|rim-bootstrap);;
             *) ARGS=("${ARGS[@]:1}") ;;
         esac
 elif [[ "$RUNSRCNAME" == 'rim-'* ]]
@@ -2344,7 +2352,7 @@ CHISEL="$RUNSTATIC/chisel"
 if [[ "$RIM_AUTORUN" == 'rim-'* ]]
     then
         case "$RIM_AUTORUN" in
-            rim-shrink|rim-dinteg);;
+            rim-shrink|rim-dinteg|rim-bootstrap);;
             *) ARG1="$RIM_AUTORUN"
                ARGS=("${RIM_AUTORUN[@]:1}" "${ARGS[@]}")
                unset RIM_AUTORUN ;;
@@ -2381,7 +2389,7 @@ if is_rio_running
         esac
         RIO_ARGS+=("$SSRV_RUNPID")
         case "$ARG1" in
-            rim-portfw|rim-exec|rim-shrink|rim-dinteg);;
+            rim-portfw|rim-exec|rim-shrink|rim-dinteg|rim-bootstrap);;
             rim-desktop|\
             rim-update |\
             rim-build  ) RIO_ARGS+=("$ARG1") ;;
@@ -3648,6 +3656,7 @@ case "$ARG1" in
     rim-build     ) run_build "${ARGS[@]}" ;;
     *) rim_start bwrun ;;
 esac
+EXIT_STAT="$?"
 
 if [ "$RIM_WAIT_RPIDS_EXIT" == 1 ]
     then
@@ -3681,6 +3690,6 @@ if [ "$RIM_WAIT_RPIDS_EXIT" == 1 ]
         sleep 0.5
 fi
 
-exit $?
+exit $EXIT_STAT
 
 ##############################################################################

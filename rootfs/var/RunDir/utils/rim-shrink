@@ -75,7 +75,7 @@ print_help() {
     -c, --staticlibs  Shrink static libs '*.a' (env: RIM_SHRINK_STATICLIBS=1)
     -d, --docs        Shrink /usr/share/{man,doc,help,info,gtk-doc} and '*.md' 'README*' (env: RIM_SHRINK_DOCS=1)
     -s, --strip       Strip all debugging symbols & sections (env: RIM_SHRINK_STRIP=1)
-    -t, --locales     Shrink all locales except uk ru en en_US (env: RIM_SHRINK_LOCALES=1)
+    -l, --locales     Shrink all locales except uk ru en en_US (env: RIM_SHRINK_LOCALES=1)
     -o, --objects     Shrink object files '*.o' (env: RIM_SHRINK_OBJECTS=1)
     -p, --pkgcache    Shrink packages cache (env: RIM_SHRINK_PKGCACHE=1)
     -r, --src         Shrink source code files for build (env: RIM_SHRINK_SRC=1)
@@ -229,9 +229,10 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                                 for file in $(find_type f '*' "$RUNROOTFS"/bin "$RUNROOTFS"/sbin \
                                     "$RUNROOTFS"/usr/bin "$RUNROOTFS"/usr/sbin "$RUNROOTFS"/opt \
                                     "$RUNROOTFS"/usr/local/bin "$RUNROOTFS"/usr/local/sbin \
-                                    "${LIBDIRS[@]}"|grep -Ev 'libc\.so.*|ld-linux.*\.so.*')
+                                    "${LIBDIRS[@]}"|\
+                                    grep -Ev 'strip|bash|librt\.so.*|libzstd\.so.*|libz\.so.*|libsframe\.so.*|libbfd-.*\.so|libpthread\.so.*|libc\.so.*|ld-linux.*\.so.*|\.o$|\.a$|libncursesw\.so.*|libreadline\.so.*')
                                     do
-                                        (if [[ "$(file "$file" 2>/dev/null)" =~ 'ELF' ]]
+                                        (if [[ "$(head -c +4 "$file" 2>/dev/null)" =~ 'ELF' ]]
                                             then strip $verb --strip-debug "$file" 2>/dev/null
                                         fi) & wait_batch
                                 done

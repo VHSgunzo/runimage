@@ -1,31 +1,60 @@
-name: CI
+name: ⚙️ Continuous bootstrap 📦
 
 on:
-  push:
-    branches:
-    - action
-    tags:
-    - '*'
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 0" #At 00:00 UTC on Sunday every Week
 
 jobs:
   build_and_release:
-    name: runimage-utils
+    name: runimage-bootstrap
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Build archlinux package
-        uses: countstarlight/arch-makepkg-action@master
+        uses: actions/checkout@v4
         with:
-          scripts: "./build-utils.sh"
+          path: main
+          filter: "blob:none"
+
+      - name: Install deps
+        run: |
+          sudo sh -c 'apt update && apt install qemu-user-static -y'
+          docker pull tonistiigi/binfmt:latest
+          docker run --privileged --rm tonistiigi/binfmt --uninstall qemu-*
+          docker run --privileged --rm tonistiigi/binfmt --install all
+
+      - name: Bootstrap RunImage
+        run: |
+            set -x ; set +e
+            mkdir -p release && cd release||exit 1
+
+            # x86_64
+            ../rim-bootstrap
+            sha256sum_x86_64="$(sha256sum runimage-x86_64)"
+
+            # aarch64
+            TARGETARCH=arm64 ../rim-bootstrap
+            sha256sum_aarch64="$(sha256sum runimage-aarch64)"
+
+            echo "\
+            -----------------------------------------------------------------------------------------------------------------------------
+            * [runimage-x86_64](https://github.com/VHSgunzo/runimage/releases/download/continuous/runimage-x86_64) | [pkg_list_x86_64.txt](https://github.com/VHSgunzo/runimage/releases/download/continuous/pkg_list_x86_64.txt)
+            -----------------------------------------------------------------------------------------------------------------------------
+            * [runimage-aarch64](https://github.com/VHSgunzo/runimage/releases/download/continuous/runimage-aarch64) | [pkg_list_aarch64.txt](https://github.com/VHSgunzo/runimage/releases/download/continuous/pkg_list_aarch64.txt)
+            -----------------------------------------------------------------------------------------------------------------------------
+            ## sha256sum:
+            ```
+            ${sha256sum_x86_64}
+            ${sha256sum_aarch64}
+            ```" > ../RELEASE_NOTE.md
 
       - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
-          files: runimage-utils*.tar.*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: "continuous"
+          prerelease: false
+          draft: false
+          body_path: "RELEASE_NOTE.md"
+          files: release/*
