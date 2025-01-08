@@ -74,7 +74,7 @@ fi
 
 RIM_CMPRS_FS="${RIM_CMPRS_FS:=dwfs}"
 RIM_CMPRS_ALGO="${RIM_CMPRS_ALGO:=zstd}"
-RIM_CMPRS_LVL="${RIM_CMPRS_LVL:=22}"
+RIM_CMPRS_LVL="${RIM_CMPRS_LVL:=1}"
 
 unset RUNBASENAME clvl
 while [[ $# -gt 0 ]]

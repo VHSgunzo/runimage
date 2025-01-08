@@ -136,6 +136,9 @@ fi
 echo '== shrink backup files, docs, man, locales, package cache, python cache, strip debug symbols'
 ./RunDir/Run rim-shrink --back --docs --locales --pkgcache --pycache --strip
 
+echo "== create pkg_list.txt"
+./RunDir/Run rim-pkgls > "pkg_list-${ROOTFS_ARCH}.txt"
+
 echo '== build new runimage'
 if [ -d "RunDir/sharun-$ROOTFS_ARCH" ]
     then

@@ -70,6 +70,7 @@ export_rsrc() {
         export RUNSRC="$2"||\
         export RUNSRC="$1"
     fi
+    export REALRUNSRC="$(realpath "$RUNSRC")"
 }
 
 export_rootfs_info() {
@@ -1348,8 +1349,9 @@ bwrun() {
                 "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}"
                 "${UNSHARE_BIND[@]}" "${HOME_BIND[@]}"
                 "${XORG_CONF_BIND[@]}" "${BWRAP_BIND[@]}"
-                "${FONTS_BIND[@]}" "${BOOT_BIND[@]}"
-                "${PKGCACHE_BIND[@]}" "${THEMES_BIND[@]}"
+                "${FONTS_BIND[@]}" "${ICONS_BIND[@]}"
+                "${BOOT_BIND[@]}" "${THEMES_BIND[@]}"
+                "${PKGCACHE_BIND[@]}"
                 --setenv INSIDE_RUNIMAGE '1'
                 --setenv RUNPID "$RUNPID"
                 --setenv PATH "$BIN_PATH"
@@ -1437,7 +1439,7 @@ bwrun() {
                         then (configure_net enable_portfw) &
                     fi
                     "${BWRAP_EXEC[@]}" sh -c bwin 8>"$BWINFFL"
-                    EXEC_STATUS="$?"
+                    local EXEC_STATUS="$?"
                 else
                     SSRV_UENV="$(tr ' ' ','<<<"${!RIM_@}")" \
                     "${BWRAP_EXEC[@]}" /var/RunDir/static/ssrv -srv -env all 8>"$BWINFFL" 1>/dev/null &
@@ -1451,9 +1453,10 @@ bwrun() {
             fi
     fi
     if [ ! -n "$EXEC_STATUS" ]
-        then "$SSRV_ELF" "${RIM_EXEC_ARGS[@]}" "$@"
+        then
+            "$SSRV_ELF" "${RIM_EXEC_ARGS[@]}" "$@"
+            local EXEC_STATUS="$?"
     fi
-    EXEC_STATUS="$?"
     if [ "$RIM_WAIT_RPIDS_EXIT" != 1 ]
         then
             [ -f "$BWINFFL" ] && \
@@ -1776,6 +1779,7 @@ rim_start() {
               "$ARG1" == "$(basename "${RIM_CONFIG%.rcfg}")" ||\
               "$ARG1" == "$(basename "${RUNIMAGE_INTERNAL_CONFIG%.rcfg}")" ]] && \
                 ARGS=("${ARGS[@]:1}")
+            [ -n "$REALAUTORUN" ]||check_autorun
             if [ "${#RIM_AUTORUN[@]}" == 1 ]
                 then "$@" $RIM_AUTORUN "${ARGS[@]}"
                 else "$@" "${RIM_AUTORUN[@]}" "${ARGS[@]}"
@@ -1784,6 +1788,39 @@ rim_start() {
             if [[ ! -n "$ARG1" && ! -n "$RIM_EXEC_ARGS" ]]
                 then "$@" "${RIM_SHELL[@]}"
                 else "$@" "${ARGS[@]}"
+            fi
+    fi
+}
+
+check_autorun() {
+    if [[ -n "$RIM_AUTORUN" && "$RIM_AUTORUN" != 0 ]]
+        then
+            AUTORUN0ARG=($RIM_AUTORUN)
+            info_msg "Autorun mode: ${RIM_AUTORUN[@]}"
+            is_rio_running && \
+            archeck_cmd=(run_attach exec "$SSRV_RUNPID")||\
+            archeck_cmd=(bwrun)
+            OLD_IFS="$IFS"
+            IFS=$'\n'
+            WHICH_AUTORUN0ARG=($(IFS="$OLD_IFS" \
+                RIM_NO_NVIDIA_CHECK=1 RIM_WAIT_RPIDS_EXIT=0 RIM_NO_RPIDSMON=1 \
+                RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 "${archeck_cmd[@]}" \
+                which -a "$AUTORUN0ARG"))
+            IFS="$OLD_IFS"
+            unset REALAUTORUN
+            for exe in "${WHICH_AUTORUN0ARG[@]}"
+                do
+                    [ "$(realpath "$exe")" != "$REALRUNSRC" ] && \
+                        REALAUTORUN="$exe" && break
+            done
+            if [ -n "$REALAUTORUN" ]
+                then
+                    export RUNSRCNAME="$(basename "$AUTORUN0ARG")"
+                    export RIM_AUTORUN="$REALAUTORUN"
+                else
+                    error_msg "$AUTORUN0ARG not found in PATH!"
+                    cleanup force
+                    exit 1
             fi
     fi
 }
@@ -1832,6 +1869,7 @@ set_default_option() {
     RIM_TMP_HOME_DL=0
     RIM_UNSHARE_NSS=1
     RIM_SHARE_FONTS=0
+    RIM_SHARE_ICONS=0
     RIM_UNSHARE_HOME=1
     RIM_SHARE_THEMES=0
     RIM_SANDBOX_HOME=0
@@ -2214,16 +2252,14 @@ if [[ "$EUID" == 0 && "$RIM_ALLOW_ROOT" != 1 && "$INSIDE_RUNIMAGE" != 1 ]]
 fi
 
 if [[ -n "$RIM_AUTORUN" && "$RIM_AUTORUN" != 0 ]] && \
-   [[ "$RUNSRCNAME" == "Run"* || \
-      "$RUNSRCNAME" == "runimage"* ]]
+   [[ "$RUNSRCNAME" =~ (Run|runimage).* ]]
     then
-        RUNSRCNAME=($RIM_AUTORUN)
+        RUNSRCNAME="$(basename "$RIM_AUTORUN")"
 elif [[ "${RUNSRCNAME,,}" =~ .*\.(runimage|rim)$ ]]
    then
         RUNSRCNAME="$(sed 's|\.runimage$||i;s|\.rim$||i'<<<"$RUNSRCNAME")"
         RIM_AUTORUN="$RUNSRCNAME"
-elif [[ "$RUNSRCNAME" != "Run"* && \
-        "$RUNSRCNAME" != "runimage"* && "$RIM_AUTORUN" != 0 ]]
+elif [[ ! "$RUNSRCNAME" =~ (Run|runimage).* && "$RIM_AUTORUN" != 0 ]]
    then
         RIM_AUTORUN="$RUNSRCNAME"
 fi
@@ -2990,21 +3026,7 @@ add_bin_pth "$HOME/.local/bin:/bin:/sbin:/usr/bin:/usr/sbin:\
 [ -n "$LD_LIBRARY_PATH" ] && \
     add_lib_pth "$LD_LIBRARY_PATH"
 
-if [[ -n "$RIM_AUTORUN" && "$RIM_AUTORUN" != 0 ]]
-    then
-        AUTORUN0ARG=($RIM_AUTORUN)
-        info_msg "Autorun mode: ${RIM_AUTORUN[@]}"
-        if RIM_NO_NVIDIA_CHECK=1 RIM_WAIT_RPIDS_EXIT=0 \
-            RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 bwrun \
-            which "$AUTORUN0ARG" &>/dev/null
-            then
-                export RUNSRCNAME="$AUTORUN0ARG"
-            else
-                error_msg "$AUTORUN0ARG not found in PATH!"
-                cleanup force
-                exit 1
-        fi
-fi
+check_autorun
 
 SETENV_ARGS=()
 if [ ! -n "$RIM_SHELL" ]
@@ -3515,6 +3537,13 @@ if [ "$RIM_UNSHARE_USERS" == 1 ]
         )
 fi
 
+ICONS_BIND=()
+if [[ "$RIM_SHARE_ICONS" == 1 && -d '/usr/share/icons' ]]
+    then
+        info_msg "Host /usr/share/icons is shared!"
+        ICONS_BIND+=('--ro-bind-try' '/usr/share/icons' '/usr/share/icons')
+fi
+
 FONTS_BIND=()
 if [[ "$RIM_SHARE_FONTS" == 1 && -d '/usr/share/fonts' ]]
     then
@@ -3654,6 +3683,8 @@ case "$ARG1" in
     rim-shell     ) bwrun "${RIM_SHELL[@]}" "${ARGS[@]}" ;;
     rim-psmon     ) bwrun rim-psmon "${ARGS[@]}" ;;
     rim-build     ) run_build "${ARGS[@]}" ;;
+    rim-*) error_msg "Option is not supported: $ARG1"
+            exit 1 ;;
     *) rim_start bwrun ;;
 esac
 EXIT_STAT="$?"
@@ -3662,32 +3693,23 @@ if [ "$RIM_WAIT_RPIDS_EXIT" == 1 ]
     then
         trap cleanup INT
         find_processes() {
-            processes="$(ps -ocmd= -p $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null)"
-            for ps in "${IGNPS[@]}"
-                do processes="$(grep -v "$ps"<<<"$processes")"
-            done
+            processes="$(ps -ocmd= -p $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null|grep -Ev "$IGNPS")"
         }
-        IGNPS=(
-            "$RUNPIDDIR" "$RUNDIR"
-            '/var/RunDir' "$RUNIMAGEDIR"
-        )
-        [ -n "$SSRV_PID" ] && IGNPS+=("slirp4netns.*$SSRV_PID")
+        IGNPS="$RUNPIDDIR|$RUNDIR|/var/RunDir|$RUNIMAGEDIR"
+        [ -n "$SSRV_PID" ] && IGNPS+="|slirp4netns.*$SSRV_PID"
         find_processes
-        wait_rpids=100
-        while is_pid "$RUNPID" && \
-            [[ "$wait_rpids" -gt 0 && ! -n "$processes" ]]
-            do
-                (( wait_rpids-- ))
-                sleep 0.01 2>/dev/null
-                find_processes
-        done
         while is_pid "$RUNPID" && \
             [ -n "$processes" ]
             do
-                sleep 1
+                sleep 0.5
                 find_processes
         done
-        sleep 0.5
+        [ -f "$BWINFFL" ] && \
+            rm -f "$BWINFFL" 2>/dev/null
+        kill $SSRV_PID 2>/dev/null
+        [ -e "$SSRV_SOCK_PATH" ] && \
+            rm -f "$SSRV_SOCK_PATH" 2>/dev/null
+        sleep 0.1
 fi
 
 exit $EXIT_STAT

@@ -232,9 +232,9 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                                     "${LIBDIRS[@]}"|\
                                     grep -Ev 'strip|bash|librt\.so.*|libzstd\.so.*|libz\.so.*|libsframe\.so.*|libbfd-.*\.so|libpthread\.so.*|libc\.so.*|ld-linux.*\.so.*|\.o$|\.a$|libncursesw\.so.*|libreadline\.so.*')
                                     do
-                                        (if [[ "$(head -c +4 "$file" 2>/dev/null)" =~ 'ELF' ]]
-                                            then strip $verb --strip-debug "$file" 2>/dev/null
-                                        fi) & wait_batch
+                                        (if [[ "$(head -c +4 "$file")" =~ 'ELF' ]]
+                                            then strip $verb --strip-debug "$file"
+                                        fi) 2>/dev/null & wait_batch
                                 done
                             else
                                 warn_msg "strip not found! skipping..."

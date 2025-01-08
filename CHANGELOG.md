@@ -1,14 +1,15 @@
 # v0.40.1
 
 * Update `rootfs` v0.40.1 xx.xx.xx
-* Rename `*BWRAP*` other var to `*BUWRAP*`
 * Fix exit code for `rundesktop`
 * Add `/usr/bin/vendor_perl` to `PATH`
-* Add disabling `SANDBOX_NET` if `SUID Bubblewrap` is used
-* Add support for `apt-based` rootfs
-* Add `UNSHARE_LOCALTIME` Unshares localtime from the host (/etc/localtime)
-* Fix `UNSHARE_USERS` group
-* Add `UNSHARE_NSS` Unshares NSS from the host (/etc/nsswitch.conf)
+* Add disabling `RIM_SANDBOX_NET` if `SUID Bubblewrap` is used
+* Add support for `debian based` rootfs
+* Add support for `alpine based` rootfs
+* Add support for `void based` rootfs
+* Add `RIM_UNSHARE_LOCALTIME` Unshares localtime from the host (/etc/localtime)
+* Fix `RIM_UNSHARE_USERS` group
+* Add `RIM_UNSHARE_NSS` Unshares NSS from the host (/etc/nsswitch.conf)
 * Minor fixes
 
 -----------------------------------------------------------------------------------------------------------------------------

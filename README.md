@@ -1,6 +1,6 @@
 # RunImage
 
-## **Portable single-file unprivileged Linux container in user namespaces.**
+## **Portable single-file Linux container in unprivileged user namespaces.**
 
 ![image](screenshots/run-shell.png)
 
