@@ -1014,7 +1014,10 @@ run_attach() {
                 export SSRV_ENV_PIDS="$(get_child_pids "$(cat "$RUNTMPDIR/$1/ssrv.pid" 2>/dev/null)"|head -1)"
                 shift
                 try_unmount_rundir
-                exec "$SSRV_ELF" "$@"
+                if [ "$RIM_EXEC_SAME_PWD" == 1 ]
+                    then exec "$SSRV_ELF" -cwd "$PWD" "$@"
+                    else exec "$SSRV_ELF" "$@"
+                fi
         fi
     }
     no_runimage_msg() {
@@ -3683,8 +3686,6 @@ case "$ARG1" in
     rim-shell     ) bwrun "${RIM_SHELL[@]}" "${ARGS[@]}" ;;
     rim-psmon     ) bwrun rim-psmon "${ARGS[@]}" ;;
     rim-build     ) run_build "${ARGS[@]}" ;;
-    rim-*) error_msg "Option is not supported: $ARG1"
-            exit 1 ;;
     *) rim_start bwrun ;;
 esac
 EXIT_STAT="$?"
