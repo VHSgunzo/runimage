@@ -1916,16 +1916,16 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}rim-help   $GREEN                    Show this usage info
         ${BLUE}rim-version$GREEN                    Show runimage, rootfs, static, runtime version
         ${BLUE}rim-pkgls  $GREEN                    Show packages installed in runimage
-        ${BLUE}rim-binls  $GREEN                  Show /usr/bin in runimage
+        ${BLUE}rim-binls  $GREEN                    Show /usr/bin in runimage
         ${BLUE}rim-shell  $YELLOW  {args}$GREEN            Run runimage shell or execute a command in runimage shell
         ${BLUE}rim-desktop$GREEN                    Launch runimage desktop
-        ${BLUE}rim-ofsls$GREEN                    Show the list of runimage OverlayFS
+        ${BLUE}rim-ofsls$GREEN                      Show the list of runimage OverlayFS
         ${BLUE}rim-ofsrm  $YELLOW  {id id ...|all}$GREEN   Remove OverlayFS
         ${BLUE}rim-build  $YELLOW  {build args}$GREEN      Build new runimage container
         ${BLUE}rim-update $YELLOW  {build args}$GREEN      Update packages and rebuild runimage
         ${BLUE}rim-kill   $GREEN                    Kill all running runimage containers
-        ${BLUE}rim-psmon$YELLOW {RUNPIDs}$GREEN         Monitoring of processes running in runimage containers
-        ${BLUE}rim-exec $YELLOW  {RUNPID} {args}$GREEN   Attach to a running runimage container or exec command
+        ${BLUE}rim-psmon$YELLOW    {RUNPIDs}$GREEN         Monitoring of processes running in runimage containers
+        ${BLUE}rim-exec $YELLOW    {RUNPID} {args}$GREEN   Attach to a running runimage container or exec command
 
     ${RED}Only for not extracted (RunImage runtime options):
         ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
@@ -1937,7 +1937,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}--runtime-portable-config$GREEN            Create a portable config folder to use as ${YELLOW}\$XDG_CONFIG_HOME$GREEN
         ${BLUE}--runtime-version$GREEN                    Print version of runimage runtime
 
-    ${RED}Environment variables to configure:
+    ${RED}Configuration environment variables:
         ${YELLOW}RIM_NO_NET$GREEN=1                             Disables network access
         ${YELLOW}RIM_TMP_HOME$GREEN=1                           Creates tmpfs /home/${YELLOW}\$USER${GREEN} and /root in RAM and uses it as ${YELLOW}\$HOME
         ${YELLOW}RIM_TMP_HOME_DL$GREEN=1                        As above, but with binding ${YELLOW}\$HOME${GREEN}/Downloads directory
@@ -1996,254 +1996,9 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_DESKTOP_DISPLAY$GREEN=\":9999\"               Sets runimage desktop ${YELLOW}\$DISPLAY$GREEN (Default: :1337)
         ${YELLOW}RIM_XEPHYR_FULLSCREEN$GREEN=1                  Starts runimage desktop in full screen mode
         ${YELLOW}RIM_DESKTOP_UNCLIP$GREEN=1                  Disables clipboard synchronization for runimage desktop
-
+        ${YELLOW}RIM_DESKTOP_INTEGRATION$GREEN=1             Enable desktop integration pacman hook
         ${YELLOW}RIM_SYS_TOOLS$GREEN=1                          Using all binaries from the system
                                              If they are not found in the system - auto return to the built-in
-
-    ${RED}Other environment variables:
-        ${GREEN}If inside RunImage:
-            ${YELLOW}INSIDE_RUNIMAGE${GREEN}=1
-        ${GREEN}RunImage path (for packed):
-            ${YELLOW}RUNIMAGE${GREEN}=\"$RUNIMAGE\"
-        ${GREEN}Squashfs offset (for packed):
-            ${YELLOW}RUNOFFSET${GREEN}=\"$RUNOFFSET\"
-        ${GREEN}Null argument:
-            ${YELLOW}ARG0${GREEN}=\"$ARG0\"
-        ${GREEN}PID of Run.sh script:
-            ${YELLOW}RUNPID${GREEN}=\"$RUNPID\"
-        ${GREEN}Parent PID of Run.sh script:
-            ${YELLOW}RUNPPID${GREEN}=\"$RUNPPID\"
-        ${GREEN}Run binary directory:
-            ${YELLOW}RUNDIR${GREEN}=\"$RUNDIR\"
-        ${GREEN}RootFS directory:
-            ${YELLOW}RUNROOTFS${GREEN}=\"$RUNROOTFS\"
-        ${GREEN}Static binaries directory:
-            ${YELLOW}RUNSTATIC${GREEN}=\"$RUNSTATIC\"
-        ${GREEN}RunImage or RunDir directory:
-            ${YELLOW}RUNIMAGEDIR${GREEN}=\"$RUNIMAGEDIR\"
-        ${GREEN}Sandbox homes directory:
-            ${YELLOW}SANDBOXHOMEDIR${GREEN}=\"$SANDBOXHOMEDIR\"
-        ${GREEN}Portable homes directory:
-            ${YELLOW}PORTABLEHOMEDIR${GREEN}=\"$PORTABLEHOMEDIR\"
-        ${GREEN}External configs directory:
-            ${YELLOW}RUNCONFIGDIR${GREEN}=\"$RUNCONFIGDIR\"
-        ${GREEN}Cache directory:
-            ${YELLOW}RUNCACHEDIR${GREEN}=\"$RUNCACHEDIR\"
-        ${GREEN}Nvidia driver images directory:
-            ${YELLOW}NVIDIA_DRIVERS_DIR${GREEN}=\"$NVIDIA_DRIVERS_DIR\"
-        ${GREEN}RunImage name or link name or executable name:
-            ${YELLOW}RUNSRCNAME${GREEN}=\"$RUNSRCNAME\"
-        ${GREEN}RunImage version:
-            ${YELLOW}RUNIMAGE_VERSION${GREEN}=\"$RUNIMAGE_VERSION\"
-        ${GREEN}RootFS version:
-            ${YELLOW}RUNROOTFS_VERSION${GREEN}=\"$RUNROOTFS_VERSION\"
-        ${GREEN}Static version:
-            ${YELLOW}RUNSTATIC_VERSION${GREEN}=\"$RUNSTATIC_VERSION\"
-        ${GREEN}RunImage runtime version:
-            ${YELLOW}RUNRUNTIME_VERSION${GREEN}=\"$RUNRUNTIME_VERSION\"
-        ${GREEN}Directory for all OverlayFS:
-            ${YELLOW}RUNOVERFSDIR${GREEN}=\"$RUNOVERFSDIR\"
-        ${GREEN}OverlayFS ID directory:
-            ${YELLOW}OVERFS_DIR${GREEN}=\"$OVERFS_DIR\"
-        ${GREEN}OverlayFS ID mount directory:
-            ${YELLOW}OVERFS_MNT${GREEN}=\"$OVERFS_MNT\"
-        ${GREEN}RunImage runtime:
-            ${YELLOW}RUNRUNTIME${GREEN}=\"$RUNRUNTIME\"
-        ${GREEN}Rootfs type:
-            ${YELLOW}RUNROOTFSTYPE${GREEN}=\"$RUNROOTFSTYPE\"
-        ${GREEN}squashfuse and unionfs PIDs:
-            ${YELLOW}FUSE_PIDS${GREEN}=\"$FUSE_PIDS\"
-        ${GREEN}The name of the user who runs runimage:
-            ${YELLOW}RUNUSER${GREEN}=\"$RUNUSER\"
-
-    ${RED}Custom scripts and aliases:
-        ${YELLOW}cip$GREEN                          Сheck public ip
-        ${YELLOW}dbus-flmgr$GREEN                   Launch the system file manager via dbus
-        ${YELLOW}nocap$GREEN                        Disables container capabilities
-        ${YELLOW}sudo$GREEN                         Fake sudo (fakechroot fakeroot)
-        ${YELLOW}pac$GREEN                          sudo pacman (fake sudo)
-        ${YELLOW}packey$GREEN                       sudo pacman-key (fake sudo)
-        ${YELLOW}panelipmon$GREEN                   Shows information about an active network connection
-        ${YELLOW}rim-build$GREEN                     Starts the runimage build
-        ${YELLOW}rim-desktop$GREEN                   Starts the desktop mode
-        ${YELLOW}{xclipsync,xclipfrom}$GREEN        For clipboard synchronization in desktop mode
-        ${YELLOW}webm2gif$GREEN                     Convert webm to gif
-        ${YELLOW}transfer$GREEN                     Upload file to ${BLUE}https://transfer.sh
-        ${YELLOW}rim-psmon$GREEN                     For monitoring of processes running in runimage containers
-        ${YELLOW}hostexec$GREEN                     For execute commands at the host level (see ${YELLOW}RIM_ENABLE_HOSTEXEC$GREEN)
-        ${YELLOW}rim-update$GREEN                    For runimage update
-
-        ${YELLOW}ls$GREEN='ls --color=auto'
-        ${YELLOW}dir$GREEN='dir --color=auto'
-        ${YELLOW}grep$GREEN='grep --color=auto'
-        ${YELLOW}vdir$GREEN='vdir --color=auto'
-        ${YELLOW}fgrep$GREEN='fgrep --color=auto'
-        ${YELLOW}egrep$GREEN='egrep --color=auto'
-        ${YELLOW}rm$GREEN='rm -i'
-        ${YELLOW}cp$GREEN='cp -i'
-        ${YELLOW}mv$GREEN='mv -i'
-        ${YELLOW}ll$GREEN='ls -lh'
-        ${YELLOW}la$GREEN='ls -lha'
-        ${YELLOW}l$GREEN='ls -CF'
-        ${YELLOW}em$GREEN='emacs -nw'
-        ${YELLOW}_$GREEN='sudo'
-        ${YELLOW}_i$GREEN='sudo -i'
-        ${YELLOW}please$GREEN='sudo'
-        ${YELLOW}fucking$GREEN='sudo'
-        ${YELLOW}cip$GREEN='curl -s ifconfig.io 2>/dev/null'
-        ${YELLOW}dd$GREEN='dd status=progress'
-        ${YELLOW}pac$GREEN='sudo pacman'
-        ${YELLOW}pacman$GREEN='sudo pacman'
-        ${YELLOW}pacman-key$GREEN='sudo pacman-key'
-        ${YELLOW}packey$GREEN='sudo pacman-key'
-
-    ${RED}Additional information:${GREEN}
-        You can create a symlink/hardlink to runimage or rename runimage and give it the name
-            of some executable file from /usr/bin in runimage, this will allow you to run
-            runimage in autorun mode for this executable file.
-        The same principle applies to the ${YELLOW}RIM_AUTORUN$GREEN variable:
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}RIM_AUTORUN=\"ls -la\" ${GREEN}runimage ${YELLOW}{autorun executable args}${GREEN}
-        Here runimage will become something like an alias for 'ls' in runimage
-            with the '-la' argument. You can also use ${YELLOW}RIM_AUTORUN${GREEN} as an array for complex commands in the config.
-            ${YELLOW}RIM_AUTORUN=(\"ls\" \"-la\" \"/path/to something\")${GREEN}
-        This will also work in extracted form for the Run binary.
-
-        When using the ${YELLOW}RIM_PORTABLE_HOME$GREEN and ${YELLOW}RIM_PORTABLE_CONFIG$GREEN variables, runimage will create or
-            search for these directories next to itself. The same behavior will occur when
-            adding a runimage or Run binary or renamed or symlink/hardlink to them in the PATH
-            it can be used both extracted and compressed and for all executable files being run:
-                ${YELLOW}'$PORTABLEHOMEDIR/Run'$GREEN
-                ${YELLOW}'$RUNIMAGEDIR/Run.config'$GREEN
-            if a symlink/hardlink to runimage is used:
-                ${YELLOW}'$PORTABLEHOMEDIR/{symlink/hardlink_name}'$GREEN
-                ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.config'$GREEN
-            or with runimage/Run name:
-                ${YELLOW}'$PORTABLEHOMEDIR/{runimage/Run_name}'$GREEN
-                ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.config'$GREEN
-            It can also be with the name of the executable file from ${YELLOW}RIM_AUTORUN$GREEN environment variables,
-                or with the same name as the executable being run.
-        ${YELLOW}RIM_SANDBOX_HOME$GREEN* similar to ${YELLOW}RIM_PORTABLE_HOME$GREEN, but the system ${YELLOW}HOME$GREEN becomes isolated.
-        ${YELLOW}RIM_SANDBOX_HOME_DIR$GREEN and ${YELLOW}RIM_PORTABLE_HOME_DIR$GREEN point to a specific directory or create it in the absence of.
-
-        RunImage uses fakechroot and fakeroot, which allows you to use root commands, including in
-            unpacked form, to update the rootfs or install/remove packages.
-            sudo and pkexec have also been replaced with fake ones. (see /usr/bin/sudo /usr/bin/pkexec)
-
-        ${RED}RunImage configuration file:${GREEN}
-            Special BASH-syntax file with the .rcfg extension, which describes additional
-                instructions and environment variables for running runimage.
-            Configuration file can be located next to runimage:
-                ${YELLOW}'$RUNIMAGEDIR/{runimage/Run_name}.rcfg'$GREEN
-            it can be used both extracted and compressed and for all executable files being run:
-                ${YELLOW}'$RUNIMAGEDIR/Run.rcfg'$GREEN
-            if a symlink/hardlink to runimage is used:
-                ${YELLOW}'$RUNIMAGEDIR/{symlink/hardlink_name}.rcfg'$GREEN
-            or in ${YELLOW}\$RUNIMAGEDIR$GREEN/config directory:
-                ${YELLOW}'$RUNCONFIGDIR/Run.rcfg'$GREEN
-                ${YELLOW}'$RUNCONFIGDIR/{runimage/Run_name}.rcfg'$GREEN
-                ${YELLOW}'$RUNCONFIGDIR/{symlink/hardlink_name}.rcfg'$GREEN
-            It can also be with the name of the executable file from ${YELLOW}RIM_AUTORUN$GREEN environment variables,
-                or with the same name as the executable being run.
-            In ${YELLOW}\$RUNDIR$GREEN/config there are default configs in RunImage, they are run in priority,
-                then external configs are run if they are found.
-
-        ${RED}RunImage desktop:${GREEN}
-            Ability to run RunImage in desktop mode. Default DE: XFCE (see rim-desktop)
-            If the launch is carried out from an already running desktop, then Xephyr will start
-                in windowed/full screen mode (see ${YELLOW}XEPHYR_*$GREEN environment variables)
-                Use CTRL+SHIFT to grab the keyboard and mouse.
-            It is also possible to run on TTY with Xorg (see ${YELLOW}RIM_XORG_CONF$GREEN environment variables)
-                To do this, just log in to TTY and run RunImage desktop.
-            ${RED}Important!${GREEN} The launch on the TTY should be carried out only under the user under whom the
-                login to the TTY was carried out.
-
-        ${RED}RunImage OverlayFS:${GREEN}
-            Allows you to create additional separate layers to modify the container file system without
-                changing the original container file system. Works packed and unpacked. Also, in packed form,
-                it allows you to mount the container in RW mode.
-            It also allows you to attach to the same OverlayFS when you specify its ID:
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}RIM_OVERFS_ID=1337 ${GREEN}runimage ${YELLOW}{args}${GREEN}
-                If OverlayFS with such ID does not exist, it will be created.
-            To save OverlayFS after closing the container, use ${YELLOW}RIM_KEEP_OVERFS:
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}RIM_KEEP_OVERFS=1 ${GREEN}runimage ${YELLOW}{args}${GREEN}
-            To run a one-time OverlayFS, use ${YELLOW}RIM_OVERFS_MODE:
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}RIM_OVERFS_MODE=1 ${GREEN}runimage ${YELLOW}{args}${GREEN}
-
-        ${RED}RunImage build:${GREEN}
-            Allows you to create your own runimage containers.
-            This works both externally by passing build args:
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${GREEN}runimage ${BLUE}rim-build ${YELLOW}{build args}${GREEN}
-            And it also works inside the running instance (see rim-build):
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - in runimage
-            $RED└──╼ \$ ${GREEN}rim-build ${YELLOW}{build args}${GREEN}
-            Optionally, you can specify the following build arguments:
-                ${YELLOW}{/path/new_runimage_name} {-zstd|-xz|-lz4} {zstd compression level 1-19}${GREEN}
-            By default, runimage is created in the current directory with a standard name and
-                with lz4 compression. If a new RunImage is successfully build, the old one is deleted.
-                (see ${YELLOW}RIM_KEEP_OLD_BUILD${GREEN} ${YELLOW}RIM_BUILD_WITH_EXTENSION${GREEN} ${YELLOW}RIM_CMPRS_ALGO${GREEN} ${YELLOW}RIM_ZSDT_CMPRS_LVL${GREEN})
-
-        ${RED}RunImage update:${GREEN}
-            Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
-                not be performed. When running an update, you can also pass arguments for a new build.
-                (see RunImage build) (also see rim-update)
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${GREEN}runimage ${BLUE}rim-update ${YELLOW}{build args}${GREEN}
-            By default, update and rebuild is performed in ${YELLOW}\$RUNIMAGEDIR${GREEN}
-
-        ${RED}RunImage network sandbox:${GREEN}
-            Allows you to create a private network namespace with slirp4netns and inside the container
-                manage routing, create/delete network interfaces, connect to a vpn (checked openvpn
-                and wireguard), configure your resolv.conf and hosts, etc. (see ${YELLOW}RIM_SANDBOX_NET${GREEN}*)
-            By default, network sandbox created in 10.0.2.0/24 subnet, with eth0 tap name, 10.0.2.100 tap ip,
-                1500 tap MTU, and random MAC.
-
-        ${RED}RunImage hostexec:${GREEN}
-            Allows you to run commands at the host level (see ${YELLOW}RIM_ENABLE_HOSTEXEC${GREEN} and hostexec)
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED]
-            $RED└──╼ \$ ${YELLOW}RIM_ENABLE_HOSTEXEC${GREEN}=1 runimage ${BLUE}rim-shell ${GREEN}
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command as args
-            $RED└──╼ \$ ${GREEN}hostexec ${BLUE}{hostexec args}${GREEN} {executable} ${YELLOW}{executable args}${GREEN}
-            $RED┌─[$GREEN$RUNUSER$YELLOW@$BLUE${RUNHOSTNAME}$RED]─[$GREEN$PWD$RED] - pass command to stdin
-            $RED└──╼ \$ ${GREEN}echo ${BLUE}\"${GREEN}{executable}${YELLOW} {executable args}${BLUE}\"$RED|${GREEN}hostexec ${BLUE}{hostexec args}${GREEN}
-                ${BLUE}--help      ${RED}|${BLUE}-h${GREEN}             Show this usage info
-                ${BLUE}--shell     ${RED}|${BLUE}-s$GREEN  $YELLOW{args}$GREEN     Launch host shell (socat + ptyspawn)
-                ${BLUE}--superuser ${RED}|${BLUE}-su${GREEN} $YELLOW{args}$GREEN     Execute command as superuser
-                ${BLUE}--terminal  ${RED}|${BLUE}-t${GREEN}  $YELLOW{args}$GREEN     Execute command in host terminal
-
-        ${RED}For Nvidia users with a proprietary driver:${GREEN}
-            If the nvidia driver version does not match in runimage and in the host, runimage
-                will make an image with the nvidia driver of the required version (requires internet)
-                or will download a ready-made image from the github repository and further used as
-                an additional module to runimage.
-            You can download a ready-made driver image from the releases or build driver image manually:
-                ${BLUE}https://github.com/VHSgunzo/runimage-nvidia-drivers${GREEN}
-            In runimage, a fake version of the nvidia driver is installed by default to reduce the size:
-                ${BLUE}https://github.com/VHSgunzo/runimage-fake-nvidia-driver${GREEN}
-            But you can also install the usual nvidia driver of your version in runimage.
-            Checking the nvidia driver version can be disabled using ${YELLOW}RIM_NO_NVIDIA_CHECK$GREEN variable.
-            The nvidia driver image can be located next to runimage:
-                    ${YELLOW}'$RUNIMAGEDIR/{nvidia_version}.nv.drv'$GREEN
-                or in ${YELLOW}\$RUNIMAGEDIR$GREEN/nvidia-drivers (Default):
-                    ${YELLOW}'$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}.nv.drv'$GREEN
-                or the driver can be extracted as the directory
-                    ${YELLOW}'$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}'$GREEN
-                also, the driver can be in RunImage in a packed or unpacked form:
-                    ${YELLOW}'\$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv'$GREEN   ${RED}-  image
-                    ${YELLOW}'\$RUNDIR/nvidia-drivers/{nvidia_version}'$GREEN          ${RED}-  directory
-
-    ${RED}Recommendations:${GREEN}
-        If the kernel does not support user namespaces, you need to install
-            SUID Bubblewrap into the system, or install a kernel with user namespaces support.
-            If SUID Bubblewrap is found in the system, it will be used automatically.
-        If you use SUID Bubblewrap, then you will encounter some limitations, such as the inability to use
-            FUSE in RunImage, without running it under the root user, because the capabilities are
-            disabled, and so on. So it would be better for you to install kernel with
-            user namespaces support.
     $RESETCOLOR" >&2
 }
 

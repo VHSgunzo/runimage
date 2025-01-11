@@ -13,7 +13,7 @@
 * Remove `ALLOW_BG` (now you can send whole runimage to background with processes control)
 * Remove `NO_RUNDIR_BIND`
 * Fix bug with `MangoHud` and `vkBasalt` in `DXVK`
-* Add bootstrap CI
+* Add continuous bootstrap CI
 * Fix exit code for `rim-desktop`
 * Fix input hang when exit from RunImage desktop on TTY
 * Fix empty apps menu in RunImage desktop
@@ -27,6 +27,7 @@
 * Add `RIM_UNSHARE_LOCALTIME` Unshares localtime from the host (/etc/localtime)
 * Fix `RIM_UNSHARE_USERS` group
 * Add `RIM_UNSHARE_NSS` Unshares NSS from the host (/etc/nsswitch.conf)
+* Add `RIM_DESKTOP_INTEGRATION` Enable desktop integration pacman hook
 * Update static `bubblewrap` [v0.11.0](https://github.com/VHSgunzo/bubblewrap-static/releases/tag/v0.11.0)
 * Update `fake-nvidia-driver` [v0.9](https://github.com/VHSgunzo/runimage-fake-nvidia-driver/releases/tag/v0.9)
 * Add ability to create `Nvidia driver` image from local libs (`RIM_SYS_NVLIBS=1`)
@@ -38,6 +39,15 @@
 * Update [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
 * Update [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
 * Update [runimage-openssh](https://github.com/VHSgunzo/runimage-openssh) package
+* Update `pacman` hooks
+* Remove default RunImage configs
+* Add `getdimg` script For download docker container images
+* Add `httpfw` script For expose a local HTTP port to the internet
+* Add `tcpfw` script For expose a local TCP port to the internet
+* Add `rim-bootstrap` script For bootstrap new runimage
+* Add `rim-dinteg` script For desktop integration
+* Add `rim-shrink` script For shrinking unnecessary files
+* Add `REUIDDIR` RunImage user working directory
 * Minor fixes
 
 -----------------------------------------------------------------------------------------------------------------------------
