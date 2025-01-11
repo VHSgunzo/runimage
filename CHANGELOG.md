@@ -1,8 +1,25 @@
 # v0.40.1
 
 * Update `rootfs` v0.40.1 xx.xx.xx
-* Fix exit code for `rundesktop`
+* Add `aarch64` support
+* [Patch](https://github.com/VHSgunzo/bubblewrap-static/blob/main/caps.patch) nested bubblewrap containerization
+* Create new runtime ([uruntime](https://github.com/VHSgunzo/uruntime)) for support [DwarFS](https://github.com/mhx/dwarfs) and [SquashFS](https://docs.kernel.org/filesystems/squashfs.html)
+* Add [DwarFS](https://github.com/mhx/dwarfs) filesystem support and use it  by default with zstd compression
+* Replace [runimage-runtime-static](https://github.com/VHSgunzo/runimage-runtime-static) with [runimage-uruntime](https://github.com/VHSgunzo/runimage-uruntime)
+* Create [sharun](https://github.com/VHSgunzo/sharun) for replace static utils in [runimage-static](https://github.com/VHSgunzo/runimage-static.git)
+* Create [ssrv](https://github.com/VHSgunzo/ssrv) for connect to running containers
+* Replace old method for `hostexec` and use [ssrv](https://github.com/VHSgunzo/ssrv) for it
+* Add [tini](https://github.com/krallin/tini) for control container processes ([tini-static](https://github.com/VHSgunzo/tini-static))
+* Remove `ALLOW_BG` (now you can send whole runimage to background with processes control)
+* Remove `NO_RUNDIR_BIND`
+* Fix bug with `MangoHud` and `vkBasalt` in `DXVK`
+* Add bootstrap CI
+* Fix exit code for `rim-desktop`
+* Fix input hang when exit from RunImage desktop on TTY
+* Fix empty apps menu in RunImage desktop
 * Add `/usr/bin/vendor_perl` to `PATH`
+* Rename all config env vars with prefix `RIM_*`
+* Rename all RunImage args `rim-*`
 * Add disabling `RIM_SANDBOX_NET` if `SUID Bubblewrap` is used
 * Add support for `debian based` rootfs
 * Add support for `alpine based` rootfs
@@ -10,6 +27,17 @@
 * Add `RIM_UNSHARE_LOCALTIME` Unshares localtime from the host (/etc/localtime)
 * Fix `RIM_UNSHARE_USERS` group
 * Add `RIM_UNSHARE_NSS` Unshares NSS from the host (/etc/nsswitch.conf)
+* Update static `bubblewrap` [v0.11.0](https://github.com/VHSgunzo/bubblewrap-static/releases/tag/v0.11.0)
+* Update `fake-nvidia-driver` [v0.9](https://github.com/VHSgunzo/runimage-fake-nvidia-driver/releases/tag/v0.9)
+* Add ability to create `Nvidia driver` image from local libs (`RIM_SYS_NVLIBS=1`)
+* Update [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper.git) package
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static.git) package
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Update [runimage-mirrorlist](https://github.com/VHSgunzo/runimage-mirrorlist) package
+* Update [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs) package
+* Update [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
+* Update [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
+* Update [runimage-openssh](https://github.com/VHSgunzo/runimage-openssh) package
 * Minor fixes
 
 -----------------------------------------------------------------------------------------------------------------------------

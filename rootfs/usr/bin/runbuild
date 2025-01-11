@@ -1,1 +1,287 @@
-../../var/RunDir/utils/rim-build
+#!/usr/bin/env bash
+
+# for compatibility with old scripts. it will be removed in the next release.
+
+RED='\033[1;91m'
+BLUE='\033[1;94m'
+GREEN='\033[1;92m'
+YELLOW='\033[1;33m'
+RESETCOLOR='\033[1;00m'
+
+[ -f "$RIMENVFL" ] && \
+    source "$RIMENVFL"
+
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
+    NOT_TERM=1||NOT_TERM=0
+
+BUILDKEY="$BASHPID"
+EXEPT_RUNSRCNAMES=("Run" "rim-build" "rim-desktop" "rim-update")
+
+nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
+
+error_msg() {
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    if [ "$NOT_TERM" == 1 ]
+        then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+    fi
+}
+
+info_msg() {
+    if [ "$RIM_QUIET_MODE" != 1 ]
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
+                then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+            fi
+    fi
+}
+
+warn_msg() {
+    if [[ "$RIM_QUIET_MODE" != 1 && "$RIM_NO_WARN" != 1 ]]
+        then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
+                then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+            fi
+    fi
+}
+
+empty_msg() {
+    error_msg "${YELLOW}Option ${BLUE}$1 ${YELLOW}requires a non-empty argument!\n"
+    print_help
+}
+
+print_help() {
+    echo -e "[ Usage ]: rim-build [OPTIONS] /path/runimage
+
+[ Options ]:
+    -b, --bsize '1M|20'    Set block size (env: RIM_CMPRS_BSIZE=1M)
+    -c, --clvl  '1-22'     Set compression level (env: RIM_CMPRS_LVL=1)
+    -d, --dwfs             Use DwarFS file system (env: RIM_CMPRS_FS=dwfs)
+    -l, --lz4              Use lz4 compression (for DwarFS clvl 1-12) (env: RIM_CMPRS_ALGO=lz4)
+    -h, --help             Show this message
+    -s, --sqfs             Use SquashFS file system (env: RIM_CMPRS_FS=sqfs)
+    -x, --xz               Use xz (lzma for DwarFS clvl 1-9) compression (env: RIM_CMPRS_ALGO=xz)
+    -z, --zstd             Use zstd compression (clvl 1-22) (env: RIM_CMPRS_ALGO=zstd)"
+    exit 1
+}
+
+if [ -d "$OVERFS_MNT" ]
+    then
+        RUNDIR="$OVERFS_MNT"
+        RUNSTATIC="$RUNDIR/static"
+fi
+
+RUNRUNTIME="$RUNSTATIC/uruntime"
+if [ ! -x "$RUNRUNTIME" ]
+     then
+          error_msg "RunImage runtime not found!"
+          exit 1
+fi
+
+RIM_CMPRS_FS="${RIM_CMPRS_FS:=dwfs}"
+RIM_CMPRS_ALGO="${RIM_CMPRS_ALGO:=zstd}"
+RIM_CMPRS_LVL="${RIM_CMPRS_LVL:=1}"
+
+unset RUNBASENAME clvl
+while [[ $# -gt 0 ]]
+    do
+        case "$1" in
+            -h|--help ) print_help ;;
+            -z|--zstd ) RIM_CMPRS_ALGO='zstd' ;;
+            -x|--xz   ) RIM_CMPRS_ALGO='xz' ;;
+            -l|--lz4  ) RIM_CMPRS_ALGO='lz4' ;;
+            -s|--sqfs ) RIM_CMPRS_FS='sqfs' ;;
+            -d|--dwfs ) RIM_CMPRS_FS='dwfs' ;;
+            -c|--clvl )
+                if [[ -n "$2" && "$2" != -* ]]
+                    then clvl=1; RIM_CMPRS_LVL="$2"; shift
+                    else empty_msg "$1"
+                fi ;;
+            -b|--bsize)
+                if [[ -n "$2" && "$2" != -* ]]
+                    then RIM_CMPRS_BSIZE="$2"; shift
+                    else empty_msg "$1"
+                fi ;;
+            -*) error_msg "Unknown parameter: ${BLUE}$1\n"; print_help ;;
+            *)
+                if [ -d "$(dirname "$1" 2>/dev/null)" ]
+                    then
+                        if [ -d "$1" ]
+                            then
+                                if [[ "${EXEPT_RUNSRCNAMES[@]}" =~ "$RUNSRCNAME" ]]
+                                    then RUNBASENAME="$1/runimage"
+                                    else RUNBASENAME="$1/$RUNSRCNAME"
+                                fi
+                            else RUNBASENAME="$1"
+                        fi
+                    else
+                        error_msg "The build directory does not exist!"
+                        exit 1
+                fi ;;
+        esac
+        shift
+done
+
+info_msg "RunImage build"
+
+if [ ! -n "$RUNBASENAME" ]
+    then
+        if [[ "${EXEPT_RUNSRCNAMES[@]}" =~ "$RUNSRCNAME" ]]
+            then RUNBASENAME="runimage"
+            else RUNBASENAME="$RUNSRCNAME"
+        fi
+fi
+
+NEWRUNIMAGE="$(realpath "$RUNBASENAME").new$BUILDKEY"
+OLDRUNIMAGE="${NEWRUNIMAGE%.new$BUILDKEY}"
+[[ -f "$NEWRUNIMAGE" || -d "$NEWRUNIMAGE" || -L "$NEWRUNIMAGE" ]] && \
+     rm -rf "$NEWRUNIMAGE"
+
+CMPRS_CMD=()
+CMPRS_EXCLUDE=()
+case "$RIM_CMPRS_FS" in
+    sqfs)
+          RUNOFFSET="$("$RUNRUNTIME" --runtime-offset)"
+          CMPRS_CMD+=("$RUNSTATIC/mksquashfs" "$RUNDIR" "$NEWRUNIMAGE")
+          [ -f "$RUNDIR/cryptfs/gocryptfs.conf" ] && \
+          CMPRS_EXCLUDE+=(-wildcards -e 'rootfs/*' 'rootfs/.*')
+          CMPRS_CMD+=(
+            -root-owned -offset "$RUNOFFSET" -no-recovery -no-xattrs
+            -noappend -mkfs-time 0 -action "chmod(u+rw)@! perm(u+rw)"
+            -action "prune @ type(c) || type(s) || type(b) || type(p)" -b
+          )
+          info_msg "Compression file system: SquashFS"
+    ;;
+    dwfs)
+          trap "rm -f '$NEWRUNIMAGE'" INT TERM EXIT
+          CMPRS_CMD+=("$RUNSTATIC/mkdwarfs")
+          [ -f "$RUNDIR/cryptfs/gocryptfs.conf" ] && \
+          CMPRS_EXCLUDE+=("--filter=- rootfs/*/**" "--filter=- rootfs/.*"  "--filter=- rootfs/*")
+          CMPRS_CMD+=(
+            -f --set-owner 0 --set-group 0 --no-history --log-level error
+            --no-create-timestamp --header "$RUNRUNTIME" --chmod u+rw
+            -i "$RUNDIR" -o "$NEWRUNIMAGE" -B16 --compression
+          )
+          info_msg "Compression file system: DwarFS"
+    ;;
+    *) error_msg "Invalid compression file system: $RIM_CMPRS_FS"; print_help ;;
+esac
+
+case "$RIM_CMPRS_ALGO" in
+    zstd)
+          info_msg "Compression algorithm: zstd"
+          if [ "$RIM_CMPRS_FS" == 'sqfs' ]
+            then
+                RIM_CMPRS_BSIZE="${RIM_CMPRS_BSIZE:=128K}"
+                CMPRS_CMD+=("$RIM_CMPRS_BSIZE" -comp zstd -Xcompression-level "$RIM_CMPRS_LVL")
+            else
+                RIM_CMPRS_BSIZE="${RIM_CMPRS_BSIZE:=18}"
+                CMPRS_CMD+=(zstd:level="$RIM_CMPRS_LVL" -S"$RIM_CMPRS_BSIZE")
+          fi
+          info_msg "Compression level: $RIM_CMPRS_LVL"
+    ;;
+    lz4)
+          info_msg "Compression algorithm: lz4"
+          if [ "$RIM_CMPRS_FS" == 'sqfs' ]
+            then
+                RIM_CMPRS_BSIZE="${RIM_CMPRS_BSIZE:=256K}"
+                CMPRS_CMD+=("$RIM_CMPRS_BSIZE" -comp lz4 -Xhc)
+            else
+                RIM_CMPRS_BSIZE="${RIM_CMPRS_BSIZE:=20}"
+                CMPRS_CMD+=(lz4hc:level="$RIM_CMPRS_LVL" -S"$RIM_CMPRS_BSIZE")
+                info_msg "Compression level: $RIM_CMPRS_LVL"
+          fi
+    ;;
+    xz)
+          if [ "$RIM_CMPRS_FS" == 'sqfs' ]
+            then
+                info_msg "Compression algorithm: xz"
+                RIM_CMPRS_BSIZE="${RIM_CMPRS_BSIZE:=1M}"
+                CMPRS_CMD+=("$RIM_CMPRS_BSIZE" -comp xz -Xdict-size 100%)
+            else
+                info_msg "Compression algorithm: lzma"
+                RIM_CMPRS_BSIZE="${RIM_CMPRS_BSIZE:=22}"
+                CMPRS_CMD+=(lzma:extreme:level="$RIM_CMPRS_LVL" -S"$RIM_CMPRS_BSIZE")
+                info_msg "Compression level: $RIM_CMPRS_LVL"
+          fi
+    ;;
+    *) error_msg "Invalid compression algorithm: $RIM_CMPRS_ALGO"; print_help ;;
+esac
+info_msg "Compression block size: $RIM_CMPRS_BSIZE"
+
+[ -n "$CMPRS_EXCLUDE" ] && CMPRS_CMD+=("${CMPRS_EXCLUDE[@]}")
+
+[[ "$INSIDE_RUNIMAGE" == 1 && ! -d "$RUNROOTFS" ]] && \
+     RUNROOTFS='/'
+
+unset IS_PACLOCKFL
+PACLOCKFL="$RUNROOTFS/var/lib/pacman/db.lck"
+if [ -w "$RUNROOTFS" ]
+     then
+          info_msg "Updating build timestamp..."
+          date '+%y.%m.%d.%H%M%S' > "$RUNROOTFS/.build"
+          info_msg "Cleanup rootfs..."
+          if [ -f "$PACLOCKFL" ]
+               then
+                    IS_PACLOCKFL=1
+                    rm -f "$PACLOCKFL"
+          fi
+          RUNUTILS="${RUNUTILS:=$RUNDIR/utils}"
+          RIM_QUIET_MODE=1 "$RUNSTATIC/bash" \
+            "$RUNUTILS/rim-shrink" --pkgcache
+     else
+          warn_msg "Unable to update build timestamp. Read-only!"
+          warn_msg "Unable to cleanup rootfs. Read-only!"
+fi
+
+info_msg "Creating new RunImage..."
+info_msg "Path: '$OLDRUNIMAGE'"
+"${CMPRS_CMD[@]}"
+cmprs_stat=$?
+
+[ "$IS_PACLOCKFL" == 1 ] && \
+     touch "$PACLOCKFL"
+
+if [[ "$cmprs_stat" != 1 && -f "$NEWRUNIMAGE" ]]
+    then
+        if [ "$RIM_CMPRS_FS" == 'sqfs' ]
+            then
+                info_msg "Embedding RunImage runtime..."
+                if ! dd if="$RUNRUNTIME" bs="$RUNOFFSET" count=1 of="$NEWRUNIMAGE" conv=notrunc &>/dev/null
+                    then
+                        error_msg "Failed to embed RunImage runtime!"
+                        rm -f "$NEWRUNIMAGE"
+                        exit 1
+                fi
+        fi
+        info_msg "Marking RunImage as executable..."
+        if ! chmod +x "$NEWRUNIMAGE"
+            then
+                error_msg "Failed to mark RunImage as executable!"
+                exit 1
+        fi
+        if [ -f "$OLDRUNIMAGE" ]
+            then
+                if [ "$RIM_KEEP_OLD_BUILD" == 1 ]
+                    then
+                        info_msg "Saving old RunImage: '${OLDRUNIMAGE}.old'"
+                        mv -f "${OLDRUNIMAGE}" "${OLDRUNIMAGE}.old"
+                    else
+                        info_msg "Removing old RunImage..."
+                        rm -f "$OLDRUNIMAGE"
+                        [ -f "${OLDRUNIMAGE}.old" ] && \
+                            rm -f "${OLDRUNIMAGE}.old"
+                fi
+        fi
+        if ! mv -f "$NEWRUNIMAGE" "$OLDRUNIMAGE"
+            then
+                trap - EXIT
+                error_msg "Failed to rename new RunImage: [$NEWRUNIMAGE] -> [$OLDRUNIMAGE]"
+                exit 1
+        fi
+        RUNIMAGESIZE=($(du -sm "$OLDRUNIMAGE"))
+        info_msg "The build is complete!"
+        info_msg "Final size: $RUNIMAGESIZE MB"
+    else
+        error_msg "The build failed!"
+        exit 1
+fi

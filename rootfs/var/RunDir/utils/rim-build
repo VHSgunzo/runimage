@@ -62,14 +62,17 @@ print_help() {
     exit 1
 }
 
+if [ -d "$OVERFS_MNT" ]
+    then
+        RUNDIR="$OVERFS_MNT"
+        RUNSTATIC="$RUNDIR/static"
+fi
+
+RUNRUNTIME="$RUNSTATIC/uruntime"
 if [ ! -x "$RUNRUNTIME" ]
      then
-          if [ -x "$RUNSTATIC/uruntime" ]
-                then RUNRUNTIME="$RUNSTATIC/uruntime"
-                else
-                    error_msg "RunImage runtime not found!"
-                    exit 1
-          fi
+          error_msg "RunImage runtime not found!"
+          exit 1
 fi
 
 RIM_CMPRS_FS="${RIM_CMPRS_FS:=dwfs}"
@@ -130,9 +133,6 @@ NEWRUNIMAGE="$(realpath "$RUNBASENAME").new$BUILDKEY"
 OLDRUNIMAGE="${NEWRUNIMAGE%.new$BUILDKEY}"
 [[ -f "$NEWRUNIMAGE" || -d "$NEWRUNIMAGE" || -L "$NEWRUNIMAGE" ]] && \
      rm -rf "$NEWRUNIMAGE"
-
-[ -d "$OVERFS_MNT" ] && \
-     RUNDIR="$OVERFS_MNT"
 
 CMPRS_CMD=()
 CMPRS_EXCLUDE=()

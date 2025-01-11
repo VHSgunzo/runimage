@@ -108,6 +108,8 @@ if [ -e "$RIM_HEXEC_SOCK" ]
                         esac
                 done
         fi
+        [ "$RIM_EXEC_SAME_PWD" == 1 ] && \
+            export SSRV_CWD="$PWD"
         SSRV_SOCK="unix:$RIM_HEXEC_SOCK" \
         exec ssrv "${args[@]}" "$@"
     else

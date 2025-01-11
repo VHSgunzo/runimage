@@ -646,7 +646,12 @@ check_nvidia_driver() {
         grep -owm1 nvidia /proc/modules &>/dev/null
         then
             unset NVDRVMNT nvidia_driver_dir
-            export NVIDIA_DRIVERS_DIR="${RIM_NVIDIA_DRIVERS_DIR:=$RUNIMAGEDIR/nvidia-drivers}"
+            [[ -n "$RIM_NVIDIA_DRIVERS_DIR" && ! -d "$RIM_NVIDIA_DRIVERS_DIR" ]] && \
+                try_mkdir "$RIM_NVIDIA_DRIVERS_DIR"
+            [ -d "$RIM_NVIDIA_DRIVERS_DIR" ] && \
+            NVIDIA_DRIVERS_DIR="$RIM_NVIDIA_DRIVERS_DIR"||\
+            NVIDIA_DRIVERS_DIR="$RUNIMAGEDIR/nvidia-drivers"
+            export NVIDIA_DRIVERS_DIR
             if [ -e '/sys/module/nvidia/version' ]
                 then
                     nvidia_version="$(cat /sys/module/nvidia/version 2>/dev/null)"
@@ -1014,10 +1019,9 @@ run_attach() {
                 export SSRV_ENV_PIDS="$(get_child_pids "$(cat "$RUNTMPDIR/$1/ssrv.pid" 2>/dev/null)"|head -1)"
                 shift
                 try_unmount_rundir
-                if [ "$RIM_EXEC_SAME_PWD" == 1 ]
-                    then exec "$SSRV_ELF" -cwd "$PWD" "$@"
-                    else exec "$SSRV_ELF" "$@"
-                fi
+                [ "$RIM_EXEC_SAME_PWD" == 1 ] && \
+                    export SSRV_CWD="$PWD"
+                exec "$SSRV_ELF" "$@"
         fi
     }
     no_runimage_msg() {
@@ -2370,20 +2374,24 @@ if [ "$RIM_ROOTFS" != 0 ]
         fi
 fi
 
+[[ -n "$RIM_CACHEDIR" && ! -d "$RIM_CACHEDIR" ]] && \
+    try_mkdir "$RIM_CACHEDIR"
 [ -d "$RIM_CACHEDIR" ] && \
 RUNCACHEDIR="$RIM_CACHEDIR"||\
 RUNCACHEDIR="$RUNIMAGEDIR/cache"
 export RUNCACHEDIR
 
+[[ -n "$RIM_OVERFSDIR" && ! -d "$RIM_OVERFSDIR" ]] && \
+    try_mkdir "$RIM_OVERFSDIR"
 [ -d "$RIM_OVERFSDIR" ] && \
 RUNOVERFSDIR="$RIM_OVERFSDIR"||\
 RUNOVERFSDIR="$RUNIMAGEDIR/overlayfs"
 export RUNOVERFSDIR
 
-RUNUSER="$(logname 2>/dev/null)"
-RUNUSER="${RUNUSER:=$SUDO_USER}"
 RUNUSER="${RUNUSER:=$USER}"
+RUNUSER="${RUNUSER:=$SUDO_USER}"
 RUNUSER="${RUNUSER:=$(id -un "$EUID" 2>/dev/null)}"
+RUNUSER="${RUNUSER:=$(logname 2>/dev/null)}"
 
 SSRV_ELF="$RUNSTATIC/ssrv"
 CHISEL="$RUNSTATIC/chisel"
@@ -2636,7 +2644,7 @@ done
 LOCALTIME_BIND=()
 if [ "$RIM_UNSHARE_LOCALTIME" != 1 ]
     then LOCALTIME_BIND+=("--ro-bind-try" "/etc/localtime" "/etc/localtime")
-    else warn_msg "Host '/etc/localtime' is unshared!"
+    else warn_msg "Host /etc/localtime is unshared!"
 fi
 
 if [ "$RIM_NO_RPIDSMON" != 1 ]
@@ -2854,6 +2862,8 @@ if [ "$RIM_OVERFS_MODE" != 0 ] && [[ "$RIM_OVERFS_MODE" == 1 || "$RIM_KEEP_OVERF
         fi
         export OVERFS_DIR="$RUNOVERFSDIR/$RIM_OVERFS_ID"
         try_mkdir "$OVERFS_DIR"
+        [ "$(findmnt -n -o FSTYPE -T "$OVERFS_DIR" 2>/dev/null)" == 'aufs' ] && \
+           export RIM_NO_BWRAP_OVERLAY=1
         if [ -d "$RIM_ROOTFS" ]
             then
                 warn_msg "UnionFS and CryptFS mode are not supported for custom RunImage rootfs!"
@@ -3365,11 +3375,11 @@ if [[ "$RIM_NO_NET" == 1 || "$RIM_SANDBOX_NET" == 1 ]]
     else
         NETWORK_BIND=("--share-net")
         if [ "$RIM_UNSHARE_HOSTS" == 1 ]
-            then warn_msg "Host '/etc/hosts' is unshared!"
+            then warn_msg "Host /etc/hosts is unshared!"
             else NETWORK_BIND+=("--ro-bind-try" "/etc/hosts" "/etc/hosts")
         fi
         if [ "$RIM_UNSHARE_RESOLVCONF" == 1 ]
-            then warn_msg "Host '/etc/resolv.conf' is unshared!"
+            then warn_msg "Host /etc/resolv.conf is unshared!"
             else NETWORK_BIND+=("--ro-bind-try" "/etc/resolv.conf" "/etc/resolv.conf")
         fi
 fi

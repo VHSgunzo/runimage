@@ -46,6 +46,7 @@ case "$1" in
     --cleanup) RIM_UPDATE_CLEANUP=1 ;;
 esac
 
+export RIM_UPDATE_CLEANUP RIM_UPDATE_SHRINK
 if is_exe_exist pacman
     then
         PACKEYRINGS=(archlinux-keyring)
