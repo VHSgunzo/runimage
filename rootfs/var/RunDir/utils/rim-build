@@ -56,6 +56,7 @@ print_help() {
     -d, --dwfs             Use DwarFS file system (env: RIM_CMPRS_FS=dwfs)
     -l, --lz4              Use lz4 compression (for DwarFS clvl 1-12) (env: RIM_CMPRS_ALGO=lz4)
     -h, --help             Show this message
+    -k, --keep             Creates a backup of the old RunImage (env: RIM_KEEP_OLD_BUILD=1)
     -s, --sqfs             Use SquashFS file system (env: RIM_CMPRS_FS=sqfs)
     -x, --xz               Use xz (lzma for DwarFS clvl 1-9) compression (env: RIM_CMPRS_ALGO=xz)
     -z, --zstd             Use zstd compression (clvl 1-22) (env: RIM_CMPRS_ALGO=zstd)"
@@ -89,6 +90,7 @@ while [[ $# -gt 0 ]]
             -l|--lz4  ) RIM_CMPRS_ALGO='lz4' ;;
             -s|--sqfs ) RIM_CMPRS_FS='sqfs' ;;
             -d|--dwfs ) RIM_CMPRS_FS='dwfs' ;;
+            -k|--keep ) RIM_KEEP_OLD_BUILD='1' ;;
             -c|--clvl )
                 if [[ -n "$2" && "$2" != -* ]]
                     then clvl=1; RIM_CMPRS_LVL="$2"; shift

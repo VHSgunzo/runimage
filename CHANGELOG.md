@@ -10,12 +10,13 @@
 * Create [ssrv](https://github.com/VHSgunzo/ssrv) for connect to running containers
 * Replace old method for `hostexec` and use [ssrv](https://github.com/VHSgunzo/ssrv) for it
 * Add [tini](https://github.com/krallin/tini) for control container processes ([tini-static](https://github.com/VHSgunzo/tini-static))
-* Remove `ALLOW_BG` (now you can send whole runimage to background with processes control)
+* Remove `ALLOW_BG` env var (now you can send whole runimage to background with processes control)
+* Improved child processes control
 * Remove `NO_RUNDIR_BIND`
 * Fix bug with `MangoHud` and `vkBasalt` in `DXVK`
 * Add continuous bootstrap CI
 * Fix exit code for `rim-desktop`
-* Fix input hang when exit from RunImage desktop on TTY
+* Fix input hang when exit from RunImage desktop on `TTY`
 * Fix empty apps menu in RunImage desktop
 * Add `/usr/bin/vendor_perl` to `PATH`
 * Rename all config env vars with prefix `RIM_*`
@@ -24,13 +25,12 @@
 * Add support for `debian based` rootfs
 * Add support for `alpine based` rootfs
 * Add support for `void based` rootfs
-* Add `RIM_UNSHARE_LOCALTIME` Unshares localtime from the host (/etc/localtime)
-* Fix `RIM_UNSHARE_USERS` group
-* Add `RIM_UNSHARE_NSS` Unshares NSS from the host (/etc/nsswitch.conf)
-* Add `RIM_DESKTOP_INTEGRATION` Enable desktop integration pacman hook
+* Add `RIM_UNSHARE_LOCALTIME` env var Unshares localtime from the host (/etc/localtime)
+* Fix `RIM_UNSHARE_USERS` for group
+* Add `RIM_UNSHARE_NSS` env var Unshares NSS from the host (/etc/nsswitch.conf)
+* Add `RIM_DINTEG` env var Enable desktop integration pacman hook
 * Update static `bubblewrap` [v0.11.0](https://github.com/VHSgunzo/bubblewrap-static/releases/tag/v0.11.0)
 * Update `fake-nvidia-driver` [v0.9](https://github.com/VHSgunzo/runimage-fake-nvidia-driver/releases/tag/v0.9)
-* Add ability to create `Nvidia driver` image from local libs (`RIM_SYS_NVLIBS=1`)
 * Update [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper.git) package
 * Update [runimage-static](https://github.com/VHSgunzo/runimage-static.git) package
 * Update [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
@@ -47,7 +47,45 @@
 * Add `rim-bootstrap` script For bootstrap new runimage
 * Add `rim-dinteg` script For desktop integration
 * Add `rim-shrink` script For shrinking unnecessary files
-* Add `REUIDDIR` RunImage user working directory
+* Add `REUIDDIR` env var RunImage EUID working directory
+* Add `RUNTMPDIR` env var RunImage RUNPIDs working directory
+* Add `RUNPIDDIR` env var RunImage RUNPID working directory
+* Add `REALRUNSRC` env var Real path to `RUNSRC`
+* Disable non-error RunImage notification by default (`RIM_NOTIFY=1` env var)
+* Add ability to create `Nvidia driver` image from local libs (`RIM_SYS_NVLIBS=1` env var)
+* Add `RIM_SYS_NVLIBS` env var Try to use system Nvidia libraries
+* Add `RIM_NO_32BIT_NVLIBS_CHECK` env var Disable 32-bit Nvidia libraries check
+* Add ability to port forwarding in network sandbox mode (`RIM_SNET_PORTFW` env var) with patched [chisel](https://github.com/VHSgunzo/chisel)
+* Add [runimage-chisel](https://github.com/VHSgunzo/runimage-chisel) package
+* Add `RIM_SNET_DROP_CIDRS` env var For drop access to host CIDR's in network sandbox mode
+* Add `RIM_SNET_TAPIP` env var For set TAP interface IP in network sandbox mode
+* Add usage and args flags to all RunImage stripts
+* Redesigned the process of updating and subsequent rebuild of the container
+* Add `RIM_UPDATE_CLEANUP` env var Run rim-shrink --pkgcache after update
+* Add `RIM_UPDATE_SHRINK` env var Run rim-shrink --all after update
+* Add ability to en/decrypt rootfs with [gocryptfs](https://github.com/rfjakob/gocryptfs)
+* Add ability to start autorun app from PATH
+* Add ability to execute commands in one container (`RIM_RUN_IN_ONE=1` env var)
+* Add ability to specify the compression filesystem for runimage build (`RIM_CMPRS_FS={sqfs|dwfs}` env var)
+* Add ability to specify the compression filesystem block size for runimage build (`RIM_CMPRS_BSIZE={1M|20}` env var)
+* Add ability to rename RunImage with `*.RunImage` or `*.rim` extension
+* Add ability to use custom rootfs (`RIM_ROOTFS=/path/rootfs` env var)
+* Add ability to specify custom OverlayFS (`RIM_OVERFSDIR=/path/overlayfs` env var)
+* Add check for `apparmor_restrict_unprivileged_userns`
+* Enable Bubblewrap overlay by default for OverlayFS mode (disable with `RIM_NO_BWRAP_OVERLAY=1` env var)
+* Add `RIM_UNSHARE_TMP` env var for unshare host `/tmp`
+* Add `RIM_UNSHARE_TMPX11UNIX` env var for unshare host `/tmp/.X11-unix`
+* Add `RIM_HOST_TOOLS` env var Enables specified commands from the host
+* Add `RIM_HOST_XDG_OPEN` env var Enables xdg-open from the host
+* Add `RIM_UNSHARE_HOSTNAME` env var Unshares `UTS namespace` and `hostname`
+* Add `RIM_UNSHARE_HOSTS` env var Unshares host `/etc/hosts`
+* Add `RIM_UNSHARE_RESOLVCONF` env var Unshares host `/etc/resolv.conf`
+* Add `RIM_SHARE_PKGCACHE` env var Shares host packages cache
+* Add `RIM_BIND` env var Binds specified paths to the container
+* Add `RIM_BIND_PWD` env var Binds `$PWD` to the container
+* Add `RIM_WAIT_RPIDS_EXIT` env var Wait for all processes to exit
+* Add `RIM_EXEC_SAME_PWD` env var Use same `$PWD` for `rim-exec` and `hostexec`
+* Rename env var `ARGV0` to `ARG0` (fix `zsh` issue)
 * Minor fixes
 
 -----------------------------------------------------------------------------------------------------------------------------

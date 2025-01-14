@@ -230,7 +230,7 @@ if [[ -d "$RUNDIR" && -d "$RUNROOTFS" ]]
                                     "$RUNROOTFS"/usr/bin "$RUNROOTFS"/usr/sbin "$RUNROOTFS"/opt \
                                     "$RUNROOTFS"/usr/local/bin "$RUNROOTFS"/usr/local/sbin \
                                     "${LIBDIRS[@]}"|\
-                                    grep -Ev 'strip|bash|librt\.so.*|libzstd\.so.*|libz\.so.*|libsframe\.so.*|libbfd-.*\.so|libpthread\.so.*|libc\.so.*|ld-linux.*\.so.*|\.o$|\.a$|libncursesw\.so.*|libreadline\.so.*')
+                                    grep -Ev 'strip|bash|libtinfo\.so.*|librt\.so.*|libzstd\.so.*|libz\.so.*|libsframe\.so.*|libbfd-.*\.so|libpthread\.so.*|libc\.so.*|ld-musl.*\.so.*|ld-linux.*\.so.*|\.o$|\.a$|libncursesw\.so.*|libreadline\.so.*')
                                     do
                                         (if [[ "$(head -c +4 "$file")" =~ 'ELF' ]]
                                             then strip $verb --strip-debug "$file"

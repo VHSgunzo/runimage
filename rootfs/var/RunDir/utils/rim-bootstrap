@@ -27,13 +27,8 @@ dimg_repo='archlinux:base'||dimg_repo='lopsided/archlinux:latest'
 ./RunDir/Run getdimg --extract rootfs "${dimg_repo}"
 
 echo '== prepare rootfs'
-chmod u+rw -R rootfs
-rm -f rootfs/var/lib/dbus/machine-id rootfs/etc/resolv.conf rootfs/etc/localtime \
-    rootfs/usr/share/libalpm/hooks/{package-cleanup,man-page-remove}.hook
-sed -i 's|^DownloadUser|#DownloadUser|;s|^SigLevel.*|SigLevel = Never|;s|^#Color|Color|;s|^#ParallelDownloads|ParallelDownloads|' rootfs/etc/pacman.conf
+rm -f rootfs/usr/share/libalpm/hooks/{package-cleanup,man-page-remove}.hook
 ./RunDir/Run rim-shrink
-[[ ! -f 'rootfs/etc/os-release' && -f 'rootfs/usr/lib/os-release' ]] && \
-    ln -sfr rootfs/usr/lib/os-release rootfs/etc/os-release
 ROOTFS_ARCH="$(./RunDir/Run uname -m 2>/dev/null)"
 
 echo '== update rootfs'
@@ -67,7 +62,7 @@ BASE_PKGS=(
     # bash coreutils curl findutils gawk grep iproute2
     # kmod procps-ng sed tar util-linux which gocryptfs
     # libnotify lsof slirp4netns socat xorg-xhost gzip
-    # xz zstd lz4 jq binutils
+    # xz zstd lz4 jq binutils patchelf
     runimage-utils runimage-static runimage-rootfs
     fake-sudo-pkexec fake-systemd Run-wrapper
     fakeroot fakechroot iptables-nft nftables

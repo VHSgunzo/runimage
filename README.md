@@ -17,10 +17,12 @@ The full list of installed packages can be found in the [**releases**](https://g
 
 ## Features:
 
+* Supports the `x86_64` and `aarch64` architectures.
 * A portable single executable file with an idea - downloaded and launched. Nothing needs to be installed in the system.
 * Works on most Linux distributions, including even very old ones or without glibc or systemd and in live boot mode.
-* OverlayFS mode (It looks like the usual means of containerization like docker) (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help))
+* OverlayFS mode (It looks like the usual means of containerization like docker) (See [Usage](https://github.com/VHSgunzo/runimage#usage))
 * Read-Write mount in OverlayFS mode.
+* The ability to en/decrypt container filesystem.
 * Running and working without root rights, including package management.
 * The ability to work in a packed and unpacked form.
 * The ability to run both 32-bit and 64-bit executable files.
@@ -29,11 +31,12 @@ The full list of installed packages can be found in the [**releases**](https://g
 * Own Pacman [repository](https://runimage-repo.hf.space) with [mirror](https://github.com/runimage/repo).
 * Updating without extraction runimage and automatic rebuild if the update was successful.
 * The ability to launching AppImage applications with FUSE mount (not needed to extract).
-* The ability to exec commands at the host level (see ENABLE_HOSTEXEC and [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/usr/bin/hostexec))
+* The ability to exec commands at the host level (see RIM_ENABLE_HOSTEXEC and [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/hostexec))
 * The ability to use both separate home directories for each executable file, and completely seamless use of the system home directory.
-* The ability to use separate configuration files for each launched executable file (see [config](https://github.com/VHSgunzo/runimage/tree/main/rootfs/var/RunDir/config))
+* The ability to use separate container configuration files for each launched executable file
 * There is no performance drawdown. All applications and executable files run at the same speed as in the system
 * The ability to Filesystem, X11, DBUS, UDEV, Network, SystemD, USERs and PIDs sandboxing.
+* Port forwarding in sandbox network mode (TCP, UDP, SOCKS5 proxy supports).
 * Temporary home directory in RAM (can be used as a real private mode for browsers and applications)
 * Sandbox and portable home directory.
 * The ability to launching a full DE in windowed/full screen mode and on TTY
@@ -41,13 +44,14 @@ The full list of installed packages can be found in the [**releases**](https://g
 * Works in Wayland session.
 * Monitoring of running processes
 * Background processes control
-* Attaching to a running containers
+* The ability to execute commands in a single container or in specified container.
 * The ability to start and control SystemD services with [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package.
+* The ability to use custom rootfs (alpine-based, debian-based, voidlinux-based supports)
 * Usability and comprehensibility.
 
 ## Requirements:
 
-* Supported architectures (should work on any Linux kernel architecture. However, it is currently only built for x86_64 and aarch64)
+* Supported architectures (should work on any Linux kernel architecture. However, it is currently only built for `x86_64` and `aarch64`)
 * Minimum recommended Linux kernel version 4.18+ (tested on Centos 7 with 3.10 and on Ubuntu 12.04 with 3.11 using SUID Bubblewrap and it's works, but 5.0+ with [unprivileged user namespaces](https://lwn.net/Articles/531114) support is recommended)
 * FUSE (but not necessarily, because it is possible to work in unpacked form without FUSE mounting). Also you can create /dev/fuse manually (as root) if the kernel module exists (see this [code](https://github.com/libfuse/libfuse/blob/f0e08cc700d629da2d46def8b620b0ed858cc0d9/util/install_helper.sh#L35)):
 ```
@@ -66,103 +70,167 @@ chmod +x runimage
 
 ```
 ┌──[user@host]─[~]
-└──╼ $ runimage {executable} {executable args}
+└──╼ $ runimage {args} {executable} {executable args}
 
     rim-help                       Show this usage info
-    rim-version                    Show runimage, rootfs, static, runtime version
-    rim-pkgls                      Show packages installed in runimage
-    rim-binls                      Show /usr/bin in runimage
-    rim-shell    {args}            Run runimage shell or execute a command in runimage shell
-    rim-desktop                    Launch runimage desktop
-    rim-ofsls                      Show the list of runimage OverlayFS
+    rim-version                    Show RunImage, rootfs, static, runtime version
+    rim-pkgls                      Show packages installed in RunImage
+    rim-binls                      Show executables in RunImage
+    rim-shell    {args}            Run RunImage shell or execute a command in RunImage shell
+    rim-desktop  {args}            Launch RunImage desktop
+    rim-ofsls                      Show the list of RunImage OverlayFS
     rim-ofsrm    {id id ...|all}   Remove OverlayFS
-    rim-build    {build args}      Build new runimage container
-    rim-update   {build args}      Update packages and rebuild runimage
-    rim-kill                       Kill all running runimage containers
-    rim-psmon    {RUNPIDs}         Monitoring of processes running in runimage containers
-    rim-exec     {RUNPID} {args}   Attach to a running runimage container or exec command
+    rim-build    {args}            Build new RunImage container
+    rim-update   {args}            Update packages and rebuild RunImage
+    rim-kill     {RUNPIDs|all}     Kill running RunImage containers
+    rim-psmon    {args} {RUNPIDs}  Monitoring of processes running in RunImage containers
+    rim-exec     {RUNPID} {args}   Exec command in running container
+    rim-portfw   {RUNPID} {args}   Forward additional ports
+    rim-dinteg   {args}            Desktop integration
+    rim-shrink   {args}            Shrink RunImage rootfs
+    rim-bootstrap {pkg pkg}        Bootstrap new RunImage
+    rim-encfs    {build args}      Encrypt RunImage rootfs
+    rim-decfs    {build args}      Decrypt RunImage rootfs
+    rim-enc-passwd {build args}    Change decrypt password for encrypted RunImage rootfs
 
 Only for not extracted (RunImage runtime options):
     --runtime-extract {pattern}          Extract content from embedded filesystem image
-    --runtime-extract-and-run {args}     Run runimage after extraction without using FUSE
-    --runtime-help                       Show runimage runtime help (Shown in this help)
+    --runtime-extract-and-run {args}     Run RunImage after extraction without using FUSE
+    --runtime-help                       Show RunImage runtime help
     --runtime-mount                      Mount embedded filesystem image and print
     --runtime-offset                     Print byte offset to start of embedded
     --runtime-portable-home              Create a portable home folder to use as $HOME
     --runtime-portable-config            Create a portable config folder to use as $XDG_CONFIG_HOME
-    --runtime-version                    Print version of runimage runtime
+    --runtime-version                    Print version of RunImage runtime
+    --runtime-squashfuse {args}          Launch squashfuse
+    --runtime-unsquashfs {args}          Launch unsquashfs
+    --runtime-mksquashfs {args}          Launch mksquashfs
+    --runtime-dwarfs     {args}          Launch dwarfs
+    --runtime-dwarfsck   {args}          Launch dwarfsck
+    --runtime-mkdwarfs   {args}          Launch mkdwarfs
+    --runtime-dwarfsextract {args}       Launch dwarfsextract
 
 Configuration environment variables:
+    RIM_ROOTFS=/path/rootfs                  Specifies custom rootfs (0 to disable)
     RIM_NO_NET=1                             Disables network access
     RIM_TMP_HOME=1                           Creates tmpfs /home/$USER and /root in RAM and uses it as $HOME
-    RIM_TMP_HOME_DL=1                        As above, but with binding $HOME/Downloads directory
-    RIM_SANDBOX_HOME=1                       Creates sandbox home directory and bind it to /home/$USER or to /root
-    RIM_SANDBOX_HOME_DL=1                    As above, but with binding $HOME/Downloads directory
-    RIM_SANDBOX_HOME_DIR="/path/dir"         Specifies sandbox home directory and bind it to /home/$USER or to /root
-    RIM_PORTABLE_HOME=1                      Creates a portable home directory and uses it as $HOME
-    RIM_PORTABLE_HOME_DIR="/path/dir"        Specifies a portable home directory and uses it as $HOME
-    RIM_PORTABLE_CONFIG=1                    Creates a portable config directory and uses it as $XDG_CONFIG_HOME
+    RIM_TMP_HOME_DL=1                        As above, but with binding $HOME/Downloads dir
+    RIM_SANDBOX_HOME=1                       Creates sandbox home dir
+    RIM_SANDBOX_HOME_DL=1                    As above, but with binding $HOME/Downloads dir
+    RIM_SANDBOX_HOME_DIR=/path/dir           Specifies sandbox home dir
+    RIM_UNSHARE_HOME=1                       Unshares host home dir
+    RIM_UNSHARE_HOME_DL=1                    As above, but with binding $HOME/Downloads dir
+    RIM_PORTABLE_HOME=1                      Creates a portable home dir and uses it as $HOME
+    RIM_PORTABLE_HOME_DIR=/path/dir          Specifies a portable home dir and uses it as $HOME
+    RIM_PORTABLE_CONFIG=1                    Creates a portable config dir and uses it as $XDG_CONFIG_HOME
     RIM_NO_CLEANUP=1                         Disables unmounting and cleanup mountpoints
     RIM_UNSHARE_PIDS=1                       Unshares all host processes
     RIM_UNSHARE_USERS=1                      Don't bind-mount /etc/{passwd,group}
-    RIM_SHARE_SYSTEMD=1                      Shares SystemD from the host
-    RIM_UNSHARE_DBUS=1                       Unshares DBUS from the host
-    RIM_UNSHARE_UDEV=1                       Unshares UDEV from the host (/run/udev)
-    RIM_UNSHARE_MODULES=1                    Unshares kernel modules from the host (/usr/lib/modules)
-    RIM_UNSHARE_LOCALTIME=1                  Unshares localtime from the host (/etc/localtime)
-    RIM_UNSHARE_NSS=1                        Unshares NSS from the host (/etc/nsswitch.conf)
+    RIM_UNSHARE_HOSTNAME=1                   Unshares UTS namespace and hostname
+    RIM_UNSHARE_HOSTS=1                      Unshares host /etc/hosts
+    RIM_UNSHARE_RESOLVCONF=1                 Unshares host /etc/resolv.conf
+    RIM_UNSHARE_RUN=1                        Unshares host /run
+    RIM_SHARE_SYSTEMD=1                      Shares host SystemD
+    RIM_UNSHARE_DBUS=1                       Unshares host DBUS
+    RIM_UNSHARE_UDEV=1                       Unshares host UDEV (/run/udev)
+    RIM_UNSHARE_XDGRUN=1                     Unshares host $XDG_RUNTIME_DIR
+    RIM_UNSHARE_XDGSOUND=1                   Unshares host $XDG_RUNTIME_DIR sound sockets
+    RIM_UNSHARE_MODULES=1                    Unshares host kernel modules (/usr/lib/modules)
+    RIM_UNSHARE_LOCALTIME=1                  Unshares host localtime (/etc/localtime)
+    RIM_UNSHARE_NSS=1                        Unshares host NSS (/etc/nsswitch.conf)
+    RIM_UNSHARE_TMP=1                        Unshares host /tmp
+    RIM_UNSHARE_TMPX11UNIX=1                 Unshares host /tmp/.X11-unix
     RIM_UNSHARE_DEF_MOUNTS=1                 Unshares default mount points (/mnt /media /run/media)
+    RIM_SHARE_BOOT=1                         Shares host /boot
+    RIM_SHARE_ICONS=1                        Shares host /usr/share/icons
+    RIM_SHARE_FONTS=1                        Shares host /usr/share/fonts
+    RIM_SHARE_THEMES=1                       Shares host /usr/share/themes
+    RIM_SHARE_PKGCACHE=1                     Shares host packages cache
+    RIM_BIND=/path:/path,/path1:/path1       Binds specified paths to the container
+    RIM_BIND_PWD=1                           Binds $PWD to the container
     RIM_NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
-    RIM_NVIDIA_DRIVERS_DIR="/path/dir"     Specifies custom Nvidia driver images directory
-    RIM_CACHEDIR="/path/dir"               Specifies custom runimage cache directory
-    RIM_OVERFSDIR="/path/dir"              Specifies custom runimage OverlayFS directory
+    RIM_SYS_NVLIBS=1                         Try to use system Nvidia libraries
+    RIM_NO_32BIT_NVLIBS_CHECK=1              Disable 32-bit Nvidia libraries check
+    RIM_NVIDIA_DRIVERS_DIR=/path/dir         Specifies custom Nvidia driver images dir
+    RIM_CACHEDIR=/path/dir                   Specifies custom RunImage cache dir
+    RIM_OVERFSDIR=/path/dir                  Specifies custom RunImage OverlayFS dir
     RIM_OVERFS_MODE=1                        Enables OverlayFS mode
-    RIM_KEEP_OVERFS=1                        Enables OverlayFS mode with saving after closing runimage
+    RIM_NO_BWRAP_OVERLAY=1                   Disables Bubblewrap overlay for OverlayFS mode
+    RIM_NO_CRYPTFS_MOUNT=1                   Disables mount encrypted RunImage rootfs
+    RIM_KEEP_OVERFS=1                        Enables OverlayFS mode with saving after closing RunImage
     RIM_OVERFS_ID=ID                         Specifies the OverlayFS ID
-    RIM_KEEP_OLD_BUILD=1                     Creates a backup of the old RunImage when building a new one
-    RIM_CMPRS_ALGO={zstd|xz|lz4}             Specifies the compression algo for runimage build
-    RIM_ZSDT_CMPRS_LVL={1-22}                Specifies the compression ratio of the zstd algo for runimage build
-    RIM_SHELL="shell"                      Selects $SHELL in runimage
+    RIM_SHELL=shell                          Selects $SHELL in RunImage
     RIM_NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
-                                            you can also use /usr/bin/nocap in runimage
-    RIM_AUTORUN="{executable} {args}"        Run runimage with autorun options for /usr/bin executables
-    RIM_ALLOW_ROOT=1                         Allows to run runimage under root user
-    RIM_QUIET_MODE=1                         Disables all non-error runimage messages
-    RIM_NO_WARN=1                            Disables all warning runimage messages
-    RIM_NOTIFY=1                        Disables all non-error runimage notification
-    RUNTIME_EXTRACT_AND_RUN=1                Run runimage after extraction without using FUSE
-    TMPDIR="/path/{TMPDIR}"                Used for extract and run options
-    RIM_CONFIG="/path/{config}"            runimage сonfiguration file (0 to disable)
+                                                    you can also use nocap in RunImage
+    RIM_AUTORUN='{executable} {args}'        Autorun mode for executable from PATH (0 to disable)
+    RIM_RUN_IN_ONE=1                         Execute commands in one container
+    RIM_ALLOW_ROOT=1                         Allows to run RunImage under root user
+    RIM_QUIET_MODE=1                         Disables all non-error RunImage messages
+    RIM_NO_WARN=1                            Disables all warning RunImage messages
+    RIM_NOTIFY=1                             Enables non-error RunImage notification
+    RUNTIME_EXTRACT_AND_RUN=1                Run RunImage after extraction without using FUSE
+    TMPDIR=/path/TMPDIR                      Used for extract and run options
+    RIM_CONFIG=/path/config.rcfg             RunImage сonfiguration file (0 to disable)
     RIM_ENABLE_HOSTEXEC=1                    Enables the ability to execute commands at the host level
+    RIM_HOST_TOOLS=cmd,cmd                   Enables specified commands from the host (0 to disable)
+    RIM_HOST_XDG_OPEN=1                      Enables xdg-open from the host
     RIM_NO_RPIDSMON=1                        Disables the monitoring thread of running processes
+    RIM_WAIT_RPIDS_EXIT=1                    Wait for all processes to exit
+    RIM_EXEC_SAME_PWD=1                      Use same $PWD for rim-exec and hostexec
     RIM_SANDBOX_NET=1                        Creates a network sandbox
     RIM_SNET_SHARE_HOST=1                    Creates a network sandbox with access to host loopback
-    RIM_SNET_CIDR=11.22.33.0/24              Specifies tap interface subnet in network sandbox (Def: 10.0.2.0/24)
-    RIM_SNET_TAPNAME=tap0                    Specifies tap interface name in network sandbox (Def: eth0)
-    RIM_SNET_MAC=B6:40:E0:8B:A6:D7           Specifies tap interface MAC in network sandbox (Def: random)
-    RIM_SNET_MTU=65520                       Specifies tap interface MTU in network sandbox (Def: 1500)
-    RIM_HOSTS_FILE="file"                  Binds specified file to /etc/hosts
-    RIM_RESOLVCONF_FILE="file"             Binds specified file to /etc/resolv.conf
+    RIM_SNET_CIDR=11.22.33.0/24              Specifies TAP iface subnet in network sandbox (Def: 10.0.2.0/24)
+    RIM_SNET_TAPNAME=tap0                    Specifies TAP iface name in network sandbox (Def: eth0)
+    RIM_SNET_MAC=B6:40:E0:8B:A6:D7           Specifies TAP iface MAC in network sandbox (Def: random)
+    RIM_SNET_MTU=65520                       Specifies TAP iface MTU in network sandbox (Def: 1500)
+    RIM_SNET_TAPIP=11.22.33.44               For set TAP iface IP in network sandbox mode (Def: 10.0.2.100)
+    RIM_SNET_PORTFW='2222:22 R:53:53/UDP'    Enables port forwarding in network sandbox mode (1 to enable)
+    RIM_SNET_DROP_CIDRS=1                    Drop access to host CIDR's in network sandbox mode
+    RIM_HOSTS_FILE=/path/hosts               Binds specified file to /etc/hosts (0 to disable)
+    RIM_RESOLVCONF_FILE=/path/resolv.conf    Binds specified file to /etc/resolv.conf (0 to disable)
     RIM_BWRAP_ARGS+=()                       Array with Bubblewrap arguments (for config file)
     RIM_EXEC_ARGS+=()                        Array with Bubblewrap exec arguments (for config file)
-    RIM_XORG_CONF="/path/xorg.conf"          Binds xorg.conf to /etc/X11/xorg.conf in runimage (0 to disable)
-                                            (Default: /etc/X11/xorg.conf bind from the system)
-    RIM_XEPHYR_SIZE="HEIGHTxWIDTH"           Sets runimage desktop resolution (Default: 1600x900)
-    RIM_DESKTOP_DISPLAY=":9999"               Sets runimage desktop $DISPLAY (Default: :1337)
-    RIM_XEPHYR_FULLSCREEN=1                  Starts runimage desktop in full screen mode
-    RIM_DESKTOP_UNCLIP=1                  Disables clipboard synchronization for runimage desktop
-    RIM_DESKTOP_INTEGRATION=1             Enable desktop integration pacman hook
-    RIM_SYS_TOOLS=1                          Using all binaries from the system
-                                            If they are not found in the system - auto return to the built-in
+    RIM_CRYPTFS_PASSFILE=/path/passfile      Specifies passfile for decrypt encrypted RunImage rootfs
+    RIM_XORG_CONF=/path/xorg.conf            Binds xorg.conf to /etc/X11/xorg.conf in RunImage (0 to disable)
+                                                    (Default: /etc/X11/xorg.conf bind from the system)
+    RIM_SYS_TOOLS=1                          Use all binaries from the system
+                                                If they are not found in the system - auto return to the built-in
+    rim-build:
+    RIM_KEEP_OLD_BUILD=1                     Creates a backup of the old RunImage when building a new one
+    RIM_CMPRS_FS={sqfs|dwfs}                 Specifies the compression filesystem for RunImage build
+    RIM_CMPRS_BSIZE={1M|20}                  Specifies the compression filesystem block size for RunImage build
+    RIM_CMPRS_ALGO={zstd|xz|lz4}             Specifies the compression algo for RunImage build
+    RIM_CMPRS_LVL={1-22|1-9|1-12}            Specifies the compression ratio for RunImage build
+    rim-update:
+    RIM_UPDATE_SHRINK=1                      Run rim-shrink --all after update
+    RIM_UPDATE_CLEANUP=1                     Run rim-shrink --pkgcache after update
+    rim-dinteg:
+    RIM_DINTEG=1                             Enables desktop integration pacman hook
+    RIM_DINTEG_MIME=1                        Desktop integration with MIME types
+    rim-desktop:
+    RIM_XEPHYR_SIZE=HEIGHTxWIDTH             Sets RunImage desktop resolution (Default: 1600x900)
+    RIM_DESKTOP_DISPLAY=9999                 Sets RunImage desktop $DISPLAY (Default: 1337)
+    RIM_XEPHYR_FULLSCREEN=1                  Starts RunImage desktop in full screen mode
+    RIM_DESKTOP_UNCLIP=1                     Disables clipboard synchronization for RunImage desktop
+    rim-shrink:
+    RIM_SHRINK_ALL=1                         Shrink all
+    RIM_SHRINK_BACK=1                        Shrink backup files '*.old' '*.back'
+    RIM_SHRINK_STATICLIBS=1                  Shrink static libs '*.a'
+    RIM_SHRINK_DOCS=1                        Shrink /usr/share/{man,doc,help,info,gtk-doc} and '*.md' 'README*'
+    RIM_SHRINK_STRIP=1                       Strip all debugging symbols & sections
+    RIM_SHRINK_LOCALES=1                     Shrink all locales except uk ru en en_US
+    RIM_SHRINK_OBJECTS=1                     Shrink object files '*.o'
+    RIM_SHRINK_PKGCACHE=1                    Shrink packages cache
+    RIM_SHRINK_SRC=1                         Shrink source code files for build
+    RIM_SHRINK_PYCACHE=1                     Shrink '__pycache__' directories
 ```
-Other environment variables on runtime:
+Other environment variables at runtime:
 |||
 |---|---|
 |INSIDE_RUNIMAGE=1                      |      If inside RunImage                     |
 |RUNIMAGE=/path/runimage                |      RunImage path (for packed)             |
 |RUNOFFSET=1234                         |      Image offset (for packed)              |
 |ARG0=runimage                          |      Null argument                          |
-|ARG1=rim-help                          |      First argument                         |
 |RUNPID=1234                            |      PID of Run.sh script                   |
 |RUNPPID=1233                           |      Parent PID of Run.sh script            |
 |RUNDIR=/path/RunDir                    |      Run binary directory                   |
@@ -186,7 +254,10 @@ Other environment variables on runtime:
 |RUNROOTFSTYPE=base                     |      Rootfs type                            |
 |FUSE_PIDS=1235                         |      PIDs of all RunImage FUSE tools        |
 |RUNUSER=user                           |      The name of the user who runs RunImage |
-|REUIDDIR                               |      RunImage EUID working directory        |
+|REUIDDIR=/tmp/.r$EUID                  |      RunImage EUID working directory        |
+|RUNTMPDIR=$REUIDDIR/run                |      RunImage RUNPIDs working directory     |
+|RUNPIDDIR=$RUNTMPDIR/$RUNPID           |      RunImage RUNPID working directory      |
+|BWINFFL=$RUNPIDDIR/bwinf               |      Bubblewrap info file                   |
 
 Utils scripts:
 |||
@@ -197,19 +268,19 @@ Utils scripts:
 |pac                        |  sudo pacman (fake sudo)                                        |
 |packey                     |  sudo pacman-key (fake sudo)                                    |
 |panelipmon                 |  Shows information about an active network connection           |
-|rim-build                  |  For the runimage build                                         |
-|rim-desktop                |  For the desktop mode                                           |
 |xclipsync and xclipfrom    |  For clipboard synchronization in desktop mode                  |
 |webm2gif                   |  Convert webm to gif                                            |
-|rim-psmon                  |  For monitoring of processes running in runimage containers     |
-|hostexec                   |  For execute commands at the host level (see ENABLE_HOSTEXEC)   |
+|rim-build                  |  For the runimage build                                         |
+|rim-desktop                |  For the desktop mode                                           |
 |rim-update                 |  For runimage update                                            |
-|getdimg                    |  For download docker container images                           |
-|httpfw                     |  For expose a local HTTP port to the internet                   |
-|tcpfw                      |  For expose a local TCP port to the internet                    |
+|rim-psmon                  |  For monitoring of processes running in runimage containers     |
 |rim-bootstrap              |  For bootstrap new runimage                                     |
 |rim-dinteg                 |  For desktop integration                                        |
 |rim-shrink                 |  For shrinking unnecessary files                                |
+|hostexec                   |  For execute commands at the host level (see ENABLE_HOSTEXEC)   |
+|getdimg                    |  For download docker container images                           |
+|httpfw                     |  For expose a local HTTP web service to the internet            |
+|tcpfw                      |  For expose a local TCP port to the internet                    |
 
 ## Additional information:
     You can create a symlink/hardlink to runimage or rename runimage and give it the name

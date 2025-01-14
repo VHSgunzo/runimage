@@ -216,7 +216,7 @@ if [ -n "$1" ]
         case "$1" in
             hook) shift
                 unset verb
-                if [ "$RIM_DESKTOP_INTEGRATION" == 1 ]
+                if [ "$RIM_DINTEG" == 1 ]
                     then dinteg
                     else echo "Desktop integration is disabled!"
                 fi
