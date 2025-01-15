@@ -29,6 +29,7 @@ The full list of installed packages can be found in the [**releases**](https://g
 * Based on Arch Linux, contains the latest software and [AUR](https://aur.archlinux.org) support.
 * Access to [BlackArch](https://github.com/BlackArch/blackarch) repo.
 * Own Pacman [repository](https://runimage-repo.hf.space) with [mirror](https://github.com/runimage/repo).
+* The ability to use custom rootfs
 * Updating without extraction runimage and automatic rebuild if the update was successful.
 * The ability to launching AppImage applications with FUSE mount (not needed to extract).
 * The ability to exec commands at the host level (see RIM_ENABLE_HOSTEXEC and [hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/hostexec))
@@ -224,7 +225,7 @@ Configuration environment variables:
     RIM_SHRINK_SRC=1                         Shrink source code files for build
     RIM_SHRINK_PYCACHE=1                     Shrink '__pycache__' directories
 ```
-Other environment variables at runtime:
+## Other environment variables at runtime:
 |||
 |---|---|
 |INSIDE_RUNIMAGE=1                      |      If inside RunImage                     |
@@ -258,8 +259,10 @@ Other environment variables at runtime:
 |RUNTMPDIR=$REUIDDIR/run                |      RunImage RUNPIDs working directory     |
 |RUNPIDDIR=$RUNTMPDIR/$RUNPID           |      RunImage RUNPID working directory      |
 |BWINFFL=$RUNPIDDIR/bwinf               |      Bubblewrap info file                   |
+|RIMENVFL=$RUNPIDDIR/rimenv             |      RIM environment variables file         |
+|RUNDIRFL=$RUNPIDDIR/rundir             |      RunImage RunDir path file              |
 
-Utils scripts:
+## Utils scripts:
 |||
 |---|---|
 |cip                        |  Сheck public ip                                                |
@@ -284,144 +287,138 @@ Utils scripts:
 
 ## Additional information:
     You can create a symlink/hardlink to runimage or rename runimage and give it the name
-        of some executable file from /usr/bin in runimage, this will allow you to run
-        runimage in autorun mode for this executable file.
-    The same principle applies to the AUTORUN variable:
+        of some executable from the PATH, this will allow you to run
+        runimage in autorun mode for this executable.
+    The same principle applies to the RIM_AUTORUN variable:
         ┌─[user@host]─[~]
-        └──╼ $ AUTORUN="ls -la" runimage {autorun executable args}
+        └──╼ $ RIM_AUTORUN="ls -la" runimage {autorun executable args}
     Here runimage will become something like an alias for 'ls' in runimage
-        with the '-la' argument. You can also use AUTORUN as an array for complex commands in the config.
-        AUTORUN=("ls" "-la" "/path/to something")
-    This will also work in extracted form for the Run binary.
+        with the '-la' argument. You can also use RIM_AUTORUN as an array 
+        for complex commands in the config.
+        RIM_AUTORUN=("ls" "-la" "/path/to something")
+    This will also work in extracted form.
 
-    When using the PORTABLE_HOME and PORTABLE_CONFIG variables, runimage will create or
+    When using the RIM_PORTABLE_HOME and RIM_PORTABLE_CONFIG variables, runimage will create or
         search for these directories next to itself. The same behavior will occur when
         adding a runimage or Run binary or renamed or symlink/hardlink to them in the PATH
         it can be used both extracted and compressed and for all executable files being run:
-            '$PORTABLEHOMEDIR/Run'
-            '$RUNIMAGEDIR/Run.config'
+            "$PORTABLEHOMEDIR/Run"
+            "$RUNIMAGEDIR/Run.config"
         if a symlink/hardlink to runimage is used:
-            '$PORTABLEHOMEDIR/{symlink/hardlink_name}'
-            '$RUNIMAGEDIR/{symlink/hardlink_name}.config'
+            "$PORTABLEHOMEDIR/{symlink/hardlink_name}"
+            "$RUNIMAGEDIR/{symlink/hardlink_name}.config"
         or with runimage/Run name:
-            '$PORTABLEHOMEDIR/{runimage/Run_name}'
-            '$RUNIMAGEDIR/{runimage/Run_name}.config'
-        It can also be with the name of the executable file from AUTORUN environment variables,
+            "$PORTABLEHOMEDIR/{runimage/Run_name}"
+            "$RUNIMAGEDIR/{runimage/Run_name}.config"
+        It can also be with the name of the executable file from RIM_AUTORUN environment variables,
             or with the same name as the executable being run.
-    SANDBOX_HOME* similar to PORTABLE_HOME, but the system HOME becomes isolated.
-    SANDBOX_HOME_DIR and PORTABLE_HOME_DIR point to a specific directory or create it in the absence of.
+    RIM_SANDBOX_HOME* similar to RIM_PORTABLE_HOME, but the system HOME becomes isolated.
+    RIM_SANDBOX_HOME_DIR and PORTABLE_HOME_DIR point to a specific directory or create it in the absence of.
 
     RunImage uses fakechroot and fakeroot, which allows you to use root commands, including in
         unpacked form, to update the rootfs or install/remove packages.
-        sudo and pkexec have also been replaced with fake ones. (see /usr/bin/sudo /usr/bin/pkexec)
+        sudo and pkexec have also been replaced with fake ones.
 
-    RunImage configuration file:
-        Special BASH-syntax file with the .rcfg extension, which describes additional
-            instructions and environment variables for running runimage.
-        Configuration file can be located next to runimage:
-            '$RUNIMAGEDIR/{runimage/Run_name}.rcfg'
-        it can be used both extracted and compressed and for all executable files being run:
-            '$RUNIMAGEDIR/Run.rcfg'
-        if a symlink/hardlink to runimage is used:
-            '$RUNIMAGEDIR/{symlink/hardlink_name}.rcfg'
-        or in $RUNCONFIGDIR directory:
-            '$RUNCONFIGDIR/Run.rcfg'
-            '$RUNCONFIGDIR/{runimage/Run_name}.rcfg'
-            '$RUNCONFIGDIR/{symlink/hardlink_name}.rcfg'
-        It can also be with the name of the executable file from AUTORUN environment variables,
-            or with the same name as the executable being run.
-        In $RUNDIR/config there are default configs in RunImage, they are run in priority,
-            then external configs are run if they are found.
+### RunImage configuration file:
+    Special BASH-syntax file with the .rcfg extension, which describes additional
+        instructions and environment variables for running runimage.
+    Configuration file can be located next to runimage:
+        "$RUNIMAGEDIR/{runimage/Run_name}.rcfg"
+    it can be used both extracted and compressed and for all executable files being run:
+        "$RUNIMAGEDIR/Run.rcfg"
+    if a symlink/hardlink to runimage is used:
+        "$RUNIMAGEDIR/{symlink/hardlink_name}.rcfg"
+    or in $RUNCONFIGDIR directory:
+        "$RUNCONFIGDIR/Run.rcfg"
+        "$RUNCONFIGDIR/{runimage/Run_name}.rcfg"
+        "$RUNCONFIGDIR/{symlink/hardlink_name}.rcfg"
+    It can also be with the name of the executable file from AUTORUN environment variables,
+        or with the same name as the executable being run.
+    In $RUNDIR/config there are default configs in RunImage, they are run in priority,
+        then external configs are run if they are found.
 
-    RunImage desktop:
-        Ability to run RunImage in desktop mode. Default DE: XFCE (see /usr/bin/rundesktop)
-        If the launch is carried out from an already running desktop, then Xephyr will start
-            in windowed/full screen mode (see XEPHYR_* environment variables)
-            Use CTRL+SHIFT to grab the keyboard and mouse.
-        It is also possible to run on TTY with Xorg (see XORG_CONF environment variables)
-            To do this, just log in to TTY and run RunImage desktop.
-        Important! The launch on the TTY should be carried out only under the user under whom the
-            login to the TTY was carried out.
+### RunImage desktop:
+    Ability to run RunImage in desktop mode. Default DE: XFCE (see rim-desktop)
+    If the launch is carried out from an already running desktop, then Xephyr will start
+        in windowed/full screen mode (see RIM_XEPHYR_* environment variables)
+        Use CTRL+SHIFT to grab the keyboard and mouse.
+    It is also possible to run on TTY with Xorg (see RIM_XORG_CONF environment variables)
+        To do this, just log in to TTY and run RunImage desktop.
+    Important! The launch on the TTY should be carried out only under the user under whom the
+        login to the TTY was carried out.
 
-    RunImage OverlayFS:
-        Allows you to create additional separate layers to modify the container file system without
-            changing the original container file system. Works packed and unpacked. Also, in packed form,
-            it allows you to mount the container in RW mode.
-        It also allows you to attach to the same OverlayFS when you specify its ID:
-        ┌─[user@host]─[~]
-        └──╼ $ OVERFS_ID=1337 runimage {args}
-            If OverlayFS with such ID does not exist, it will be created.
-        To save OverlayFS after closing the container, use KEEP_OVERFS:
-        ┌─[user@host]─[~]
-        └──╼ $ KEEP_OVERFS=1 runimage {args}
-        To run a one-time OverlayFS, use OVERFS_MODE:
-        ┌─[user@host]─[~]
-        └──╼ $ OVERFS_MODE=1 runimage {args}
+### RunImage OverlayFS:
+    Allows you to create additional separate layers to modify the container filesystem without
+        changing the original container filesystem. Works packed and unpacked. Also, in packed form,
+        it allows you to mount the container in RW mode.
+    It also allows you to attach to the same OverlayFS when you specify its ID:
+    ┌─[user@host]─[~]
+    └──╼ $ RIM_OVERFS_ID=1337 runimage {args}
+        If OverlayFS with such ID does not exist, it will be created.
+    To save OverlayFS after closing the container, use RIM_KEEP_OVERFS:
+    ┌─[user@host]─[~]
+    └──╼ $ RIM_KEEP_OVERFS=1 runimage {args}
+    To run a one-time OverlayFS, use OVERFS_MODE:
+    ┌─[user@host]─[~]
+    └──╼ $ RIM_OVERFS_MODE=1 runimage {args}
 
-    RunImage build:
-        Allows you to create your own runimage containers.
-        This works both externally by passing build args:
-        ┌─[user@host]─[~]
-        └──╼ $ runimage --run-build {build args}
-        And it also works inside the running instance (see /bin/runbuild):
-        ┌─[user@host]─[~] - in runimage
-        └──╼ $ runbuild {build args}
-        Optionally, you can specify the following build arguments:
-            {/path/new_runimage_name} {-zstd|-xz|-lz4} {zstd compression level 1-19}
-        By default, runimage is created in the current directory with a standard name and
-            with lz4 compression. If a new RunImage is successfully build, the old one is deleted.
-            (see KEEP_OLD_BUILD BUILD_WITH_EXTENSION CMPRS_ALGO ZSDT_CMPRS_LVL)
+### RunImage build:
+    Allows you to create your own runimage containers.
+    This works both externally by passing build args:
+    ┌─[user@host]─[~]
+    └──╼ $ runimage rim-build {build args}
+    And it also works inside the running instance (see /bin/runbuild):
+    ┌─[user@runimage]─[~] - in runimage
+    └──╼ $ rim-build {build args}
+    Optionally, you can specify the following build arguments:
+        {/path/new_runimage_name} {-zstd|-xz|-lz4} {zstd compression level 1-19}
+    By default, runimage is created in the current directory with a standard name, with DwarFS filesystem 
+        compression. If a new RunImage is successfully build, the old one is deleted.
+        (see RIM_KEEP_OLD_BUILD RIM_CMPRS_ALGO RIM_CMPRS_LVL)
 
-    RunImage update:
-        Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
-            not be performed. When running an update, you can also pass arguments for a new build.
-            (see RunImage build) (also see /usr/bin/runupdate)
-        ┌─[user@host]─[~]
-        └──╼ $ runimage --run-update {build args}
-        By default, update and rebuild is performed in $RUNIMAGEDIR
+### RunImage update:
+    Allows you to update packages and rebuild RunImage. In unpacked form, automatic build will
+        not be performed. When running an update, you can also pass arguments for a new build.
+    ┌─[user@host]─[~]
+    └──╼ $ runimage rim-update {build args}
+    By default, update and rebuild is performed in $RUNIMAGEDIR
 
-    RunImage network sandbox:
-        Allows you to create a private network namespace with slirp4netns and inside the container
-            manage routing, create/delete network interfaces, connect to a vpn (checked openvpn
-            and wireguard), configure your resolv.conf and hosts, etc. (see SANDBOX_NET*)
-        By default, network sandbox created in 10.0.2.0/24 subnet, with eth0 tap name, 10.0.2.100 tap ip,
-            1500 tap MTU, and random MAC.
+### RunImage network sandbox:
+    Allows you to create a private network namespace with slirp4netns and inside the container
+        manage routing, create/delete network interfaces, connect to a vpn (checked openvpn
+        and wireguard), configure your resolv.conf and hosts, etc. (see RIM_SANDBOX_NET*)
+    By default, network sandbox created in 10.0.2.0/24 subnet, with eth0 tap name, 10.0.2.100 tap ip,
+        1500 tap MTU, and random MAC.
 
-    RunImage hostexec:
-        Allows you to run commands at the host level (see ENABLE_HOSTEXEC and /usr/bin/hostexec)
-        ┌─[user@host]─[~]
-        └──╼ $ ENABLE_HOSTEXEC=1 runimage --run-shell
-        ┌─[user@host]─[~] - pass command as args
-        └──╼ $ hostexec {hostexec args} {executable} {executable args}
-        ┌─[user@host]─[~] - pass command to stdin
-        └──╼ $ echo "{executable} {executable args}"|hostexec {hostexec args}
-            --help      |-h             Show this usage info
-            --shell     |-s  {args}     Launch host shell (socat)
-            --superuser |-su {args}     Execute command as superuser
-            --terminal  |-t  {args}     Execute command in host terminal
+### RunImage hostexec:
+    Allows you to run commands at the host level
+    ┌─[user@host]─[~]
+    └──╼ $ RIM_ENABLE_HOSTEXEC=1 runimage
+    ┌─[user@host]─[~] - pass command as args
+    └──╼ $ hostexec {hostexec args} {executable} {executable args}
 
-    For Nvidia users with a proprietary driver:
-        If the nvidia driver version does not match in runimage and in the host, runimage
-            will make an image with the nvidia driver of the required version (requires internet)
-            or will download a ready-made image from the github repository and further used as
-            an additional module to runimage.
-        You can download a ready-made driver image from the releases or build driver image manually:
-            https://github.com/VHSgunzo/runimage-nvidia-drivers
-        In runimage, a fake version of the nvidia driver is installed by default to reduce the size:
-            https://github.com/VHSgunzo/runimage-fake-nvidia-driver
-        But you can also install the usual nvidia driver of your version in runimage.
-        Checking the nvidia driver version can be disabled using NO_NVIDIA_CHECK variable.
-        The nvidia driver image can be located next to runimage:
-                '$RUNIMAGEDIR/{nvidia_version}.nv.drv'
-            or in $RUNIMAGEDIR/nvidia-drivers (Default):
-                '$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}.nv.drv'
-            or the driver can be extracted as the directory
-                '$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}'
-            also, the driver can be in RunImage in a packed or unpacked form:
-                '$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv'   -  image
-                '$RUNDIR/nvidia-drivers/{nvidia_version}'          -  directory
+### For Nvidia users with a proprietary driver:
+    If the nvidia driver version does not match in runimage and in the host, runimage
+        will make an image with the nvidia driver of the required version (requires internet)
+        or will download a ready-made image from the github repository and further used as
+        an additional module to runimage.
+    You can download a ready-made driver image from the releases or build driver image manually:
+        https://github.com/VHSgunzo/runimage-nvidia-drivers
+    In runimage, a fake version of the nvidia driver is installed by default to reduce the size:
+        https://github.com/VHSgunzo/runimage-fake-nvidia-driver
+    But you can also install the usual nvidia driver of your version in runimage.
+    Checking the nvidia driver version can be disabled using RIM_NO_NVIDIA_CHECK variable.
+    The nvidia driver image can be located next to runimage:
+            "$RUNIMAGEDIR/{nvidia_version}.nv.drv"
+        or in $RUNIMAGEDIR/nvidia-drivers (Default):
+            "$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}.nv.drv"
+        or the driver can be extracted as the directory
+            "$RUNIMAGEDIR/nvidia-drivers/{nvidia_version}"
+        also, the driver can be in RunImage in a packed or unpacked form:
+            "$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv"   -  image
+            "$RUNDIR/nvidia-drivers/{nvidia_version}"          -  directory
 
-Recommendations:
+### Recommendations:
     If the kernel does not support user namespaces, you need to install
         SUID Bubblewrap into the system, or install a kernel with user namespaces support.
         If SUID Bubblewrap is found in the system, it will be used automatically.
@@ -437,21 +434,20 @@ Recommendations:
 ```
 chmod +x runimage
 ```
-* Run it in OverlayFS mode (If you are using a proprietary nvidia driver, then I recommend disabling the driver check function by NO_NVIDIA_CHECK=1 for proper build/rebuild in manual mode. You do not need to do this in automatic mode):
+* Run it in OverlayFS mode (If you are using a proprietary nvidia driver, then I recommend disabling the driver check function by `RIM_NO_NVIDIA_CHECK=1` for proper build/rebuild in manual mode. You do not need to do this in automatic mode):
 ```
-OVERFS_MODE=1 ./runimage --run-shell
-echo $OVERFS_MNT
-echo $OVERFS_ID
+RIM_OVERFS_MODE=1 ./runimage
+echo OVERFS_MNT=$OVERFS_MNT
 ```
-* Install or remove the necessary packages, change $OVERFS_MNT/rootfs, etc. You can change $OVERFS_MNT/rootfs in the standard ways for you. But do not close the container until the moment of build.
-* You can also specify your own type of rootfs in $OVERFS_MNT/rootfs/.type file, but it's not necessary.
-* After all the manipulations with rootfs, create a new runimage using this command in the container (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help)):
+* Install or remove the necessary packages, change `$OVERFS_MNT/rootfs`, etc. You can change `$OVERFS_MNT/rootfs` in the standard ways for you. But do not close the container until the moment of build.
+* You can also specify your own type of rootfs in `$OVERFS_MNT/rootfs/.type` file, but it's not necessary.
+* After all the manipulations with rootfs, create a new runimage using this command in the container:
 ```
-runbuild
+rim-build
 ```
-* Or from another terminal tab (See [Usage](https://github.com/VHSgunzo/runimage#usage-from-runimage-help)):
+* Or from another terminal tab:
 ```
-OVERFS_ID=$OVERFS_ID ./runimage --run-build
+RIM_OVERFS_ID=$RIM_OVERFS_ID ./runimage rim-build
 ```
 * After the build is completed, you can close the container:
 ```
@@ -459,7 +455,9 @@ exit
 # or CTRL-D
 ```
 
-## Troubleshooting and problem solving:
+<details><summary style="font-size: 20px;"><b>
+Troubleshooting and problem solving
+</b></summary>
 
 * To start SystemD services with systemctl in RunImage SystemD replaced with [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package based on [docker-systemctl-replacement](https://github.com/gdraheim/docker-systemctl-replacement) with some modification. It's depend on python3
 * To start the SSH server you need to install patched [runimage-openssh](https://github.com/VHSgunzo/runimage-openssh) package from runimage [pacman repo](https://github.com/runimage/repo)
@@ -474,25 +472,30 @@ systemctl start sshd    # systemctl depend on python3
 /usr/bin/sshd -D &
 ```
 
-* When unpacked, use the [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper) to properly launch the container.
 * If SELinux is enabled in the system, then there may be problems with the launch and operation of Wine ([solution](https://www.tecmint.com/disable-selinux-in-centos-rhel-fedora))
-* When using TMP_HOME* you may run out of RAM, be careful with this.
-* It is also advisable to use TMPDIR when using --runtime-extract-and-run or RUNTIME_EXTRACT_AND_RUN, because by default, unpacking before starting will be carried out in /tmp, which may also lead to the end of RAM
+* When using `RIM_TMP_HOME`* you may run out of RAM, be careful with this.
+* It is also advisable to use TMPDIR when using `--runtime-extract-and-run` or `RUNTIME_EXTRACT_AND_RUN=1`, because by default, unpacking before starting will be carried out in /tmp, which may also lead to the end of RAM
 * Xephyr does not support GL acceleration and Vulkan has performance issues (But this is not related to RunImage)
 * Possible tearing on nvidia in RunImage desktop mode ([solution](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting#Avoid_screen_tearing))
 * If you have problems with sound when running RunImage desktop on TTY, just restart pulseaudio.
 
     killall pulseaudio ; pulseaudio -D
 
-## Projects based on RunImage:
+</details> 
+
+<details><summary style="font-size: 20px;"><b>
+Projects based on RunImage
+</b></summary>
 
 * [Lux Wine](https://github.com/VHSgunzo/lux-wine)
 * [PortArch](https://github.com/VHSgunzo/portarch)
 * [NitroWine](https://github.com/RusNor/NitroWine)
 * [StartWine-Launcher](https://github.com/RusNor/StartWine-Launcher)
 
+</details> 
+
 <details><summary style="font-size: 20px;"><b>
-Main used projects:
+Main used projects
 </b></summary>
 
 * [archlinux](https://archlinux.org)
@@ -525,7 +528,7 @@ Main used projects:
 </details> 
 
 <details><summary style="font-size: 20px;"><b>
-RunImage tested and works on:
+RunImage tested and works on
 </b></summary>
 
 * [Adelie Linux](https://www.adelielinux.org/)

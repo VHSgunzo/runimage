@@ -13,6 +13,8 @@ if [[ ! -x 'runimage' && ! -x 'RunDir/Run' ]]
         chmod +x runimage
 fi
 
+trap 'echo == cleanup ; rm -rf rootfs RunDir uruntime' EXIT INT TERM
+
 if [ ! -x 'RunDir/Run' ]
     then
         echo '== extract base RunImage'
@@ -22,31 +24,41 @@ fi
 # (use TARGETARCH env var for get custom ARCH image)
 echo '== get and extract docker image to rootfs dir'
 rm -rf rootfs
-[[ ! -n "$TARGETARCH" && "$SYS_ARCH" == 'x86_64' ]] && \
-dimg_repo='archlinux:base'||dimg_repo='lopsided/archlinux:latest'
+sysdrm=(
+    systemd dbus-broker dbus-broker-units argon2
+    dbus-units device-mapper cryptsetup kbd popt
+)
+if [[ ! -n "$TARGETARCH" && "$SYS_ARCH" == 'x86_64' ]]
+    then
+        dimg_repo='archlinux:base'
+        sysdrm+=(systemd-sysvcompat)
+    else
+        dimg_repo='lopsided/archlinux:latest'
+fi
 ./RunDir/Run getdimg --extract rootfs "${dimg_repo}"
 
 echo '== prepare rootfs'
+export RIM_ROOT=1
 rm -f rootfs/usr/share/libalpm/hooks/{package-cleanup,man-page-remove}.hook
 ./RunDir/Run rim-shrink
+./RunDir/Run pacman --noconfirm -Rdd "${sysdrm[@]}"
 ROOTFS_ARCH="$(./RunDir/Run uname -m 2>/dev/null)"
 
 echo '== update rootfs'
 ## https://runimage-repo.static.hf.space
 ## https://github.com/runimage/repo/releases/download
-export RIM_ROOT=1
 ./RunDir/Run pacman --noconfirm -Sy pacutils
 ./RunDir/Run pacman --noconfirm -U "https://github.com/runimage/repo/releases/download/$ROOTFS_ARCH/runimage-mirrorlist.pkg.tar.zst"
 ./RunDir/Run rim-update
 
 echo '== add BlackArch repo'
-if [ ! -x 'strap.sh' ]
+if [ ! -x '/tmp/strap.sh' ]
     then
-        curl -LO https://blackarch.org/strap.sh
-        sed -i '/blackarch-officials/d' strap.sh
-        chmod +x strap.sh
+        curl -L https://blackarch.org/strap.sh -o /tmp/strap.sh
+        sed -i '/blackarch-officials/d' /tmp/strap.sh
+        chmod +x /tmp/strap.sh
 fi
-./RunDir/Run ./strap.sh
+./RunDir/Run /tmp/strap.sh
 
 if [ "$ROOTFS_ARCH" == 'x86_64' ]
     then
@@ -62,7 +74,7 @@ BASE_PKGS=(
     # bash coreutils curl findutils gawk grep iproute2
     # kmod procps-ng sed tar util-linux which gocryptfs
     # libnotify lsof slirp4netns socat xorg-xhost gzip
-    # xz zstd lz4 jq binutils patchelf
+    # xz zstd lz4 jq binutils patchelf file
     runimage-utils runimage-static runimage-rootfs
     fake-sudo-pkexec fake-systemd Run-wrapper
     fakeroot fakechroot iptables-nft nftables
@@ -125,7 +137,7 @@ echo '== remove python and perl'
 if [ -n "$1" ]
     then
         echo '== install additional packages'
-        yes|./RunDir/Run pacman -Sy "$@"
+        ./RunDir/Run pacman --noconfirm -Sy "$@"
 fi
 
 echo '== shrink backup files, docs, man, locales, package cache, python cache, strip debug symbols'
@@ -149,6 +161,3 @@ if [ -d "RunDir/sharun-$ROOTFS_ARCH" ]
         chmod +x "runimage-$ROOTFS_ARCH"
     else ./RunDir/Run rim-build -d -b 26 -z -c 22 "runimage-$ROOTFS_ARCH"
 fi
-
-echo '== cleanup'
-rm -rf rootfs RunDir uruntime

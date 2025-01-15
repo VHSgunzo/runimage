@@ -2349,17 +2349,40 @@ if [[ -d "$RIM_ROOTFS" && -w "$RUNROOTFS" ]]
         RIM_UNSHARE_HOSTNAME="${RIM_UNSHARE_HOSTNAME:=1}"
         RIM_UNSHARE_LOCALTIME="${RIM_UNSHARE_LOCALTIME:=1}"
         RIM_UNSHARE_RESOLVCONF="${RIM_UNSHARE_RESOLVCONF:=1}"
+        lib_pathfl="$RUNROOTFS/usr/lib/lib.path"
+        if [ ! -e "$lib_pathfl" ]
+            then echo '+' > "$lib_pathfl"
+        fi
         for ver in 2 1
             do
                 if [ -f "$RUNROOTFS"/usr/lib/*-linux-gnu/ld-linux-*.so.${ver} ] && \
-                    [ ! -L "$RUNROOTFS"/usr/lib/ld-linux-*.so.${ver} ]
+                    [ ! -e "$RUNROOTFS"/usr/lib/ld-linux-*.so.${ver} ]
                     then
                         (cd "$RUNROOTFS/usr/lib"
                         ln -sf *-linux-gnu/ld-linux-*.so.${ver} .)
                 fi
         done
+        ld_gnu_libs_dir="$(basename "$(ls -d "$RUNROOTFS"/usr/lib/*-linux-gnu 2>/dev/null|head -1)")"
+        if [ -n "$ld_gnu_libs_dir" ] && \
+            ! grep -q "+/$ld_gnu_libs_dir" "$lib_pathfl"
+            then echo "+/$ld_gnu_libs_dir" >> "$lib_pathfl"
+        fi
+        for ver in 2 1
+            do
+                if [ -f "$RUNROOTFS"/usr/lib64/ld-linux-*.so.${ver} ] && \
+                    [ ! -e "$RUNROOTFS"/usr/lib/ld-linux-*.so.${ver} ]
+                    then
+                        (cd "$RUNROOTFS/usr/lib"
+                        ln -sf ../lib64 .
+                        ln -sf ../lib64/ld-linux-*.so.${ver} .)
+                fi
+        done
+        if [ -d "$RUNROOTFS/usr/lib/lib64" ] && \
+            ! grep -q '+/lib64' "$lib_pathfl"
+            then echo '+/lib64' >> "$lib_pathfl"
+        fi
         if [ -f "$RUNROOTFS"/lib/ld-musl-*.so.1 ] && \
-            [ ! -L "$RUNROOTFS"/usr/lib/ld-musl-*.so.1 ]
+            [ ! -e "$RUNROOTFS"/usr/lib/ld-musl-*.so.1 ]
             then
                 (cd "$RUNROOTFS/usr/lib"
                 ln -sf ../../lib/ld-musl-*.so.1 .)
@@ -2430,15 +2453,6 @@ EOF
         for bind_dir in "${BIND_DIRS[@]}"
             do try_mkdir "$RUNROOTFS/$bind_dir"
         done
-        lib_pathfl="$RUNROOTFS/usr/lib/lib.path"
-        if [ ! -e "$lib_pathfl" ]
-            then echo '+' > "$lib_pathfl"
-        fi
-        ld_gnu_libs_dir="$(basename "$(ls -d "$RUNROOTFS"/usr/lib/*-linux-gnu 2>/dev/null|head -1)")"
-        if [ -n "$ld_gnu_libs_dir" ] && \
-            ! grep -q "$ld_gnu_libs_dir" "$lib_pathfl"
-            then echo "+/$ld_gnu_libs_dir" >> "$lib_pathfl"
-        fi
         rim_rootfs_verfl="$RUNROOTFS/.version"
         if [ ! -e "$rim_rootfs_verfl" ]
             then echo "$RUNIMAGE_VERSION" > "$rim_rootfs_verfl"
