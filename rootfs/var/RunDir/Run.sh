@@ -2401,9 +2401,8 @@ if [[ -d "$RIM_ROOTFS" && -w "$RUNROOTFS" ]]
         if [[ ! -e 'ldconfig' && -e '../sbin/ldconfig' ]]
             then ln -sf '../sbin/ldconfig' .
         fi)
-        os_releasefl="$RUNROOTFS/usr/lib/os-release"
-        if [[ ! -e "$RUNROOTFS/etc/os-release" && -f "$os_releasefl" ]]
-            then (cd "$RUNROOTFS/etc" && ln -sf "$os_releasefl" .)
+        if [[ ! -e "$RUNROOTFS/etc/os-release" && -f "$RUNROOTFS/usr/lib/os-release" ]]
+            then (cd "$RUNROOTFS/etc" && ln -sf ../usr/lib/os-release .)
         fi
         if [ -d "$RUNROOTFS/etc/apt" ]
             then

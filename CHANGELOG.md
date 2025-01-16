@@ -1,6 +1,5 @@
 # v0.40.1
 
-* Update `rootfs` v0.40.1 xx.xx.xx
 * Add `aarch64` support
 * [Patch](https://github.com/VHSgunzo/bubblewrap-static/blob/main/caps.patch) nested bubblewrap containerization
 * Create new runtime ([uruntime](https://github.com/VHSgunzo/uruntime)) for support [DwarFS](https://github.com/mhx/dwarfs) and [SquashFS](https://docs.kernel.org/filesystems/squashfs.html)
