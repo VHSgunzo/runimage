@@ -265,25 +265,26 @@ Configuration environment variables:
 ## Utils scripts:
 |||
 |---|---|
-|cip                        |  Сheck public ip                                                |
-|dbus-flmgr                 |  Launch the system file manager via dbus                        |
-|nocap                      |  Disables container capabilities                                |
-|pac                        |  sudo pacman (fake sudo)                                        |
-|packey                     |  sudo pacman-key (fake sudo)                                    |
-|panelipmon                 |  Shows information about an active network connection           |
-|xclipsync and xclipfrom    |  For clipboard synchronization in desktop mode                  |
-|webm2gif                   |  Convert webm to gif                                            |
-|rim-build                  |  For the runimage build                                         |
-|rim-desktop                |  For the desktop mode                                           |
-|rim-update                 |  For runimage update                                            |
-|rim-psmon                  |  For monitoring of processes running in runimage containers     |
-|rim-bootstrap              |  For bootstrap new runimage                                     |
-|rim-dinteg                 |  For desktop integration                                        |
-|rim-shrink                 |  For shrinking unnecessary files                                |
-|hostexec                   |  For execute commands at the host level (see ENABLE_HOSTEXEC)   |
-|getdimg                    |  For download docker container images                           |
-|httpfw                     |  For expose a local HTTP web service to the internet            |
-|tcpfw                      |  For expose a local TCP port to the internet                    |
+|[cip](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/cip)                      |  Сheck public ip                                                |
+|[dbus-flmgr](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/dbus-flmgr)        |  Launch the system file manager via dbus                        |
+|[getdimg](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/getdimg)              |  For download docker container images                           |
+|[hostexec](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/hostexec)            |  For execute commands at the host level (see ENABLE_HOSTEXEC)   |
+|[httpfw](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/httpfw)                |  For expose a local HTTP web service to the internet            |
+|[nocap](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/nocap)                  |  Disables container capabilities                                |
+|[pac](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/pac)                      |  sudo pacman (fake sudo)                                        |
+|[packey](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/packey)                |  sudo pacman-key (fake sudo)                                    |
+|[panelipmon](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/panelipmon)        |  Shows information about an active network connection           |
+|[rim-bootstrap](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/rim-bootstrap)  |  For bootstrap new runimage                                     |
+|[rim-build](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/rim-build)          |  For the runimage build                                         |
+|[rim-desktop](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/rim-desktop)      |  For the desktop mode                                           |
+|[rim-dinteg](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/rim-dinteg)        |  For desktop integration                                        |
+|[rim-psmon](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/rim-psmon)          |  For monitoring of processes running in runimage containers     |
+|[rim-shrink](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/rim-shrink)        |  For shrinking unnecessary files                                |
+|[rim-update](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/rim-update)        |  For runimage update                                            |
+|[tcpfw](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/tcpfw)                  |  For expose a local TCP port to the internet                    |
+|[webm2gif](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/webm2gif)            |  Convert webm to gif                                            |
+|[xclipfrom](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/xclipfrom)          |  For clipboard synchronization in desktop mode                  |
+|[xclipsync](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/utils/xclipsync)          |  For clipboard synchronization in desktop mode                  |
 
 ## Additional information:
     You can create a symlink/hardlink to runimage or rename runimage and give it the name
