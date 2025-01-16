@@ -11,9 +11,9 @@ In addition, RunImage has the ability to isolate itself from the main system, us
 You can use it to develop or run any applications and games, including applications and games for Windows, launch games from retro platforms using popular emulators, work with the office, with remote desktops, multimedia, browsers, messengers, and even run virtual machines with QEMU/KVM and Virt-Manager, USB and block device forwarding in VM also works.
 
 Also inside the container, you can use various means of proxification, such as proxychains, tor and others and run VNC and SSH servers.
-In network sandbox mode you can use VPN (tested openvpn, wireguard, sshuttle, [tun2proxy](https://github.com/blechschmidt/tun2proxy)) and other network tools without root rights.
+In network sandbox mode you can use VPN (tested [openvpn](https://community.openvpn.net/openvpn), [wireguard](https://www.wireguard.com/), [sshuttle](https://github.com/sshuttle/sshuttle), [tun2proxy](https://github.com/blechschmidt/tun2proxy)) and other network tools without root rights.
 
-The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases) file `pkg_list{-release-type}.txt`
+The full list of installed packages can be found in the [**releases**](https://github.com/VHSgunzo/runimage/releases/continuous) file `pkg_list{-release-type}.txt`
 
 ## Features:
 
