@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+set -e
+shopt -s extglob
+SYS_ARCH="$(uname -m)"
+
+# disable Nvidia driver check and RunImage messages
+export RIM_NO_NVIDIA_CHECK=1 RIM_QUIET_MODE=1
+
+if [[ ! -x 'runimage' && ! -x 'RunDir/Run' ]]
+    then
+        echo '== get base runimage'
+        curl -o runimage -L "https://github.com/VHSgunzo/runimage/releases/download/continuous/runimage-$SYS_ARCH"
+        chmod +x runimage
+fi
+
+trap 'echo == cleanup ; rm -rf rootfs RunDir uruntime' EXIT INT TERM
+
+if [ ! -x 'RunDir/Run' ]
+    then
+        echo '== extract base RunImage'
+        ./runimage --runtime-extract
+fi
+
+# (use TARGETARCH env var for get custom ARCH image)
+echo '== get and extract docker image to rootfs dir'
+rm -rf rootfs
+sysdrm=(
+    systemd dbus-broker dbus-broker-units argon2
+    dbus-units device-mapper cryptsetup kbd popt
+)
+if [[ ! -n "$TARGETARCH" && "$SYS_ARCH" == 'x86_64' ]]
+    then
+        dimg_repo='archlinux:base'
+        sysdrm+=(systemd-sysvcompat)
+    else
+        dimg_repo='lopsided/archlinux:latest'
+fi
+./RunDir/Run getdimg --extract rootfs "${dimg_repo}"
+
+echo '== prepare rootfs'
+export RIM_ROOT=1
+rm -f rootfs/usr/share/libalpm/hooks/{package-cleanup,man-page-remove}.hook
+./RunDir/Run rim-shrink
+./RunDir/Run pacman --noconfirm -Rdd "${sysdrm[@]}"
+ROOTFS_ARCH="$(./RunDir/Run uname -m 2>/dev/null)"
+
+echo '== update rootfs'
+## https://runimage-repo.static.hf.space
+## https://github.com/runimage/repo/releases/download
+./RunDir/Run pacman --noconfirm -Sy pacutils
+./RunDir/Run pacman --noconfirm -U "https://github.com/runimage/repo/releases/download/$ROOTFS_ARCH/runimage-mirrorlist.pkg.tar.zst"
+./RunDir/Run rim-update
+
+echo '== add BlackArch repo'
+if [ ! -x '/tmp/strap.sh' ]
+    then
+        curl -L https://blackarch.org/strap.sh -o /tmp/strap.sh
+        sed -i '/blackarch-officials/d' /tmp/strap.sh
+        chmod +x /tmp/strap.sh
+fi
+./RunDir/Run /tmp/strap.sh
+
+if [ "$ROOTFS_ARCH" == 'x86_64' ]
+    then
+        echo '== add Chaotic-AUR repo'
+        ./RunDir/Run pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
+        ./RunDir/Run pacman-key --lsign-key 3056513887B78AEB
+        ./RunDir/Run pacman --noconfirm -U https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst
+        ./RunDir/Run pacman --noconfirm -U https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst
+fi
+
+echo '== install base RunImage packages'
+BASE_PKGS=(
+    # bash coreutils curl findutils gawk grep iproute2
+    # kmod procps-ng sed tar util-linux which gocryptfs
+    # libnotify lsof slirp4netns socat xorg-xhost gzip
+    # xz zstd lz4 jq binutils patchelf file
+    runimage-utils runimage-static runimage-rootfs
+    fake-sudo-pkexec fake-systemd Run-wrapper
+    fakeroot fakechroot iptables-nft nftables
+    openresolv iputils
+)
+if [ "$SYS_ARCH" != "$ROOTFS_ARCH" ]
+    then cp -Trf 'RunDir/sharun' "RunDir/sharun-$SYS_ARCH"
+fi
+yes|./RunDir/Run pacman --overwrite '*' -S "${BASE_PKGS[@]}"
+if [ -d "RunDir/sharun-$SYS_ARCH" ]
+    then
+        cp -Tr RunDir/sharun "RunDir/sharun-$ROOTFS_ARCH"
+        rm -rf RunDir/sharun
+        mv "RunDir/sharun-$SYS_ARCH" RunDir/sharun
+fi
+
+if [ "$ROOTFS_ARCH" == 'x86_64' ]
+    then
+        echo '== install lib32 packages'
+        ./RunDir/Run pacman --noconfirm -Sy lib32-glibc lib32-fakeroot lib32-fakechroot
+
+        echo '== install fake Nvidia driver'
+        ./RunDir/Run pacman --noconfirm -Sy fake-nvidia-driver
+fi
+
+echo '== update locales'
+# cat <<EOF > rootfs/etc/locale.gen
+# ar_EG.UTF-8 UTF-8
+# en_US.UTF-8 UTF-8
+# en_GB.UTF-8 UTF-8
+# en_CA.UTF-8 UTF-8
+# en_SG.UTF-8 UTF-8
+# es_MX.UTF-8 UTF-8
+# zh_CN.UTF-8 UTF-8
+# fr_FR.UTF-8 UTF-8
+# ru_RU.UTF-8 UTF-8
+# ru_UA.UTF-8 UTF-8
+# es_ES.UTF-8 UTF-8
+# de_DE.UTF-8 UTF-8
+# pt_BR.UTF-8 UTF-8
+# it_IT.UTF-8 UTF-8
+# id_ID.UTF-8 UTF-8
+# ja_JP.UTF-8 UTF-8
+# bg_BG.UTF-8 UTF-8
+# pl_PL.UTF-8 UTF-8
+# da_DK.UTF-8 UTF-8
+# ko_KR.UTF-8 UTF-8
+# tr_TR.UTF-8 UTF-8
+# hu_HU.UTF-8 UTF-8
+# cs_CZ.UTF-8 UTF-8
+# bn_IN UTF-8
+# hi_IN UTF-8
+# EOF
+./RunDir/Run pacman --noconfirm -Sy glibc
+
+# optional
+echo '== remove python and perl'
+./RunDir/Run pacman --noconfirm -Rsndd python perl
+
+if [ -n "$1" ]
+    then
+        echo '== install additional packages'
+        ./RunDir/Run pacman --noconfirm -Sy "$@"
+fi
+
+echo '== shrink backup files, docs, man, locales, package cache, python cache, strip debug symbols'
+./RunDir/Run rim-shrink --back --docs --locales --pkgcache --pycache --strip
+
+echo "== create pkg_list.txt"
+./RunDir/Run rim-pkgls > "pkg_list-${ROOTFS_ARCH}.txt"
+
+echo '== build new runimage'
+if [ -d "RunDir/sharun-$ROOTFS_ARCH" ]
+    then
+        [ ! -x 'uruntime' ] && \
+        cp -f RunDir/static/uruntime .
+        rm -rf RunDir/sharun RunDir/rootfs
+        mv "RunDir/sharun-$ROOTFS_ARCH" RunDir/sharun
+        mv rootfs RunDir/rootfs
+        date '+%y.%m.%d.%H%M%S' > RunDir/rootfs/.build
+        ./uruntime --runtime-mkdwarfs -f --set-owner 0 --set-group 0 --no-history --log-level error \
+            --no-create-timestamp --header RunDir/static/uruntime --chmod u+rw \
+            -i RunDir -o "runimage-$ROOTFS_ARCH" -B16 --compression zstd:level=22 -S26
+        chmod +x "runimage-$ROOTFS_ARCH"
+    else ./RunDir/Run rim-build -d -b 26 -z -c 22 "runimage-$ROOTFS_ARCH"
+fi

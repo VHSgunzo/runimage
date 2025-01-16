@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+
+RED='\033[1;91m'
+BLUE='\033[1;94m'
+GREEN='\033[1;92m'
+YELLOW='\033[1;33m'
+RESETCOLOR='\033[1;00m'
+PATH="$PATH:$RUNSTATIC"
+SELFNAME="$(basename "$0")"
+
+[ -f "$RIMENVFL" ] && \
+    source "$RIMENVFL"
+
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
+    NOT_TERM=1||NOT_TERM=0
+
+error_msg() {
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    if [ "$NOT_TERM" == 1 ]
+        then notify-send -a 'RunImage Error' "$@" 2>/dev/null &
+    fi
+}
+
+set_terminal() {
+    if hostexec which konsole &>/dev/null
+        then args+=("konsole" "-e")
+    elif hostexec which gnome-terminal &>/dev/null
+        then args+=("gnome-terminal" "--wait" "--")
+    elif hostexec which xfce4-terminal &>/dev/null
+        then args+=("xfce4-terminal" "--disable-server" "-x")
+    elif hostexec which qterminal &>/dev/null
+        then args+=("qterminal" "-e")
+    elif hostexec which kitty &>/dev/null
+        then args+=("kitty" "-e")
+    elif hostexec which deepin-terminal &>/dev/null
+        then args+=("deepin-terminal" "-e")
+    elif hostexec which lxterminal &>/dev/null
+        then args+=("lxterminal" "-e")
+    elif hostexec which roxterm &>/dev/null
+        then args+=("roxterm" "-e")
+    elif hostexec which alacritty &>/dev/null
+        then args+=("alacritty" "-e")
+    elif hostexec which tilix &>/dev/null
+        then args+=("tilix" "-e")
+    elif hostexec which st &>/dev/null
+        then args+=("st" "-e")
+    elif hostexec which cool-retro-term &>/dev/null
+        then args+=("cool-retro-term" "-e")
+    elif hostexec which xterm &>/dev/null
+        then args+=("xterm" "-bg" "black" "-fg" "white" "-e")
+    elif hostexec which sakura &>/dev/null # next terminals don't recognize spaces
+        then args+=("sakura" "-e")
+    elif hostexec which terminology &>/dev/null
+        then args+=("terminology" "-e")
+    elif hostexec which terminator &>/dev/null
+        then args+=("terminator" "-e") # need
+    elif hostexec which tilda &>/dev/null
+        then args+=("tilda" "-c")
+    else
+        error_msg "The terminal application cannot be detected!"
+        return 1
+    fi
+}
+
+set_supassapp() {
+    if hostexec which pkexec &>/dev/null
+        then args+=("pkexec")
+    elif hostexec which kdesu &>/dev/null
+        then args+=("kdesu" "--noignorebutton" "-t")
+    elif hostexec which gksudo &>/dev/null
+        then args+=("gksudo")
+    elif hostexec which gksu &>/dev/null
+        then args+=("gksu")
+    elif hostexec which sudo &>/dev/null
+        then
+            set_terminal && \
+                args+=("sudo") || \
+            return 1
+    else
+        error_msg "The app for requesting the superuser pass not found!"
+        return 1
+    fi
+}
+
+print_help() {
+    echo -e "[ Usage ]: hostexec [OPTIONS] {executable} {executable args}
+
+[ Options ]:
+    -su, --superuser  {args}     Execute command as superuser
+    -t,  --terminal   {args}     Execute command in host terminal
+    -h,  --help                  Show this message"
+    exit 1
+}
+
+if [ -e "$RIM_HEXEC_SOCK" ]
+    then
+        if [ "$SELFNAME" != 'hostexec' ]
+            then args=("$SELFNAME")
+            else
+                unset args
+                while [[ $# -gt 0 ]]
+                    do
+                        case "$1" in
+                            -h |--help) print_help ; exit 0 ;;
+                            -t |--terminal) shift ; set_terminal || exit 1 ;;
+                            -su|--superuser) shift ; set_supassapp || exit 1 ;;
+                            *) break ;;
+                        esac
+                done
+        fi
+        [ "$RIM_EXEC_SAME_PWD" == 1 ] && \
+            export SSRV_CWD="$PWD"
+        SSRV_SOCK="unix:$RIM_HEXEC_SOCK" \
+        exec ssrv "${args[@]}" "$@"
+    else
+        error_msg "HOSTEXEC socket not found!"
+        exit 1
+fi

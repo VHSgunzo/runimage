@@ -1,15 +1,1 @@
-#!/usr/bin/bash
-
-if [[ -z "$DISPLAY" || -z "$SYS_DISPLAY" ]]
-    then
-        echo 'clipsync: $DISPLAY and $SYS_DISPLAY must be set.'
-        exit 99
-fi
-
-xclip -display "$SYS_DISPLAY" -selection CLIPBOARD -o|\
-xclip -display "$DISPLAY" -selection CLIPBOARD -i
-while true
-    do
-        DISPLAY=$SYS_DISPLAY xclipfrom "$DISPLAY" $DESKTOP_KEY 2>/dev/null || exit 1
-        DISPLAY=$DISPLAY xclipfrom "$SYS_DISPLAY" $DESKTOP_KEY 2>/dev/null || exit 1
-done
+../../var/RunDir/utils/xclipsync

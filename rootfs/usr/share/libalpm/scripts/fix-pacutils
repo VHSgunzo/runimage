@@ -1,10 +1,11 @@
 #!/usr/bin/bash
 
 for bin in pactrans pacrepairfile pacrepairdb
-do
-mv -f "/usr/bin/$bin" "/usr/bin/_$bin"
-
-cat << EOF > "/usr/bin/$bin"
+    do
+        if [[ "$(head -c +4 "/usr/bin/$bin" 2>/dev/null)" =~ 'ELF' ]]
+            then
+                mv -f "/usr/bin/$bin" "/usr/bin/_$bin"
+                cat << EOF > "/usr/bin/$bin"
 #!/usr/bin/sh
 if [ "\$EUID" != 0 ]
     then sudo /usr/bin/_$bin "\$@"
@@ -12,7 +13,8 @@ if [ "\$EUID" != 0 ]
 fi
 EOF
 
-chmod +x "/usr/bin/$bin"
+                chmod +x "/usr/bin/$bin"
+        fi
 done
 
 for mode in install remove

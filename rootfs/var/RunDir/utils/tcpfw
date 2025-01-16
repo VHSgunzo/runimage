@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+serveo=serveo.net  # 138.68.79.95
+
+is_exe_exist() { command -v "$@" &>/dev/null ; }
+
+if [ "$1" ]
+    then local_port="$1"
+    else
+        echo "Specify the port for sharing!"
+        exit 1
+fi
+
+[ "$2" ] && rem_port="$2"||\
+rem_port=0  # random port
+
+if is_exe_exist autossh
+    then SSH_ARGS=(autossh -M 0)
+elif is_exe_exist ssh
+    then SSH_ARGS=(ssh)  # To reconnect automatically, you need to install autossh
+else
+    echo "SSH client not found!"
+    exit 1
+fi
+
+"${SSH_ARGS[@]}" -o ServerAliveInterval=10 -o ServerAliveCountMax=3 \
+    -o TCPKeepAlive=yes -o ForwardAgent=no -o ForwardX11=no \
+    -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=ERROR -o IdentitiesOnly=yes \
+    -R $rem_port:127.0.0.1:$local_port $serveo|\
+    stdbuf -o0 awk '{print $NF}'

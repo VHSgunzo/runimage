@@ -1,0 +1,30 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/share/mime/application/*
+Target = usr/share/mime/audio/*
+Target = usr/share/mime/chemical/*
+Target = usr/share/mime/font/*
+Target = usr/share/mime/image/*
+Target = usr/share/mime/inode/*
+Target = usr/share/mime/message/*
+Target = usr/share/mime/model/*
+Target = usr/share/mime/multipart/*
+Target = usr/share/mime/packages/*
+Target = usr/share/mime/text/*
+Target = usr/share/mime/video/*
+Target = usr/share/mime/x-content/*
+Target = usr/share/mime/x-epoc/*
+Target = usr/share/icons/*.svg
+Target = usr/share/icons/*.png
+Target = usr/share/icons/hicolor/*
+Target = usr/share/applications/*
+Target = usr/share/desktop-directories/*
+Target = etc/xdg/menus/applications-merged/*
+
+[Action]
+Description = Add desktop integration...
+When = PostTransaction
+Exec = /var/RunDir/utils/rim-dinteg --add hook
+NeedsTargets

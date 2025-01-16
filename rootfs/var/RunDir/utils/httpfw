@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+is_exe_exist() { command -v "$@" &>/dev/null ; }
+
+if [ "$1" ]
+    then local_port="$1"
+    else
+        echo "Specify the port for sharing!"
+        exit 1
+fi
+if is_exe_exist cloudflared
+    then cloudflared tunnel --url http://127.0.0.1:$local_port --no-autoupdate |& \
+        grep --line-buffered -A1 'has been created'|grep --line-buffered -o 'https.*\.com'
+    else
+        echo "Cloudflared client not found!"
+        exit 1
+fi

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+dbus-filemgr() {
+    dbus-send --session --dest=org.freedesktop.FileManager1 \
+        --type=method_call /org/freedesktop/FileManager1 \
+        org.freedesktop.FileManager1.ShowItems array:string:"file://$@" string:""
+}
+
+if [ -n "$1" ]
+    then
+        dbus-filemgr "$@"
+    else
+        dbus-filemgr "$HOME"
+fi

@@ -1,8 +1,1 @@
-#!/usr/bin/bash
-if [ "$EUID" != 0 ]
-    then
-        sudo /usr/bin/pacman-key "$@"
-    else
-        /usr/bin/pacman-key "$@"
-fi
-
+../../var/RunDir/utils/packey

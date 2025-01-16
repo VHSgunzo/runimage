@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+if [ "$EUID" != 0 ]
+    then sudo /usr/bin/pacman "$@"
+    else /usr/bin/pacman "$@"
+fi

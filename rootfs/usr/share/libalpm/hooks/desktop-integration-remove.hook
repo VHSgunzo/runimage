@@ -1,0 +1,29 @@
+[Trigger]
+Type = Path
+Operation = Remove
+Target = usr/share/mime/application/*
+Target = usr/share/mime/audio/*
+Target = usr/share/mime/chemical/*
+Target = usr/share/mime/font/*
+Target = usr/share/mime/image/*
+Target = usr/share/mime/inode/*
+Target = usr/share/mime/message/*
+Target = usr/share/mime/model/*
+Target = usr/share/mime/multipart/*
+Target = usr/share/mime/packages/*
+Target = usr/share/mime/text/*
+Target = usr/share/mime/video/*
+Target = usr/share/mime/x-content/*
+Target = usr/share/mime/x-epoc/*
+Target = usr/share/icons/*.svg
+Target = usr/share/icons/*.png
+Target = usr/share/icons/hicolor/*
+Target = usr/share/applications/*
+Target = usr/share/desktop-directories/*
+Target = etc/xdg/menus/applications-merged/*
+
+[Action]
+Description = Remove desktop integration...
+When = PreTransaction
+Exec = /var/RunDir/utils/rim-dinteg --remove hook
+NeedsTargets

@@ -1,3 +1,4 @@
 #!/usr/bin/bash
-cp -rTf /var/rootfs / 2>/dev/null
+unset LD_PRELOAD
+cp -rTf /var/rootfs /var/RunDir/rootfs 2>/dev/null
 rm -rf /var/rootfs/{,.[!.],..?}*

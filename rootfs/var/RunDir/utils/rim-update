@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+RED='\033[1;91m'
+GREEN='\033[1;92m'
+RESETCOLOR='\033[1;00m'
+
+[ -f "$RIMENVFL" ] && \
+    source "$RIMENVFL"
+
+[[ ! "$RUNTTY" =~ tty|pts ]] && \
+    NOT_TERM=1||NOT_TERM=0
+
+is_exe_exist() { command -v "$@" &>/dev/null ; }
+
+nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
+
+info_msg() {
+    if [ "$RIM_QUIET_MODE" != 1 ]
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+            if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
+                then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+            fi
+    fi
+}
+
+error_msg() {
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    if [ "$NOT_TERM" == 1 ]
+        then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
+    fi
+}
+
+print_help() {
+    echo -e "[ Usage ]: rim-update [OPTIONS]
+
+[ Options ]:
+    --shrink     Run rim-shrink --all after update (env: RIM_UPDATE_SHRINK=1)
+    --cleanup    Run rim-shrink --pkgcache after update (env: RIM_UPDATE_CLEANUP=1)
+    -h, --help   Show this message"
+    exit 1
+}
+
+case "$1" in
+    -h|--help) print_help ;;
+    --shrink ) RIM_UPDATE_SHRINK=1 ;;
+    --cleanup) RIM_UPDATE_CLEANUP=1 ;;
+esac
+
+export RIM_UPDATE_CLEANUP RIM_UPDATE_SHRINK
+if is_exe_exist pacman
+    then
+        PACKEYRINGS=(archlinux-keyring)
+
+        grep "^\[chaotic-aur\]" "/etc/pacman.conf" &>/dev/null && \
+            PACKEYRINGS+=(chaotic-keyring)
+
+        grep "^\[blackarch\]" "/etc/pacman.conf" &>/dev/null && \
+            PACKEYRINGS+=(blackarch-keyring)
+
+        pac -Sy "${PACKEYRINGS[@]}" --needed --noconfirm && \
+        pactrans --sysupgrade --yolo||\
+        exit 1
+elif is_exe_exist apt
+    then
+        apt update && \
+        apt upgrade -y||\
+        exit 1
+elif is_exe_exist apk
+    then
+        apk -U upgrade||\
+        exit 1
+elif is_exe_exist xbps-install
+    then
+        xbps-install -Syu||\
+        exit 1
+else
+    error_msg "The package manager cannot be detected!"
+    exit 1
+fi
+
+unset PKGCACHE_ITEMS
+([ -n "$(ls -A "/var/cache/pacman/pkg/" 2>/dev/null)" ]||\
+[ -n "$(ls -A "/var/cache/apt/archives"/*.deb 2>/dev/null)" ]||\
+[ -n "$(ls -A "/var/cache/apk/" 2>/dev/null)" ]||\
+[ -n "$(ls -A "/var/cache/xbps/" 2>/dev/null)" ]) && \
+PKGCACHE_ITEMS=1
+
+if [ "$RIM_UPDATE_SHRINK" == 1 ]
+    then "$RUNUTILS/rim-shrink" --all
+elif [ "$RIM_UPDATE_CLEANUP" == 1 ]
+    then
+        info_msg "Cleanup rootfs..."
+        RIM_QUIET_MODE=1 "$RUNUTILS/rim-shrink" --pkgcache
+fi
+
+if [ "$PKGCACHE_ITEMS" == 1 ]
+    then touch "$RUNPIDDIR/is_pkgs"
+fi
