@@ -28,6 +28,7 @@ The full list of installed packages can be found in the [**releases**](https://g
 * The ability to run both 32-bit and 64-bit executable files.
 * Based on Arch Linux, contains the latest software and [AUR](https://aur.archlinux.org) support.
 * Access to [BlackArch](https://github.com/BlackArch/blackarch) repo.
+* Access to [Chaotic-AUR](https://aur.chaotic.cx) repo.
 * Own Pacman [repository](https://runimage-repo.hf.space) with [mirror](https://github.com/runimage/repo).
 * Updating without extraction runimage and automatic rebuild if the update was successful.
 * The ability to launching AppImage applications with FUSE mount (not needed to extract).
@@ -36,7 +37,7 @@ The full list of installed packages can be found in the [**releases**](https://g
 * The ability to use separate container configuration files for each launched executable file
 * There is no performance drawdown. All applications and executable files run at the same speed as in the system
 * The ability to Filesystem, X11, DBUS, UDEV, Network, SystemD, USERs and PIDs sandboxing.
-* Port forwarding in sandbox network mode (TCP, UDP, SOCKS5 proxy supports).
+* Port forwarding in sandbox network mode (TCP, UDP, SOCKS5 proxy and reverse mode supports).
 * Temporary home directory in RAM (can be used as a real private mode for browsers and applications)
 * Sandbox and portable home directory.
 * The ability to launching a full DE in windowed/full screen mode and on TTY
