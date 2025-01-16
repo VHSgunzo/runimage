@@ -86,7 +86,7 @@
 * Add `RIM_WAIT_RPIDS_EXIT` env var Wait for all processes to exit
 * Add `RIM_EXEC_SAME_PWD` env var Use same `$PWD` for `rim-exec` and `hostexec`
 * Rename env var `ARGV0` to `ARG0` (fix `zsh` issue)
-* Minor fixes
+* Minor fixes and changes
 
 -----------------------------------------------------------------------------------------------------------------------------
 * [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.40.1/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.40.1/pkg_list.txt)

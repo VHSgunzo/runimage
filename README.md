@@ -98,11 +98,12 @@ Only for not extracted (RunImage runtime options):
     --runtime-extract {pattern}          Extract content from embedded filesystem image
     --runtime-extract-and-run {args}     Run RunImage after extraction without using FUSE
     --runtime-help                       Show RunImage runtime help
-    --runtime-mount                      Mount embedded filesystem image and print
     --runtime-offset                     Print byte offset to start of embedded
     --runtime-portable-home              Create a portable home folder to use as $HOME
     --runtime-portable-config            Create a portable config folder to use as $XDG_CONFIG_HOME
     --runtime-version                    Print version of RunImage runtime
+    --runtime-mount                      Mount embedded filesystem image and print
+                                            mount point and wait for kill with Ctrl-C
     --runtime-squashfuse {args}          Launch squashfuse
     --runtime-unsquashfs {args}          Launch unsquashfs
     --runtime-mksquashfs {args}          Launch mksquashfs
@@ -311,10 +312,10 @@ Configuration environment variables:
         or with runimage/Run name:
             "$PORTABLEHOMEDIR/{runimage/Run_name}"
             "$RUNIMAGEDIR/{runimage/Run_name}.config"
-        It can also be with the name of the executable file from RIM_AUTORUN env vars,
+        It can also be with the name of the executable file from RIM_AUTORUN env var,
             or with the same name as the executable being run.
     RIM_SANDBOX_HOME* similar to RIM_PORTABLE_HOME, but the system HOME becomes isolated.
-    RIM_SANDBOX_HOME_DIR and PORTABLE_HOME_DIR point to a specific directory or create it in the absence of.
+    RIM_SANDBOX_HOME_DIR and RIM_PORTABLE_HOME_DIR point to a specific directory or create it in the absence of.
 
     RunImage uses fakechroot and fakeroot, which allows you to use root commands, including in
         unpacked form, to update the rootfs or install/remove packages.
@@ -333,7 +334,7 @@ Configuration environment variables:
         "$RUNCONFIGDIR/Run.rcfg"
         "$RUNCONFIGDIR/{runimage/Run_name}.rcfg"
         "$RUNCONFIGDIR/{symlink/hardlink_name}.rcfg"
-    It can also be with the name of the executable file from AUTORUN env vars,
+    It can also be with the name of the executable file from RIM_AUTORUN env var,
         or with the same name as the executable being run.
     In $RUNDIR/config there are default configs in RunImage, they are run in priority,
         then external configs are run if they are found.
@@ -371,7 +372,7 @@ Configuration environment variables:
     To run a one-time OverlayFS, use RIM_OVERFS_MODE:
     ┌─[user@host]─[~]
     └──╼ $ RIM_OVERFS_MODE=1 runimage {args}
-    You can also disable the overlay using RIM_NO_BWRAP_OVERLAY=1, in this case
+    You can also disable the Bubblewrap overlay using RIM_NO_BWRAP_OVERLAY=1, in this case
         the Read-Write speed will decrease.
 
 ### RunImage build:
@@ -420,7 +421,7 @@ Configuration environment variables:
     By default, network sandbox created in 10.0.2.0/24 subnet, with eth0 TAP name, 10.0.2.100 TAP ip,
         1500 TAP MTU, and random MAC.
     And you can also enable port forwarding in network sandbox mode with modifyed chisel.
-        Supported TCP, UDP port forwarding and socks5 proxy and reverse mode.
+        Supported TCP, UDP port forwarding, socks5 proxy and reverse mode.
     For example, this will forward 22 TCP port from container to 2222 TCP port in host,
         reverse forward 53 UDP port from host to 53 UDP port in container
         and start socks5 proxy to container on 1080 port in host:

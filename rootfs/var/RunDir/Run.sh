@@ -1942,11 +1942,12 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}--runtime-extract$YELLOW {pattern}$GREEN          Extract content from embedded filesystem image
         ${BLUE}--runtime-extract-and-run $YELLOW{args}$GREEN     Run RunImage after extraction without using FUSE
         ${BLUE}--runtime-help$GREEN                       Show RunImage runtime help
-        ${BLUE}--runtime-mount$GREEN                      Mount embedded filesystem image and print
         ${BLUE}--runtime-offset$GREEN                     Print byte offset to start of embedded
         ${BLUE}--runtime-portable-home$GREEN              Create a portable home folder to use as ${YELLOW}\$HOME$GREEN
         ${BLUE}--runtime-portable-config$GREEN            Create a portable config folder to use as ${YELLOW}\$XDG_CONFIG_HOME$GREEN
         ${BLUE}--runtime-version$GREEN                    Print version of RunImage runtime
+        ${BLUE}--runtime-mount$GREEN                      Mount embedded filesystem image and print
+                                                mount point and wait for kill with Ctrl-C
         ${BLUE}--runtime-squashfuse $YELLOW{args}$GREEN          Launch squashfuse
         ${BLUE}--runtime-unsquashfs $YELLOW{args}$GREEN          Launch unsquashfs
         ${BLUE}--runtime-mksquashfs $YELLOW{args}$GREEN          Launch mksquashfs
