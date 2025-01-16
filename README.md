@@ -61,7 +61,7 @@ mknod /dev/fuse -m 0666 c 10 229
 
 ## To get started:
 
-1. Download latest release from the [**releases**](https://github.com/VHSgunzo/runimage/releases) page. ([HF mirror](https://huggingface.co/runimage/releases/tree/main/stable))
+1. Download continuous release from the [**releases**](https://github.com/VHSgunzo/runimage/releases/continuous) page. ([HF mirror](https://huggingface.co/runimage/releases/tree/main/stable))
 2. Make it executable before run.
 ```
 chmod +x runimage
@@ -291,9 +291,11 @@ Configuration environment variables:
     You can create a symlink/hardlink to runimage or rename runimage and give it the name
         of some executable from the PATH, this will allow you to run
         runimage in autorun mode for this executable.
-    The same principle applies to the RIM_AUTORUN variable:
+    
+    The same principle applies to the RIM_AUTORUN env var:
         ┌─[user@host]─[~]
         └──╼ $ RIM_AUTORUN="ls -la" runimage {autorun executable args}
+    
     Here runimage will become something like an alias for 'ls' in runimage
         with the '-la' argument. You can also use RIM_AUTORUN as an array 
         for complex commands in the config.
@@ -350,6 +352,7 @@ Configuration environment variables:
         To do this, just log in to TTY and run RunImage desktop.
     Important! The launch on the TTY should be carried out only under the user under whom the
         login to the TTY was carried out.
+    
     [ Usage ]: rim-desktop [OPTIONS]
     [ Options ]:
         -d, --display       Sets $DISPLAY (env: RIM_DESKTOP_DISPLAY=1337)
@@ -362,21 +365,27 @@ Configuration environment variables:
     Allows you to create additional separate layers to modify the container filesystem without
         changing the original container filesystem. Works by unionfs-fuse and Bubblewrap overlay 
         in packed and unpacked. Also, in packed form, it allows you to mount the container in Read-Write mode.
-    It also allows you to attach to the same OverlayFS when you specify its ID:
+    
+    It also allows you to attach to the same OverlayFS when you specify it's ID. 
+        If OverlayFS with such ID does not exist, it will be created:
     ┌─[user@host]─[~]
     └──╼ $ RIM_OVERFS_ID=1337 runimage {args}
-        If OverlayFS with such ID does not exist, it will be created.
+    
     To save OverlayFS after closing the container, use RIM_KEEP_OVERFS:
     ┌─[user@host]─[~]
     └──╼ $ RIM_KEEP_OVERFS=1 runimage {args}
+    
     To run a one-time OverlayFS, use RIM_OVERFS_MODE:
     ┌─[user@host]─[~]
     └──╼ $ RIM_OVERFS_MODE=1 runimage {args}
-    You can also disable the Bubblewrap overlay using RIM_NO_BWRAP_OVERLAY=1, in this case
+    
+    You can also disable the Bubblewrap overlay using RIM_NO_BWRAP_OVERLAY=1, but in this case
         the Read-Write speed will decrease.
+    
     For show the list of RunImage OverlayFS use rim-ofsls:
     ┌─[user@host]─[~]
     └──╼ $ runimage rim-ofsls
+    
     For remove OverlayFS use rim-ofsrm:
     ┌─[user@host]─[~]
     └──╼ $ runimage rim-ofsrm [ID ID...|all]
@@ -386,12 +395,15 @@ Configuration environment variables:
     By default, runimage is created in the current directory with a standard name, 
         with DwarFS filesystem, zstd 1 lvl compression and 1 MB block size.
         If a new RunImage is successfully build, the old one is deleted.
+    
     This works both externally by passing build args:
     ┌─[user@host]─[~]
     └──╼ $ runimage rim-build {build args}
+    
     And it also works inside the running:
     ┌─[user@runimage]─[~]
     └──╼ $ rim-build {build args}
+    
     [ Usage ]: rim-build [OPTIONS] /path/runimage
     [ Options ]:
         -b, --bsize '1M|20'    Set block size (env: RIM_CMPRS_BSIZE=1M)
@@ -410,10 +422,13 @@ Configuration environment variables:
         successful package updates.
     ┌─[user@host]─[~]
     └──╼ $ runimage rim-update [OPTIONS] {build args}
-    And it also works inside the running:
+    
+    And it also works inside runimage:
     ┌─[user@runimage]─[~]
     └──╼ $ rim-update [OPTIONS] {build args}
-    By default, update and rebuild is performed in $RUNIMAGEDIR
+    
+    By default, update and rebuild is performed in "$RUNIMAGEDIR"
+
     [ Usage ]: rim-update [OPTIONS]
     [ Options ]:
         --shrink     Run rim-shrink --all after update (env: RIM_UPDATE_SHRINK=1)
@@ -428,20 +443,24 @@ Configuration environment variables:
         1500 TAP MTU, and random MAC.
     And you can also enable port forwarding in network sandbox mode with modifyed chisel.
         Supported TCP, UDP port forwarding, socks5 proxy and reverse mode.
+    
     For example, this will forward 22 TCP port from container to 2222 TCP port in host,
         reverse forward 53 UDP port from host to 53 UDP port in container
         and start socks5 proxy to container on 1080 port in host:
     ┌─[user@host]─[~]
     └──╼ $ RIM_SNET_PORTFW='2222:22 R:53:53/UDP 1080:socks' runimage {args}
+    
     You can also run additional port forwarding on a running container with enabled port forwardin option:
     ┌─[user@host]─[~]
-    └──╼ $ runimage rim-portfw 8080:80 123:123/UDP
+    └──╼ $ runimage rim-portfw $RUNPID 8080:80 123:123/UDP
+    
     Also network access in container may be disabled with RIM_NO_NET=1
 
 ### RunImage hostexec:
-    Allows you to run commands at the host level.
+    Allows you to run commands at the host level with ssrv shell server/client.
     ┌─[user@host]─[~]
     └──╼ $ RIM_ENABLE_HOSTEXEC=1 runimage {args}
+    
     [ Usage ]: hostexec [OPTIONS] {executable} {executable args}
     [ Options ]:
         -su, --superuser  {args}     Execute command as superuser
@@ -452,6 +471,7 @@ Configuration environment variables:
     Allows you to integrate applications from a container into the system application menu.
     You can also enable pacman hook with RIM_DINTEG=1 env var to automatically add and remove 
         applications to the system menu when working with the package manager inside the container.
+    
     [ Usage ]: rim-dinteg [OPTIONS] app app...
     [ Options ]:
         -a, --add     [num|name|all|mime] Add applications to apps menu
@@ -461,8 +481,9 @@ Configuration environment variables:
         -v, --verbose                     Verbose output
         -r, --remove  [num|name|all|mime] Remove applications from apps menu
 
-### RunImage process monitoring:
+### RunImage processes monitoring:
     Allows you to monitor the processes running in the container.
+    
     [ Usage ]: rim-psmon [OPTIONS] RUNPIDs
     [ Options ]:
         -p, --ps       Print the list of RunImage processes
@@ -470,6 +491,7 @@ Configuration environment variables:
 
 ### RunImage shrink:
     Allows you to reduce the size of the container by deleting some files.
+    
     [ Usage ]: rim-shrink [OPTIONS] /path/RunDir
     [ Options ]:
         -a, --all         Shrink all (env: RIM_SHRINK_ALL=1)
@@ -489,19 +511,24 @@ Configuration environment variables:
     Allows you to create a new RunImage from a base Docker image archlinux:base for x86_64 
         and lopsided/archlinux:latest for aarch64.
     You can also specify additional packages that you want to add to the container.
+    
     ┌─[user@host]─[~]
     └──╼ $ runimage rim-bootstrap {pkg pkg}
+    
     ┌─[user@host]─[~] - for aarch64 (required qemu-user-static in x86_64 system)
     └──╼ $ TARGETARCH=arm64 runimage rim-bootstrap {pkg pkg}
 
 ### RunImage encryption:
     Allows you to en/decrypt rootfs with gocryptfs.
+    
     Encrypt RunImage rootfs:
     ┌─[user@host]─[~]
     └──╼ $ runimage rim-encfs {build args}
+    
     Decrypt RunImage rootfs:
     ┌─[user@host]─[~]
     └──╼ $ runimage rim-decfs {build args}
+    
     You can also specify the build args, and after successful en/decryption, the runimage 
         will be rebuild with the specified parameters.
     You can also specify passfile with RIM_CRYPTFS_PASSFILE=/path/passfile env var 
@@ -511,6 +538,7 @@ Configuration environment variables:
 
 ### RunImage custom rootfs:
     Allows you to use custom rootfs with RIM_ROOTFS=/path/rootfs env var.
+    
     You can also use getdimg to download a Docker image:
     [ Usage ]: getdimg [OPTIONS] dir image[:tag][@digest] ...
                getdimg [OPTIONS] /tmp/old-hello-world hello-world:latest@sha256:8be990ef2aeb16dbcb9271ddfe2610fa6658d13f6dfb8bc72074cc1ca36966a7
@@ -518,18 +546,22 @@ Configuration environment variables:
         -a, --arch            Override the machine architecture (env: TARGETARCH=amd64)
         -x, --extract         Extract image layers (env: EXTRACT_LAYERS=1)
         -h, --help            Show this message
-    For example, you can use alpine rootfs with RunImage:
+    
+    For example, you can use alpine (and others) rootfs with RunImage:
     ┌─[user@host]─[~]
     └──╼ $ ./runimage getdimg --extract rootfs alpine:latest
+    
     And then just run runimage. By default, custom rootfs will be searched in "$RUNIMAGEDIR/rootfs":
     ┌─[user@host]─[~]
-    └──╼ $ ./runimage
+    └──╼ $ ./runimage {args}
+    
     If you are going to build RunImage with custom rootfs, then do not forget to install 
         the necessary dependencies for operation of Run.sh and others runimage scripts:
     ┌─[user@host]─[~]
     └──╼ $ RIM_ROOT=1 ./runimage apk add bash coreutils curl findutils gawk grep iproute2 kmod procps-ng \
         sed tar util-linux which gocryptfs libnotify lsof slirp4netns socat xhost gzip xz zstd lz4 jq binutils \
         patchelf nftables iptables openresolv iputils file
+    
     And then you can run the build:
     ┌─[user@host]─[~]
     └──╼ $ ./runimage rim-build runimage-alpine -c 22 -b 24
@@ -559,14 +591,14 @@ Configuration environment variables:
             "$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv"   -  image
             "$RUNDIR/nvidia-drivers/{nvidia_version}"          -  directory
 
-## Build/Rebuild your own runimage in manual mode:
+## Rebuild your own RunImage:
 
 * [Download](https://github.com/VHSgunzo/runimage/releases/continuous) base version of the runimage
 * Make it executable:
 ```
 chmod +x runimage
 ```
-* Run it in OverlayFS mode (If you are using a proprietary nvidia driver, then I recommend disabling the driver check function by `RIM_NO_NVIDIA_CHECK=1` for proper build/rebuild in manual mode. You do not need to do this in automatic mode):
+* Run it in OverlayFS mode (If you are using a proprietary nvidia driver, then I recommend disabling the driver check function by `RIM_NO_NVIDIA_CHECK=1` for proper rebuild in manual mode. You do not need to do this in automatic mode):
 ```
 RIM_OVERFS_MODE=1 ./runimage
 echo OVERFS_MNT=$OVERFS_MNT
