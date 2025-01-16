@@ -88,14 +88,6 @@
 * Rename env var `ARGV0` to `ARG0` (fix `zsh` issue)
 * Minor fixes and changes
 
------------------------------------------------------------------------------------------------------------------------------
-* [runimage](https://github.com/VHSgunzo/runimage/releases/download/v0.40.1/runimage) | [pkg_list.txt](https://github.com/VHSgunzo/runimage/releases/download/v0.40.1/pkg_list.txt)
----------------------------------------------------------------------------------------------------------------------------------------------------
-## sha256sum:
-```
-xxxxxxxxx  runimage
-```
-
 **=======================================================================================**
 
 # v0.39.1

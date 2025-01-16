@@ -323,7 +323,7 @@ Configuration environment variables:
 
 ### RunImage configuration file:
     Special BASH-syntax file with the .rcfg extension, which describes additional
-        instructions and env vars for running runimage.
+        instructions and env vars for run runimage.
     Configuration file can be located next to runimage:
         "$RUNIMAGEDIR/{runimage/Run_name}.rcfg"
     it can be used both extracted and compressed and for all executable files being run:
@@ -374,6 +374,12 @@ Configuration environment variables:
     └──╼ $ RIM_OVERFS_MODE=1 runimage {args}
     You can also disable the Bubblewrap overlay using RIM_NO_BWRAP_OVERLAY=1, in this case
         the Read-Write speed will decrease.
+    For show the list of RunImage OverlayFS use rim-ofsls:
+    ┌─[user@host]─[~]
+    └──╼ $ runimage rim-ofsls
+    For remove OverlayFS use rim-ofsrm:
+    ┌─[user@host]─[~]
+    └──╼ $ runimage rim-ofsrm [ID ID...|all]
 
 ### RunImage build:
     Allows you to create your own runimage containers.
@@ -433,7 +439,7 @@ Configuration environment variables:
     Also network access in container may be disabled with RIM_NO_NET=1
 
 ### RunImage hostexec:
-    Allows you to run commands at the host level
+    Allows you to run commands at the host level.
     ┌─[user@host]─[~]
     └──╼ $ RIM_ENABLE_HOSTEXEC=1 runimage {args}
     [ Usage ]: hostexec [OPTIONS] {executable} {executable args}
@@ -441,6 +447,92 @@ Configuration environment variables:
         -su, --superuser  {args}     Execute command as superuser
         -t,  --terminal   {args}     Execute command in host terminal
         -h,  --help                  Show this message
+
+### RunImage desktop integration:
+    Allows you to integrate applications from a container into the system application menu.
+    You can also enable pacman hook with RIM_DINTEG=1 env var to automatically add and remove 
+        applications to the system menu when working with the package manager inside the container.
+    [ Usage ]: rim-dinteg [OPTIONS] app app...
+    [ Options ]:
+        -a, --add     [num|name|all|mime] Add applications to apps menu
+        -h, --help                        Show this message
+        -l, --list    [a|added]           List applications
+        -m, --mime                        With MIME types (env: RIM_DINTEG_MIME=1)
+        -v, --verbose                     Verbose output
+        -r, --remove  [num|name|all|mime] Remove applications from apps menu
+
+### RunImage process monitoring:
+    Allows you to monitor the processes running in the container.
+    [ Usage ]: rim-psmon [OPTIONS] RUNPIDs
+    [ Options ]:
+        -p, --ps       Print the list of RunImage processes
+        -h, --help     Show this message
+
+### RunImage shrink:
+    Allows you to reduce the size of the container by deleting some files.
+    [ Usage ]: rim-shrink [OPTIONS] /path/RunDir
+    [ Options ]:
+        -a, --all         Shrink all (env: RIM_SHRINK_ALL=1)
+        -b, --back        Shrink backup files '*.old' '*.back' (env: RIM_SHRINK_BACK=1)
+        -c, --staticlibs  Shrink static libs '*.a' (env: RIM_SHRINK_STATICLIBS=1)
+        -d, --docs        Shrink /usr/share/{man,doc,help,info,gtk-doc} and '*.md' 'README*' (env: RIM_SHRINK_DOCS=1)
+        -s, --strip       Strip all debugging symbols & sections (env: RIM_SHRINK_STRIP=1)
+        -l, --locales     Shrink all locales except uk ru en en_US (env: RIM_SHRINK_LOCALES=1)
+        -o, --objects     Shrink object files '*.o' (env: RIM_SHRINK_OBJECTS=1)
+        -p, --pkgcache    Shrink packages cache (env: RIM_SHRINK_PKGCACHE=1)
+        -r, --src         Shrink source code files for build (env: RIM_SHRINK_SRC=1)
+        -y, --pycache     Shrink '__pycache__' directories (env: RIM_SHRINK_PYCACHE=1)
+        -h, --help        Show this message
+        -v, --verbose     Verbose output
+
+### RunImage bootstrap:
+    Allows you to create a new RunImage from a base Docker image archlinux:base for x86_64 
+        and lopsided/archlinux:latest for aarch64.
+    You can also specify additional packages that you want to add to the container.
+    ┌─[user@host]─[~]
+    └──╼ $ runimage rim-bootstrap {pkg pkg}
+    ┌─[user@host]─[~] - for aarch64 (required qemu-user-static in x86_64 system)
+    └──╼ $ TARGETARCH=arm64 runimage rim-bootstrap {pkg pkg}
+
+### RunImage encryption:
+    Allows you to en/decrypt rootfs with gocryptfs.
+    Encrypt RunImage rootfs:
+    ┌─[user@host]─[~]
+    └──╼ $ runimage rim-encfs {build args}
+    Decrypt RunImage rootfs:
+    ┌─[user@host]─[~]
+    └──╼ $ runimage rim-decfs {build args}
+    You can also specify the build args, and after successful en/decryption, the runimage 
+        will be rebuild with the specified parameters.
+    You can also specify passfile with RIM_CRYPTFS_PASSFILE=/path/passfile env var 
+        for automatic decryption, or by default, the passfile will be searched in:
+        "$RUNDIR/passfile"
+        "$RUNIMAGEDIR/passfile"
+
+### RunImage custom rootfs:
+    Allows you to use custom rootfs with RIM_ROOTFS=/path/rootfs env var.
+    You can also use getdimg to download a Docker image:
+    [ Usage ]: getdimg [OPTIONS] dir image[:tag][@digest] ...
+               getdimg [OPTIONS] /tmp/old-hello-world hello-world:latest@sha256:8be990ef2aeb16dbcb9271ddfe2610fa6658d13f6dfb8bc72074cc1ca36966a7
+    [ Options ]:
+        -a, --arch            Override the machine architecture (env: TARGETARCH=amd64)
+        -x, --extract         Extract image layers (env: EXTRACT_LAYERS=1)
+        -h, --help            Show this message
+    For example, you can use alpine rootfs with RunImage:
+    ┌─[user@host]─[~]
+    └──╼ $ ./runimage getdimg --extract rootfs alpine:latest
+    And then just run runimage. By default, custom rootfs will be searched in "$RUNIMAGEDIR/rootfs":
+    ┌─[user@host]─[~]
+    └──╼ $ ./runimage
+    If you are going to build RunImage with custom rootfs, then do not forget to install 
+        the necessary dependencies for operation of Run.sh and others runimage scripts:
+    ┌─[user@host]─[~]
+    └──╼ $ RIM_ROOT=1 ./runimage apk add bash coreutils curl findutils gawk grep iproute2 kmod procps-ng \
+        sed tar util-linux which gocryptfs libnotify lsof slirp4netns socat xhost gzip xz zstd lz4 jq binutils \
+        patchelf nftables iptables openresolv iputils file
+    And then you can run the build:
+    ┌─[user@host]─[~]
+    └──╼ $ ./runimage rim-build runimage-alpine -c 22 -b 24
 
 ### For Nvidia users with a proprietary driver:
     If the nvidia driver version does not match in runimage and in the host, runimage
@@ -467,18 +559,9 @@ Configuration environment variables:
             "$RUNDIR/nvidia-drivers/{nvidia_version}.nv.drv"   -  image
             "$RUNDIR/nvidia-drivers/{nvidia_version}"          -  directory
 
-### Recommendations:
-    If the kernel does not support user namespaces, you need to install
-        SUID Bubblewrap into the system, or install a kernel with user namespaces support.
-        If SUID Bubblewrap is found in the system, it will be used automatically.
-    If you use SUID Bubblewrap, then you will encounter some limitations, such as the inability to use
-        FUSE in RunImage, without running it under the root user, because the capabilities are
-        disabled, and so on. So it would be better for you to install kernel with
-        user namespaces support.
-
 ## Build/Rebuild your own runimage in manual mode:
 
-* [Download](https://github.com/VHSgunzo/runimage/releases) base version of the runimage (it's called runimage)
+* [Download](https://github.com/VHSgunzo/runimage/releases/continuous) base version of the runimage
 * Make it executable:
 ```
 chmod +x runimage
