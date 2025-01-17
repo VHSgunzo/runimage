@@ -48,10 +48,10 @@ jobs:
             * [runimage-aarch64](https://github.com/VHSgunzo/runimage/releases/download/continuous/runimage-aarch64) | [pkg_list-aarch64.txt](https://github.com/VHSgunzo/runimage/releases/download/continuous/pkg_list-aarch64.txt)
             -----------------------------------------------------------------------------------------------------------------------------
             ## sha256sum:
-            ```
+            \`\`\`
             ${sha256sum_x86_64}
             ${sha256sum_aarch64}
-            ```" > ../RELEASE_NOTE.md
+            \`\`\`" > ../RELEASE_NOTE.md
 
       - name: Release
         uses: softprops/action-gh-release@v2
