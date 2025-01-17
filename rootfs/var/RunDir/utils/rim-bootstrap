@@ -39,6 +39,7 @@ fi
 
 echo '== prepare rootfs'
 export RIM_ROOT=1
+echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' > rootfs/etc/resolv.conf
 rm -f rootfs/usr/share/libalpm/hooks/{package-cleanup,man-page-remove}.hook
 ./RunDir/Run rim-shrink
 ./RunDir/Run pacman --noconfirm -Rdd "${sysdrm[@]}"
