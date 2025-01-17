@@ -21,6 +21,7 @@ jobs:
       - name: Install deps
         run: |
           sudo sh -c 'apt update && apt install qemu-user-static zsync -y'
+          sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns <<<0
           docker pull tonistiigi/binfmt:latest
           docker run --privileged --rm tonistiigi/binfmt --uninstall qemu-*
           docker run --privileged --rm tonistiigi/binfmt --install all
