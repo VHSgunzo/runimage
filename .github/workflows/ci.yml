@@ -32,15 +32,12 @@ jobs:
             mkdir -p release && cd release||exit 1
 
             # x86_64
-            pwd
-            ls -la ../
-            ls -la ../rim-bootstrap
-            ../rim-bootstrap
+            ../main/rim-bootstrap
             sha256sum_x86_64="$(sha256sum runimage-x86_64)"
             zsyncmake runimage-x86_64
 
             # aarch64
-            TARGETARCH=arm64 ../rim-bootstrap
+            TARGETARCH=arm64 ../main/rim-bootstrap
             sha256sum_aarch64="$(sha256sum runimage-aarch64)"
             zsyncmake runimage-aarch64
 
