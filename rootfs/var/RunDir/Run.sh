@@ -614,7 +614,7 @@ check_nvidia_driver() {
             then
                 info_msg "Updating the nvidia library cache..."
                 if (RIM_SANDBOX_NET=0 RIM_NO_NET=0 RIM_WAIT_RPIDS_EXIT=0 \
-                    bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null)
+                    bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null </dev/null)
                     then
                         try_mkdir "$RUNCACHEDIR"
                         if mv -f "$RUNPIDDIR/ld.so.cache" \
@@ -1318,7 +1318,7 @@ bwrun() {
             if [ "$RIM_NO_NVIDIA_CHECK" == 1 ]
                 then warn_msg "Nvidia driver check is disabled!"
             elif [[ "$RIM_NO_NVIDIA_CHECK" != 1 && ! -n "$NVIDIA_DRIVER_BIND" ]]
-                then check_nvidia_driver</dev/null
+                then check_nvidia_driver
             fi
     fi
     [ "$BIND_LDSO_CACHE" == 1 ] && \
@@ -1816,7 +1816,7 @@ check_autorun() {
             WHICH_AUTORUN0ARG=($(IFS="$OLD_IFS" \
                 RIM_NO_NVIDIA_CHECK=1 RIM_WAIT_RPIDS_EXIT=0 RIM_NO_RPIDSMON=1 \
                 RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 "${archeck_cmd[@]}" \
-                which -a "$AUTORUN0ARG"))
+                which -a "$AUTORUN0ARG" 2>/dev/null </dev/null))
             IFS="$OLD_IFS"
             unset REALAUTORUN
             for exe in "${WHICH_AUTORUN0ARG[@]}"

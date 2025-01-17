@@ -2,8 +2,7 @@
 
 pkgname='runimage-utils'
 pkgver='0.40.1'
-pkgrel='1'
-pkgbase="$pkgname"
+pkgrel='2'
 pkgdesc='Utilities and scripts for RunImage container'
 url="https://github.com/VHSgunzo/runimage"
 arch=('any')
