@@ -41,6 +41,8 @@ jobs:
             sha256sum_aarch64="$(sha256sum runimage-aarch64)"
             zsyncmake runimage-aarch64
 
+            rm -f runimage
+
             echo "\
             -----------------------------------------------------------------------------------------------------------------------------
             * [runimage-x86_64](https://github.com/VHSgunzo/runimage/releases/download/continuous/runimage-x86_64) | [pkg_list-x86_64.txt](https://github.com/VHSgunzo/runimage/releases/download/continuous/pkg_list-x86_64.txt)
