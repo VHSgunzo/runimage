@@ -28,10 +28,13 @@ jobs:
 
       - name: Bootstrap RunImage
         run: |
-            set -x ; set +e
+            set -x ; set -e
             mkdir -p release && cd release||exit 1
 
             # x86_64
+            pwd
+            ls -la ../
+            ls -la ../rim-bootstrap
             ../rim-bootstrap
             sha256sum_x86_64="$(sha256sum runimage-x86_64)"
             zsyncmake runimage-x86_64
