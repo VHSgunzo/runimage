@@ -2816,7 +2816,7 @@ if [ "$RIM_OVERFS_MODE" != 0 ] && [[ "$RIM_OVERFS_MODE" == 1 || "$RIM_KEEP_OVERF
         fi
         export OVERFS_DIR="$RUNOVERFSDIR/$RIM_OVERFS_ID"
         try_mkdir "$OVERFS_DIR"
-        [ "$(findmnt -n -o FSTYPE -T "$OVERFS_DIR" 2>/dev/null)" == 'aufs' ] && \
+        [[ "$(findmnt -n -o FSTYPE -T "$OVERFS_DIR" 2>/dev/null)" =~ (aufs|overlay) ]] && \
            export RIM_NO_BWRAP_OVERLAY=1
         if [ -d "$RIM_ROOTFS" ]
             then
