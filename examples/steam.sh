@@ -20,8 +20,11 @@ run_install() {
         vulkan-mesa-layers lib32-vulkan-mesa-layers freetype2 lib32-freetype2
     )
 
+    echo '== checking for updates'
+    rim-update
+
     echo '== install packages'
-    pac --needed --noconfirm -Sy "${INSTALL_PKGS[@]}"
+    pac --needed --noconfirm -S "${INSTALL_PKGS[@]}"
 
     echo '== shrink (optionally)'
     rim-shrink --all
