@@ -1,3 +1,12 @@
+# v0.40.3
+
+* Fix processes monitoring
+* Disable Bubblewrap overlay if failed to start with it for `RIM_IN_SAME_PTY` or on `TTY`
+* Update example of `steam` packaging
+* Update usage: add `RIM_IN_SAME_PTY=1` Start shell session in same PTY
+* Update usage: add `RIM_TTY_ALLOC_PTY=1` Allocate PTY for shell session on TTY
+* Minor fixes
+
 # v0.40.2
 
 * Fix `ssrv` background hang on system with legacy forking

@@ -26,6 +26,9 @@ run_install() {
     echo '== install packages'
     pac --needed --noconfirm -S "${INSTALL_PKGS[@]}"
 
+    echo '== install glibc with patches for Easy Anti-Cheat (optionally)'
+    yes|pac -S glibc-eac lib32-glibc-eac
+
     echo '== shrink (optionally)'
     rim-shrink --all
 

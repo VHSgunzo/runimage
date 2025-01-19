@@ -164,6 +164,8 @@ Configuration environment variables:
     RIM_SHELL=shell                          Selects $SHELL in RunImage
     RIM_NO_CAP=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
                                                     you can also use nocap in RunImage
+    RIM_IN_SAME_PTY=1                        Start shell session in same PTY
+    RIM_TTY_ALLOC_PTY=1                      Allocate PTY for shell session on TTY
     RIM_AUTORUN='{executable} {args}'        Autorun mode for executable from PATH (0 to disable)
     RIM_RUN_IN_ONE=1                         Execute commands in one container
     RIM_ALLOW_ROOT=1                         Allows to run RunImage under root user

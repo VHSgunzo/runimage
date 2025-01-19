@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.40.2'
+export RUNIMAGE_VERSION='0.40.3'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -988,7 +988,7 @@ run_attach() {
     }
     attach_act() {
         try_unmount_rundir() {
-            (sleep 0.2; [ -n "$RUNIMAGE" ] && \
+            (sleep 0.3; [ -n "$RUNIMAGE" ] && \
             try_unmount "$RUNDIR") &
         }
         local ATT_RUNDIRFL="${RUNTMPDIR}/$1/rundir"
@@ -1303,44 +1303,17 @@ create_sandbox_net() {
     if [ -n "$CHANGE_TAPIP" ]
         then
             info_msg "Changing a sandbox network TAP IP: $RIM_SNET_TAPIP"
-            "$SSRV_ELF" bash -c "$CHANGE_TAPIP"
+            "$SSRV_ELF" "$RUNSTATIC/bash" -c "$CHANGE_TAPIP"
     fi
     if [[ "$RIM_SNET_DROP_CIDRS" == 1 && -n "$DROP_CIDRS" ]]
         then
             info_msg "Dropping local CIDRs..."
-            "$SSRV_ELF" bash -c "$DROP_CIDRS"
+            "$SSRV_ELF" "$RUNSTATIC/bash" -c "$DROP_CIDRS"
     fi
     enable_portfw
 }
 
 bwrun() {
-    try_bwrap_overlay() {
-        if [[ "${BWRAP_EXEC[@]}" =~ --overlay-src ]]
-            then
-                "${BWRAP_EXEC[@]}" "$@" 8>"$BWINFFL" 2>"$RUNPIDDIR/bwerr" 1>/dev/null &
-                local bwpid="$!"
-                tail --pid="$bwpid" -f "$RUNPIDDIR/bwerr" 1>&2 &
-                wait $bwpid
-                local EXEC_STATUS=$?
-                if is_pid "$RUNPID" &>/dev/null && \
-                    grep -qEo 'Invalid argument|Resource busy' "$RUNPIDDIR/bwerr" &>/dev/null
-                    then
-                        sleep 0.1 &>/dev/null
-                        if is_pid "$RUNPID" &>/dev/null
-                            then
-                                BWRAP_EXEC[1]='--bind'
-                                BWRAP_EXEC[2]="$RUNROOTFS"
-                                unset BWRAP_EXEC[3] BWRAP_EXEC[4] BWRAP_EXEC[5]
-                                "${BWRAP_EXEC[@]}" "$@" 8>"$BWINFFL" 1>/dev/null
-                                local EXEC_STATUS=$?
-                        fi
-                fi
-            else
-                "${BWRAP_EXEC[@]}" "$@" 8>"$BWINFFL" 1>/dev/null
-                local EXEC_STATUS=$?
-        fi
-        return $EXEC_STATUS
-    }
     unset EXEC_STATUS
     if [ ! -f "$RUNROOTFS"/lib/ld-musl-*.so.1 ] && \
         [ -f "$RUNROOTFS"/lib/ld-linux-*.so.* ]
@@ -1479,11 +1452,76 @@ bwrun() {
                     elif is_nonet
                         then (configure_net enable_portfw) &
                     fi
-                    "${BWRAP_EXEC[@]}" bash -c bwin 8>"$BWINFFL"
+                    BWRAP_EXEC+=(/var/RunDir/static/bash -c bwin)
+                    if [[ "${BWRAP_EXEC[1]}" =~ --overlay-src ]]
+                        then
+                            try_bwrap_overlay() {
+                                unset -f try_bwrap_overlay
+                                [[ "$A_BWRAP_EXEC" =~ ^declare ]] && \
+                                eval "$A_BWRAP_EXEC" && unset A_BWRAP_EXEC
+                                "${BWRAP_EXEC[@]}" 8>"$BWINFFL"
+                                local EXEC_STATUS=$?
+                                if [ -f "$RUNPIDDIR/bwerr" ]
+                                    then
+                                        if grep -qEo 'Invalid argument|Resource busy' "$RUNPIDDIR/bwerr" &>/dev/null
+                                            then
+                                                sleep 0.05 &>/dev/null
+                                                if is_pid "$RUNPID" &>/dev/null
+                                                    then
+                                                        BWRAP_EXEC[1]='--bind'
+                                                        BWRAP_EXEC[2]="$RUNROOTFS"
+                                                        unset BWRAP_EXEC[3] BWRAP_EXEC[4] BWRAP_EXEC[5]
+                                                        "${BWRAP_EXEC[@]}" 8>"$BWINFFL"
+                                                        local EXEC_STATUS=$?
+                                                fi
+                                            else cat "$RUNPIDDIR/bwerr" 1>&2
+                                        fi
+                                fi
+                                return $EXEC_STATUS
+                            }
+                            export A_BWRAP_EXEC="$(declare -p BWRAP_EXEC 2>/dev/null)"
+                            export -f try_bwrap_overlay
+                            "$RUNSTATIC/bash" -c try_bwrap_overlay
+                        else
+                            "${BWRAP_EXEC[@]}" 8>"$BWINFFL"
+                    fi
                     local EXEC_STATUS="$?"
                 else
-                    SSRV_UENV="$(tr ' ' ','<<<"${!RIM_@}")" try_bwrap_overlay \
-                    /var/RunDir/static/ssrv -srv -env all &
+                    RIM_ENVS="$(tr ' ' ','<<<"${!RIM_@}")"
+                    BWRAP_EXEC+=(/var/RunDir/static/ssrv -srv -env all)
+                    if [[ "${BWRAP_EXEC[1]}" =~ --overlay-src ]]
+                        then
+                            try_bwrap_overlay() {
+                                unset -f try_bwrap_overlay
+                                [[ "$A_BWRAP_EXEC" =~ ^declare ]] && \
+                                eval "$A_BWRAP_EXEC" && unset A_BWRAP_EXEC
+                                (unset -f is_pid ; exec "${BWRAP_EXEC[@]}" 8>"$BWINFFL" 2>"$RUNPIDDIR/bwerr" 1>/dev/null)
+                                local EXEC_STATUS=$?
+                                if [ -f "$RUNPIDDIR/bwerr" ]
+                                    then
+                                        if grep -qEo 'Invalid argument|Resource busy' "$RUNPIDDIR/bwerr" &>/dev/null
+                                            then
+                                                sleep 0.05 &>/dev/null
+                                                if is_pid "$RUNPID" &>/dev/null
+                                                    then
+                                                        unset -f is_pid
+                                                        BWRAP_EXEC[1]='--bind'
+                                                        BWRAP_EXEC[2]="$RUNROOTFS"
+                                                        unset BWRAP_EXEC[3] BWRAP_EXEC[4] BWRAP_EXEC[5]
+                                                        "${BWRAP_EXEC[@]}" 8>"$BWINFFL" 1>/dev/null
+                                                        local EXEC_STATUS=$?
+                                                fi
+                                            else cat "$RUNPIDDIR/bwerr" 1>&2
+                                        fi
+                                fi
+                                return $EXEC_STATUS
+                            }
+                            export A_BWRAP_EXEC="$(declare -p BWRAP_EXEC 2>/dev/null)"
+                            export -f try_bwrap_overlay is_pid
+                            SSRV_UENV="$RIM_ENVS" "$RUNSTATIC/bash" -c try_bwrap_overlay &
+                        else
+                            SSRV_UENV="$RIM_ENVS" "${BWRAP_EXEC[@]}" 8>"$BWINFFL" 1>/dev/null &
+                    fi
                     wait_exist "$SSRV_PID_FILE"
                     export_ssrv_pid
                     if is_snet
@@ -1747,7 +1785,7 @@ encrypt_rootfs() {
                                     $(cat "$RUNDIR/sharun/bin.list")
                             }
                             export -f upd_sharun
-                            if bwrun bash -c upd_sharun
+                            if bwrun /var/RunDir/static/bash -c upd_sharun
                                 then
                                     info_msg "Encrypting RunImage rootfs..."
                                     if chmod u+rw -R "$RUNROOTFS" && cp -rf "$RUNROOTFS"/{.,}* "$CRYPTFS_MNT"/
@@ -2038,6 +2076,8 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_SHELL$GREEN=shell                          Selects ${YELLOW}\$SHELL$GREEN in RunImage
         ${YELLOW}RIM_NO_CAP$GREEN=1                             Disables Bubblewrap capabilities (Default: ALL, drop CAP_SYS_NICE)
                                                      you can also use nocap in RunImage
+        ${YELLOW}RIM_IN_SAME_PTY$GREEN=1                        Start shell session in same PTY
+        ${YELLOW}RIM_TTY_ALLOC_PTY$GREEN=1                      Allocate PTY for shell session on TTY
         ${YELLOW}RIM_AUTORUN$GREEN='{executable} {args}'        Autorun mode for executable from PATH (0 to disable)
         ${YELLOW}RIM_RUN_IN_ONE$GREEN=1                         Execute commands in one container
         ${YELLOW}RIM_ALLOW_ROOT$GREEN=1                         Allows to run RunImage under root user
@@ -2370,7 +2410,7 @@ xhost +si:localuser:$RUNUSER &>/dev/null
 
 ulimit -n $(ulimit -n -H) &>/dev/null
 
-if [[ -d "$RIM_ROOTFS" && -w "$RUNROOTFS" ]]
+if [ -d "$RIM_ROOTFS" ]
     then
         RIM_TMP_HOME="${RIM_TMP_HOME:=0}"
         RIM_XORG_CONF="${RIM_XORG_CONF:=0}"
@@ -2385,117 +2425,118 @@ if [[ -d "$RIM_ROOTFS" && -w "$RUNROOTFS" ]]
         RIM_UNSHARE_HOSTS="${RIM_UNSHARE_HOSTS:=1}"
         RIM_WAIT_RPIDS_EXIT="${RIM_WAIT_RPIDS_EXIT:=0}"
         RIM_SANDBOX_HOME_DL="${RIM_SANDBOX_HOME_DL:=0}"
-        #RIM_NO_NVIDIA_CHECK="${RIM_NO_NVIDIA_CHECK:=1}"
-        #RIM_UNSHARE_MODULES="${RIM_UNSHARE_MODULES:=1}"
         RIM_UNSHARE_HOSTNAME="${RIM_UNSHARE_HOSTNAME:=1}"
         RIM_UNSHARE_LOCALTIME="${RIM_UNSHARE_LOCALTIME:=1}"
         RIM_UNSHARE_RESOLVCONF="${RIM_UNSHARE_RESOLVCONF:=1}"
-        lib_pathfl="$RUNROOTFS/usr/lib/lib.path"
-        if [ ! -e "$lib_pathfl" ]
-            then echo '+' > "$lib_pathfl"
-        fi
-        for ver in 2 1
-            do
-                if [ -f "$RUNROOTFS"/usr/lib/*-linux-gnu/ld-linux-*.so.${ver} ] && \
-                    [ ! -e "$RUNROOTFS"/usr/lib/ld-linux-*.so.${ver} ]
-                    then
-                        (cd "$RUNROOTFS/usr/lib"
-                        ln -sf *-linux-gnu/ld-linux-*.so.${ver} .)
-                fi
-        done
-        ld_gnu_libs_dir="$(basename "$(ls -d "$RUNROOTFS"/usr/lib/*-linux-gnu 2>/dev/null|head -1)")"
-        if [ -n "$ld_gnu_libs_dir" ] && \
-            ! grep -q "+/$ld_gnu_libs_dir" "$lib_pathfl"
-            then echo "+/$ld_gnu_libs_dir" >> "$lib_pathfl"
-        fi
-        for ver in 2 1
-            do
-                if [ -f "$RUNROOTFS"/usr/lib64/ld-linux-*.so.${ver} ] && \
-                    [ ! -e "$RUNROOTFS"/usr/lib/ld-linux-*.so.${ver} ]
-                    then
-                        (cd "$RUNROOTFS/usr/lib"
-                        ln -sf ../lib64 .
-                        ln -sf ../lib64/ld-linux-*.so.${ver} .)
-                fi
-        done
-        if [ -d "$RUNROOTFS/usr/lib/lib64" ] && \
-            ! grep -q '+/lib64' "$lib_pathfl"
-            then echo '+/lib64' >> "$lib_pathfl"
-        fi
-        if [ -f "$RUNROOTFS"/lib/ld-musl-*.so.1 ] && \
-            [ ! -e "$RUNROOTFS"/usr/lib/ld-musl-*.so.1 ]
+        if [ -w "$RUNROOTFS" ]
             then
-                (cd "$RUNROOTFS/usr/lib"
-                ln -sf ../../lib/ld-musl-*.so.1 .)
-        fi
-        (cd "$RUNROOTFS/usr/bin"
-        for bin in $(cat "$RUNDIR/sharun/bin.list" 2>/dev/null|sed "s|^/usr/bin/||g")
-            do
-                for dir in bin sbin
+                lib_pathfl="$RUNROOTFS/usr/lib/lib.path"
+                if [ ! -e "$lib_pathfl" ]
+                    then echo '+' > "$lib_pathfl"
+                fi
+                for ver in 2 1
                     do
-                        if [[ ! -e "$bin" && -e "../../$dir/$bin" ]]
-                            then ln -sf "../../$dir/$bin" .
+                        if [ -f "$RUNROOTFS"/usr/lib/*-linux-gnu/ld-linux-*.so.${ver} ] && \
+                            [ ! -e "$RUNROOTFS"/usr/lib/ld-linux-*.so.${ver} ]
+                            then
+                                (cd "$RUNROOTFS/usr/lib"
+                                ln -sf *-linux-gnu/ld-linux-*.so.${ver} .)
                         fi
                 done
-        done
-        if [[ ! -e 'ldconfig' && -e '../sbin/ldconfig' ]]
-            then ln -sf '../sbin/ldconfig' .
-        fi)
-        if [[ ! -e "$RUNROOTFS/etc/os-release" && -f "$RUNROOTFS/usr/lib/os-release" ]]
-            then (cd "$RUNROOTFS/etc" && ln -sf ../usr/lib/os-release .)
-        fi
-        if [ -d "$RUNROOTFS/etc/apt" ]
-            then
-                aptdisndbxfl="$RUNROOTFS/etc/apt/apt.conf.d/99-disable-sandbox"
-                if [ ! -f "$aptdisndbxfl" ]
+                ld_gnu_libs_dir="$(basename "$(ls -d "$RUNROOTFS"/usr/lib/*-linux-gnu 2>/dev/null|head -1)")"
+                if [ -n "$ld_gnu_libs_dir" ] && \
+                    ! grep -q "+/$ld_gnu_libs_dir" "$lib_pathfl"
+                    then echo "+/$ld_gnu_libs_dir" >> "$lib_pathfl"
+                fi
+                for ver in 2 1
+                    do
+                        if [ -f "$RUNROOTFS"/usr/lib64/ld-linux-*.so.${ver} ] && \
+                            [ ! -e "$RUNROOTFS"/usr/lib/ld-linux-*.so.${ver} ]
+                            then
+                                (cd "$RUNROOTFS/usr/lib"
+                                ln -sf ../lib64 .
+                                ln -sf ../lib64/ld-linux-*.so.${ver} .)
+                        fi
+                done
+                if [ -d "$RUNROOTFS/usr/lib/lib64" ] && \
+                    ! grep -q '+/lib64' "$lib_pathfl"
+                    then echo '+/lib64' >> "$lib_pathfl"
+                fi
+                if [ -f "$RUNROOTFS"/lib/ld-musl-*.so.1 ] && \
+                    [ ! -e "$RUNROOTFS"/usr/lib/ld-musl-*.so.1 ]
                     then
-                        try_mkdir "$(dirname "$aptdisndbxfl")"
-                        cat <<EOF>"$aptdisndbxfl"
+                        (cd "$RUNROOTFS/usr/lib"
+                        ln -sf ../../lib/ld-musl-*.so.1 .)
+                fi
+                (cd "$RUNROOTFS/usr/bin"
+                for bin in $(cat "$RUNDIR/sharun/bin.list" 2>/dev/null|sed "s|^/usr/bin/||g")
+                    do
+                        for dir in bin sbin
+                            do
+                                if [[ ! -e "$bin" && -e "../../$dir/$bin" ]]
+                                    then ln -sf "../../$dir/$bin" .
+                                fi
+                        done
+                done
+                if [[ ! -e 'ldconfig' && -e '../sbin/ldconfig' ]]
+                    then ln -sf '../sbin/ldconfig' .
+                fi)
+                if [[ ! -e "$RUNROOTFS/etc/os-release" && -f "$RUNROOTFS/usr/lib/os-release" ]]
+                    then (cd "$RUNROOTFS/etc" && ln -sf ../usr/lib/os-release .)
+                fi
+                if [ -d "$RUNROOTFS/etc/apt" ]
+                    then
+                        aptdisndbxfl="$RUNROOTFS/etc/apt/apt.conf.d/99-disable-sandbox"
+                        if [ ! -f "$aptdisndbxfl" ]
+                            then
+                                try_mkdir "$(dirname "$aptdisndbxfl")"
+                                cat <<EOF>"$aptdisndbxfl"
 APT::Sandbox::User "root";
 APT::Sandbox::Verify "0";
 APT::Sandbox::Verify::IDs "0";
 APT::Sandbox::Verify::Groups "0";
 APT::Sandbox::Verify::Regain "0";
 EOF
+                        fi
                 fi
-        fi
-        pacman_conffl="$RUNROOTFS/etc/pacman.conf"
-        if [ -f "$pacman_conffl" ]
-            then sed -i 's|^DownloadUser|#DownloadUser|;s|^SigLevel.*|SigLevel = Never|;s|^#Color|Color|;s|^#ParallelDownloads|ParallelDownloads|' "$pacman_conffl"
-        fi
-        BIND_FILES=(
-            etc/machine-id var/lib/dbus/machine-id
-            etc/resolv.conf etc/localtime etc/hosts
-            etc/hostname etc/X11/xorg.conf var/log/wtmp
-            var/log/lastlog home/runimage/.Xauthority
-            .type etc/nsswitch.conf etc/passwd etc/group
-        )
-        for bind_file in "${BIND_FILES[@]}"
-            do
-                bind_file="$RUNROOTFS/$bind_file"
-                if [ -L "$bind_file" ]
-                    then rm -f "$bind_file"
+                pacman_conffl="$RUNROOTFS/etc/pacman.conf"
+                if [ -f "$pacman_conffl" ]
+                    then sed -i 's|^DownloadUser|#DownloadUser|;s|^SigLevel.*|SigLevel = Never|;s|^#Color|Color|;s|^#ParallelDownloads|ParallelDownloads|' "$pacman_conffl"
                 fi
-                if [ ! -e "$bind_file" ]
-                    then
-                        try_mkdir "$(dirname "$bind_file")"
-                        touch "$bind_file"
+                BIND_FILES=(
+                    etc/machine-id var/lib/dbus/machine-id
+                    etc/resolv.conf etc/localtime etc/hosts
+                    etc/hostname etc/X11/xorg.conf var/log/wtmp
+                    var/log/lastlog home/runimage/.Xauthority
+                    .type etc/nsswitch.conf etc/passwd etc/group
+                )
+                for bind_file in "${BIND_FILES[@]}"
+                    do
+                        bind_file="$RUNROOTFS/$bind_file"
+                        if [ -L "$bind_file" ]
+                            then rm -f "$bind_file"
+                        fi
+                        if [ ! -e "$bind_file" ]
+                            then
+                                try_mkdir "$(dirname "$bind_file")"
+                                touch "$bind_file"
+                        fi
+                done
+                BIND_DIRS=(
+                    home/runimage/.cache home/runimage/.config
+                    usr/lib/modules lib/modules var/home
+                    var/mnt var/roothome var/host/bin boot
+                    dev root proc sys run tmp media
+                    mnt /proc var/tmp var/log usr/share/themes
+                    usr/share/fonts usr/share/icons
+                )
+                for bind_dir in "${BIND_DIRS[@]}"
+                    do try_mkdir "$RUNROOTFS/$bind_dir"
+                done
+                rim_rootfs_verfl="$RUNROOTFS/.version"
+                if [ ! -e "$rim_rootfs_verfl" ]
+                    then echo "$RUNIMAGE_VERSION" > "$rim_rootfs_verfl"
                 fi
-        done
-        BIND_DIRS=(
-            home/runimage/.cache home/runimage/.config
-            usr/lib/modules lib/modules var/home
-            var/mnt var/roothome var/host/bin boot
-            dev root proc sys run tmp media
-            mnt /proc var/tmp var/log usr/share/themes
-            usr/share/fonts usr/share/icons
-        )
-        for bind_dir in "${BIND_DIRS[@]}"
-            do try_mkdir "$RUNROOTFS/$bind_dir"
-        done
-        rim_rootfs_verfl="$RUNROOTFS/.version"
-        if [ ! -e "$rim_rootfs_verfl" ]
-            then echo "$RUNIMAGE_VERSION" > "$rim_rootfs_verfl"
         fi
 fi
 
