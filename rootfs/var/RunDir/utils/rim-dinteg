@@ -149,6 +149,7 @@ dinteg() {
                                     exec_args="env "
                                     [ -n "$RIM_OVERFS_ID" ] && \
                                     exec_args+="RIM_OVERFS_ID='$RIM_OVERFS_ID' "
+                                    exec_args+="RIM_AUTORUN=0 "
                                     exec_args+="'$RUNSRC' "
 
                                     sed -i "s|^Icon.*|&-rim|g;s|^Name.*|& [RunImage]|g;s|^Exec=|Exec=$exec_args|g;/^TryExec/d;/^DBusActivatable/d" "$hinteg_file"

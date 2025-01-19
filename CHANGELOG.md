@@ -1,3 +1,17 @@
+# v0.40.2
+
+* Fix `ssrv` background hang on system with legacy forking
+* Disable Bubblewrap overlay if OVERFS_DIR on overlayfs
+* Disable Bubblewrap overlay if failed to start with it
+* Update [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Update [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs) package
+* Update [runimage-ssrv](https://github.com/VHSgunzo/runimage-ssrv) package
+* Add example of `steam` packaging
+* Update CI
+* Update rim-bootstrap
+* Disable `RIM_SHARE_ICONS` and `RIM_AUTORUN` for `rim-dinteg`
+
 # v0.40.1
 
 * Add `aarch64` support

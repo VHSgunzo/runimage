@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.40.1'
+export RUNIMAGE_VERSION='0.40.2'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -614,6 +614,7 @@ check_nvidia_driver() {
             then
                 info_msg "Updating the nvidia library cache..."
                 if (RIM_SANDBOX_NET=0 RIM_NO_NET=0 RIM_WAIT_RPIDS_EXIT=0 \
+                    RIM_NO_BWRAP_OVERLAY=1 SSRV_SOCK="unix:$RUNPIDDIR/ldupd" \
                     bwrun /usr/bin/ldconfig -C "$RUNPIDDIR/ld.so.cache" 2>/dev/null </dev/null)
                     then
                         try_mkdir "$RUNCACHEDIR"
@@ -987,7 +988,7 @@ run_attach() {
     }
     attach_act() {
         try_unmount_rundir() {
-            (sleep 0.1; [ -n "$RUNIMAGE" ] && \
+            (sleep 0.2; [ -n "$RUNIMAGE" ] && \
             try_unmount "$RUNDIR") &
         }
         local ATT_RUNDIRFL="${RUNTMPDIR}/$1/rundir"
@@ -1213,6 +1214,8 @@ is_valis_ipv4() {
 wait_exist() {
     if [ -n "$1" ]
         then
+            [ -n "$2" ] && \
+            local wait_time="$2"||\
             local wait_time=300
             while is_pid "$RUNPID" && [ "$wait_time" -gt 0 ]
                 do
@@ -1311,6 +1314,33 @@ create_sandbox_net() {
 }
 
 bwrun() {
+    try_bwrap_overlay() {
+        if [[ "${BWRAP_EXEC[@]}" =~ --overlay-src ]]
+            then
+                "${BWRAP_EXEC[@]}" "$@" 8>"$BWINFFL" 2>"$RUNPIDDIR/bwerr" 1>/dev/null &
+                local bwpid="$!"
+                tail --pid="$bwpid" -f "$RUNPIDDIR/bwerr" 1>&2 &
+                wait $bwpid
+                local EXEC_STATUS=$?
+                if is_pid "$RUNPID" &>/dev/null && \
+                    grep -qEo 'Invalid argument|Resource busy' "$RUNPIDDIR/bwerr" &>/dev/null
+                    then
+                        sleep 0.1 &>/dev/null
+                        if is_pid "$RUNPID" &>/dev/null
+                            then
+                                BWRAP_EXEC[1]='--bind'
+                                BWRAP_EXEC[2]="$RUNROOTFS"
+                                unset BWRAP_EXEC[3] BWRAP_EXEC[4] BWRAP_EXEC[5]
+                                "${BWRAP_EXEC[@]}" "$@" 8>"$BWINFFL" 1>/dev/null
+                                local EXEC_STATUS=$?
+                        fi
+                fi
+            else
+                "${BWRAP_EXEC[@]}" "$@" 8>"$BWINFFL" 1>/dev/null
+                local EXEC_STATUS=$?
+        fi
+        return $EXEC_STATUS
+    }
     unset EXEC_STATUS
     if [ ! -f "$RUNROOTFS"/lib/ld-musl-*.so.1 ] && \
         [ -f "$RUNROOTFS"/lib/ld-linux-*.so.* ]
@@ -1331,8 +1361,6 @@ bwrun() {
     if [ ! -e "$SSRV_SOCK_PATH" ]
         then
             BWRAP_EXEC=("$BWRAP")
-            [ "$RIM_ROOT" == 1 ] && \
-                BWRAP_EXEC+=(--uid 0 --gid 0)
             if [[ -d "$OVERFS_DIR" && -d "$BOVERLAY_SRC" && "$RIM_NO_BWRAP_OVERLAY" != 1 ]]
                 then
                     BWRAP_EXEC+=(
@@ -1370,6 +1398,8 @@ bwrun() {
                 --setenv XDG_CONFIG_DIRS "/etc/xdg:$XDG_CONFIG_DIRS"
                 --setenv XDG_DATA_DIRS "/usr/local/share:/usr/share:$XDG_DATA_DIRS"
             )
+            [ "$RIM_ROOT" == 1 ] && \
+                BWRAP_EXEC+=(--uid 0 --gid 0)
             [ -n "$LIB_PATH" ] && \
                 BWRAP_EXEC+=(--setenv LD_LIBRARY_PATH "$LIB_PATH")
             BWRAP_EXEC+=(/var/RunDir/static/tini -s -p SIGTERM -g --)
@@ -1452,8 +1482,8 @@ bwrun() {
                     "${BWRAP_EXEC[@]}" bash -c bwin 8>"$BWINFFL"
                     local EXEC_STATUS="$?"
                 else
-                    SSRV_UENV="$(tr ' ' ','<<<"${!RIM_@}")" \
-                    "${BWRAP_EXEC[@]}" /var/RunDir/static/ssrv -srv -env all 8>"$BWINFFL" 1>/dev/null &
+                    SSRV_UENV="$(tr ' ' ','<<<"${!RIM_@}")" try_bwrap_overlay \
+                    /var/RunDir/static/ssrv -srv -env all &
                     wait_exist "$SSRV_PID_FILE"
                     export_ssrv_pid
                     if is_snet
@@ -1815,8 +1845,8 @@ check_autorun() {
             IFS=$'\n'
             WHICH_AUTORUN0ARG=($(IFS="$OLD_IFS" \
                 RIM_NO_NVIDIA_CHECK=1 RIM_WAIT_RPIDS_EXIT=0 RIM_NO_RPIDSMON=1 \
-                RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 "${archeck_cmd[@]}" \
-                which -a "$AUTORUN0ARG" 2>/dev/null </dev/null))
+                RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 RIM_NO_BWRAP_OVERLAY=1 \
+                "${archeck_cmd[@]}" which -a "$AUTORUN0ARG" 2>/dev/null </dev/null))
             IFS="$OLD_IFS"
             unset REALAUTORUN
             for exe in "${WHICH_AUTORUN0ARG[@]}"
@@ -2086,14 +2116,14 @@ fi
 if [[ -n "$RIM_AUTORUN" && "$RIM_AUTORUN" != 0 ]] && \
    [[ "$RUNSRCNAME" =~ (Run|runimage).* ]]
     then
-        RUNSRCNAME="$(basename "$RIM_AUTORUN")"
+        export RUNSRCNAME="$(basename "$RIM_AUTORUN")"
 elif [[ "${RUNSRCNAME,,}" =~ .*\.(runimage|rim)$ ]]
    then
-        RUNSRCNAME="$(sed 's|\.runimage$||i;s|\.rim$||i'<<<"$RUNSRCNAME")"
-        RIM_AUTORUN="$RUNSRCNAME"
+        export RUNSRCNAME="$(sed 's|\.runimage$||i;s|\.rim$||i'<<<"$RUNSRCNAME")"
+        export RIM_AUTORUN="$RUNSRCNAME"
 elif [[ ! "$RUNSRCNAME" =~ (Run|runimage).* && "$RIM_AUTORUN" != 0 ]]
    then
-        RIM_AUTORUN="$RUNSRCNAME"
+        export RIM_AUTORUN="$RUNSRCNAME"
 fi
 
 ARGS=("$@")
@@ -2254,6 +2284,7 @@ fi
 
 if is_rio_running
     then
+        unset RIO_SKIP_START
         RIO_ARGS=(run_attach)
         case "$ARG1" in
             rim-portfw ) RIO_ARGS+=(portfw) ;;
@@ -2261,7 +2292,13 @@ if is_rio_running
         esac
         RIO_ARGS+=("$SSRV_RUNPID")
         case "$ARG1" in
-            rim-portfw|rim-exec|rim-shrink|rim-dinteg|rim-bootstrap);;
+            rim-portfw|rim-exec|rim-shrink|rim-bootstrap);;
+            rim-dinteg)
+                if [ "$RIM_SHARE_ICONS" == 1 ]
+                    then
+                        RIO_SKIP_START=1
+                        RIM_SHARE_ICONS=0
+                fi ;;
             rim-desktop|\
             rim-update |\
             rim-build  ) RIO_ARGS+=("$ARG1") ;;
@@ -2269,9 +2306,12 @@ if is_rio_running
             rim-*) error_msg "Option is not supported for a running RunImage container: $ARG1"
                    exit 1 ;;
         esac
-        rim_start "${RIO_ARGS[@]}"
+        if [ "$RIO_SKIP_START" != 1 ]
+            then rim_start "${RIO_ARGS[@]}"
+        fi
     else
         case "$ARG1" in
+            rim-dinteg    ) RIM_SHARE_ICONS=0 ;;
             rim-pkgls  |\
             rim-binls     ) set_default_option ; RIM_QUIET_MODE=1 ; RIM_CONFIG=0
                             RIM_NO_RPIDSMON=1 ; RIM_DINTEG=0 ;;
