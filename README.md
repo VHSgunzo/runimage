@@ -197,6 +197,13 @@ Configuration environment variables:
     RIM_CRYPTFS_PASSFILE=/path/passfile      Specifies passfile for decrypt encrypted RunImage rootfs
     RIM_XORG_CONF=/path/xorg.conf            Binds xorg.conf to /etc/X11/xorg.conf in RunImage (0 to disable)
                                                     (Default: /etc/X11/xorg.conf bind from the system)
+    RIM_SYS_BWRAP=1                          Using system bwrap
+    RIM_SYS_SQFUSE=1                         Using system squashfuse
+    RIM_SYS_UNSQFS=1                         Using system unsquashfs
+    RIM_SYS_MKSQFS=1                         Using system mksquashfs
+    RIM_SYS_UNIONFS=1                        Using system unionfs
+    RIM_SYS_SLIRP=1                          Using system slirp4netns
+    RIM_SYS_GOCRYPTFS=1                      Using system gocryptfs
     RIM_SYS_TOOLS=1                          Use all binaries from the system
                                                 If they are not found in the system - auto return to the built-in
     rim-build:
