@@ -25,7 +25,7 @@ fi
 echo '== get and extract docker image to rootfs dir'
 rm -rf rootfs
 sysdrm=(
-    systemd dbus-broker dbus-broker-units argon2
+    systemd dbus-broker dbus-broker-units
     dbus-units device-mapper cryptsetup kbd popt
 )
 if [[ ! -n "$TARGETARCH" && "$SYS_ARCH" == 'x86_64' ]]

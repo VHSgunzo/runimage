@@ -13,6 +13,7 @@
 * Update usage: add `RIM_SYS_UNIONFS=1` Using system unionfs
 * Update usage: add `RIM_SYS_SLIRP=1` Using system slirp4netns
 * Update usage: add `RIM_SYS_GOCRYPTFS=1` Using system gocryptfs
+* Update `rim-bootstrap`
 * Minor fixes
 
 # v0.40.3
