@@ -246,7 +246,7 @@ if [ -n "$1" ]
                             then app_name="$(awk '($1 == "'$app'")'<<<"$app_list"|awk '{$1=""}1'|sed 's|"||g'|sed 's|^ ||g')"
                             else app_name="$app"
                         fi
-                        integ_files=("$(grep -wm1 "^Name=$app_name$" -lr "$APPS_DIR" 2>/dev/null|head -1)")
+                        integ_files=("$(grep -wim1 "^Name=$app_name$" -lr "$APPS_DIR" 2>/dev/null|head -1)")
                         if [ -n "$integ_files" ]
                             then
                                 case "$act" in
@@ -255,6 +255,7 @@ if [ -n "$1" ]
                                 esac
                                 info_msg "$act_info app: $app_name"
                                 icon_name="$(grep -m1 "^Icon=" "$integ_files" 2>/dev/null|sed 's|^Icon=||')"
+                                [ -n "$icon_name" ] && \
                                 integ_files+=($(find_fl "$ICONS_DIR" -name "${icon_name}.*" 2>/dev/null))
                                 for file in "${integ_files[@]}";do echo "$file";done|dinteg
                             else

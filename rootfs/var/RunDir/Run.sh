@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.40.3'
+export RUNIMAGE_VERSION='0.40.4'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -1059,13 +1059,16 @@ force_kill() {
         then
             for runpid in "$@"
                 do
-                    local runtmpdir="$RUNTMPDIR/$runpid"
-                    if [ -e "$runtmpdir" ]
+                    local runpiddir="$RUNTMPDIR/$runpid"
+                    if [[ "$runpid" =~ ^[0-9]+$ && -e "$runpiddir" ]]
                         then
-                            (kill "$runpid" 2>/dev/null||\
-                            kill $(cat "$RUNTMPDIR/$runpid/rpids" 2>/dev/null) 2>/dev/null) && ret=0
-                            sleep 0.1
-                            rm -rf "$runtmpdir" 2>/dev/null
+                            if ! kill "$runpid" 2>/dev/null
+                                then
+                                    kill $(cat "$RUNTMPDIR/$runpid/rpids" 2>/dev/null) 2>/dev/null && ret=0
+                                    sleep 0.1
+                                    rm -rf "$runpiddir" 2>/dev/null
+                                else ret=0
+                            fi
                         else
                             error_msg "RunImage container not found by RUNPID: $runpid"
                             exit 1
@@ -1073,8 +1076,13 @@ force_kill() {
             done
     elif [ "$1" == 'all' ]
         then
-            (kill $(get_runpids) 2>/dev/null||\
-            kill $(cat "$RUNTMPDIR"/*/rpids 2>/dev/null) 2>/dev/null) && ret=0
+            if ! kill $(get_runpids) 2>/dev/null
+                then
+                    kill $(cat "$RUNTMPDIR"/*/rpids 2>/dev/null) 2>/dev/null && ret=0
+                    sleep 0.1
+                    rm -rf "$RUNTMPDIR" 2>/dev/null
+                else ret=0
+            fi
             local MOUNTPOINTS="$(grep -E "$([ -n "$RUNIMAGENAME" ] && \
                 echo "$RUNIMAGENAME"||echo "$RUNIMAGEDIR")|.*/mnt/cryptfs.*$RUNIMAGEDIR|$RUNTMPDIR/.*/mnt/nv.*drv|unionfs.*$RUNIMAGEDIR" \
                 /proc/self/mounts|grep -v "$RUNDIR"|gawk '{print$2}')"
@@ -1084,13 +1092,7 @@ force_kill() {
                         do try_unmount "$unmt"
                     done) && ret=0
             fi
-            sleep 0.1
-            rm -rf "$RUNTMPDIR" 2>/dev/null
-    else
-        choose_runpid_and kill 2>/dev/null && ret=0
-        local runtmpdir="$RUNTMPDIR/$runpid"
-        sleep 0.1
-        rm -rf "$runtmpdir" 2>/dev/null
+    else choose_runpid_and kill 2>/dev/null && ret=0
     fi
     [ "$ret" != 1 ] && info_msg "RunImage successfully killed!"
     return $ret
@@ -2109,6 +2111,13 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_CRYPTFS_PASSFILE$GREEN=/path/passfile      Specifies passfile for decrypt encrypted RunImage rootfs
         ${YELLOW}RIM_XORG_CONF$GREEN=/path/xorg.conf            Binds xorg.conf to /etc/X11/xorg.conf in RunImage (0 to disable)
                                                      (Default: /etc/X11/xorg.conf bind from the system)
+        ${YELLOW}RIM_SYS_BWRAP$GREEN=1                          Using system ${BLUE}bwrap
+        ${YELLOW}RIM_SYS_SQFUSE$GREEN=1                         Using system ${BLUE}squashfuse
+        ${YELLOW}RIM_SYS_UNSQFS$GREEN=1                         Using system ${BLUE}unsquashfs
+        ${YELLOW}RIM_SYS_MKSQFS$GREEN=1                         Using system ${BLUE}mksquashfs
+        ${YELLOW}RIM_SYS_UNIONFS$GREEN=1                        Using system ${BLUE}unionfs
+        ${YELLOW}RIM_SYS_SLIRP$GREEN=1                          Using system ${BLUE}slirp4netns
+        ${YELLOW}RIM_SYS_GOCRYPTFS$GREEN=1                      Using system ${BLUE}gocryptfs
         ${YELLOW}RIM_SYS_TOOLS$GREEN=1                          Use all binaries from the system
                                                  If they are not found in the system - auto return to the built-in
         ${BLUE}rim-build:
@@ -2727,39 +2736,39 @@ if [[ ! -n "$DBUS_SESSION_BUS_ADDRESS" && "$RIM_UNSHARE_DBUS" != 1 ]]
 fi
 
 [ "$RIM_SYS_TOOLS" == 1 ] && \
-    SYS_MKSQFS=1 SYS_GOCRYPTFS=1 \
-    SYS_SQFUSE=1 SYS_BWRAP=1 \
-    SYS_UNIONFS=1 SYS_SLIRP=1 \
+    RIM_SYS_MKSQFS=1 RIM_SYS_GOCRYPTFS=1 \
+    RIM_SYS_SQFUSE=1 RIM_SYS_BWRAP=1 \
+    RIM_SYS_UNIONFS=1 RIM_SYS_SLIRP=1 \
 
-if [ "$SYS_MKSQFS" == 1 ] && is_sys_exe mksquashfs
+if [ "$RIM_SYS_MKSQFS" == 1 ] && is_sys_exe mksquashfs
     then
         info_msg "The system mksquashfs is used!"
         MKSQFS="$(which_sys_exe mksquashfs)"
     else
         MKSQFS="$RUNSTATIC/mksquashfs"
 fi
-if [ "$SYS_SLIRP" == 1 ] && is_sys_exe slirp4netns
+if [ "$RIM_SYS_SLIRP" == 1 ] && is_sys_exe slirp4netns
     then
         info_msg "The system slirp4netns is used!"
         SLIRP="$(which_sys_exe slirp4netns)"
     else
         SLIRP="$RUNSTATIC/slirp4netns"
 fi
-if [ "$SYS_SQFUSE" == 1 ] && is_sys_exe squashfuse
+if [ "$RIM_SYS_SQFUSE" == 1 ] && is_sys_exe squashfuse
     then
         info_msg "The system squashfuse is used!"
         SQFUSE="$(which_sys_exe squashfuse)"
     else
         SQFUSE="$RUNSTATIC/squashfuse"
 fi
-if [ "$SYS_UNIONFS" == 1 ] && is_sys_exe unionfs
+if [ "$RIM_SYS_UNIONFS" == 1 ] && is_sys_exe unionfs
     then
         info_msg "The system unionfs is used!"
         UNIONFS="$(which_sys_exe unionfs)"
     else
         UNIONFS="$RUNSTATIC/unionfs"
 fi
-if [ "$SYS_GOCRYPTFS" == 1 ] && is_sys_exe gocryptfs
+if [ "$RIM_SYS_GOCRYPTFS" == 1 ] && is_sys_exe gocryptfs
     then
         info_msg "The system gocryptfs is used!"
         GOCRYPTFS="$(which_sys_exe gocryptfs)"
@@ -2792,7 +2801,7 @@ if [ "$EUID" != 0 ]
     then
         if [ ! -f '/proc/self/ns/user' ]
             then
-                SYS_BWRAP=1
+                RIM_SYS_BWRAP=1
                 [ ! -n "$(echo "$PATH"|grep -wo '^/usr/bin:')" ] && \
                     export PATH="/usr/bin:$PATH"
                 if [ ! -x "$(find "$(which_exe bwrap)" -perm -u=s 2>/dev/null)" ]
@@ -2843,7 +2852,7 @@ if [ "$EUID" != 0 ]
         fi
 fi
 
-if [ "$SYS_BWRAP" == 1 ] && is_sys_exe bwrap
+if [ "$RIM_SYS_BWRAP" == 1 ] && is_sys_exe bwrap
     then
         info_msg "The system Bubblewrap is used!"
         BWRAP="$(which_sys_exe bwrap)"
@@ -2851,7 +2860,7 @@ if [ "$SYS_BWRAP" == 1 ] && is_sys_exe bwrap
         BWRAP="$RUNSTATIC/bwrap"
 fi
 unset SUID_BWRAP
-if [[ "$SYS_BWRAP" == 1 && "$EUID" != 0 && \
+if [[ "$RIM_SYS_BWRAP" == 1 && "$EUID" != 0 && \
       -x "$(find "$BWRAP" -perm -u=s 2>/dev/null)" ]]
     then
         warn_msg "Bubblewrap has SUID sticky bit!"

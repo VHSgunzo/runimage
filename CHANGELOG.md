@@ -1,3 +1,20 @@
+# v0.40.4
+
+* Fix processes killing with `rim-kill`
+* Add case insensitive for `rim-dindeg`
+* Update [uruntime](https://github.com/VHSgunzo/uruntime) [v0.1.3](https://github.com/VHSgunzo/uruntime/releases/tag/v0.1.3)
+* Update [sharun](https://github.com/VHSgunzo/sharun) [v0.2.6](https://github.com/VHSgunzo/sharun/releases/tag/v0.2.6)
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static) package
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Update usage: add `RIM_SYS_BWRAP=1` Using system bwrap
+* Update usage: add `RIM_SYS_SQFUSE=1` Using system squashfuse
+* Update usage: add `RIM_SYS_UNSQFS=1` Using system unsquashfs
+* Update usage: add `RIM_SYS_MKSQFS=1` Using system mksquashfs
+* Update usage: add `RIM_SYS_UNIONFS=1` Using system unionfs
+* Update usage: add `RIM_SYS_SLIRP=1` Using system slirp4netns
+* Update usage: add `RIM_SYS_GOCRYPTFS=1` Using system gocryptfs
+* Minor fixes
+
 # v0.40.3
 
 * Fix processes monitoring
