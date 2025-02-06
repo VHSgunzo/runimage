@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.40.4'
+export RUNIMAGE_VERSION='0.40.5'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -42,8 +42,8 @@ export_rusp() {
     export RUNUTILS="$RUNDIR/utils"
     export RUNSTATIC="$RUNDIR/static"
     [ "$RIM_SYS_TOOLS" == 1 ] && \
-        export PATH="$SYS_PATH:$RUNSTATIC:$RUNUTILS"||\
-        export PATH="$RUNSTATIC:$RUNUTILS:$SYS_PATH"
+        export PATH="$SYS_PATH:/bin:/sbin:/usr/bin:/usr/sbin:$RUNSTATIC:$RUNUTILS"||\
+        export PATH="$RUNSTATIC:$RUNUTILS:$SYS_PATH:/bin:/sbin:/usr/bin:/usr/sbin"
 }
 
 export_rimg() {
@@ -439,7 +439,11 @@ get_nvidia_driver_image() {
                         '/usr/share/licenses/nvidia-utils/LICENSE'
                         /usr/share/doc/nvidia-driver-*/LICENSE
                     )
-                    NVLIBS="$(ldconfig -p|grep -E 'nvidia|nvoptix|libcuda|libnvcuvid'|sed 's|.*=> ||g'|sort -u)"
+                    NVLIBS="$(if is_exe_exist ldconfig
+                        then ldconfig -p
+                    elif is_exe_exist strings && [ -f '/etc/ld.so.cache' ]
+                        then strings /etc/ld.so.cache
+                    fi|grep -E 'nvidia|nvoptix|libcuda|libnvcuvid'|sed 's|.*=> ||g'|sort -u)"
                     for lib in "${NVTRASH_LIBS[@]}"
                         do NVLIBS="$(grep -v "$lib"<<<"$NVLIBS")"
                     done
@@ -507,7 +511,7 @@ get_nvidia_driver_image() {
                         "https://huggingface.co/runimage/nvidia-drivers/resolve/main/releases/$nvidia_driver_image"
                         "https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image"
                         "https://download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run"
-                        "https://download.nvidia.com/tesla/${nvidia_version}/$nvidia_driver_run"
+                        "https://us.download.nvidia.com/tesla/${nvidia_version}/$nvidia_driver_run"
                         "https://developer.nvidia.com/downloads/vulkan-beta-${nvidia_version//.}-linux"
                         "https://developer.nvidia.com/vulkan-beta-${nvidia_version//.}-linux"
                         "https://developer.nvidia.com/linux-${nvidia_version//.}"
@@ -535,7 +539,7 @@ get_nvidia_driver_image() {
                                 for temp in $(ls *.template 2>/dev/null) ; do mv "$temp" "${temp%.template}" ; done
                                 try_mkdir profiles && mv *application-profiles* profiles
                                 [ -f "nvoptix.bin" ] && mv nvoptix.bin profiles
-                                [ -n "$(ls *nvngx.dll 2>/dev/null)" ] && try_mkdir wine && mv *nvngx.dll wine
+                                [ -n "$(ls *.dll 2>/dev/null)" ] && try_mkdir wine && mv *.dll wine
                                 try_mkdir json && mv *.json json
                                 try_mkdir conf && mv *.conf *.icd conf
                                 for lib in $trash_libs ; do rm -f $lib 32/$lib ; done
@@ -1465,7 +1469,7 @@ bwrun() {
                                 local EXEC_STATUS=$?
                                 if [ -f "$RUNPIDDIR/bwerr" ]
                                     then
-                                        if grep -qEo 'Invalid argument|Resource busy' "$RUNPIDDIR/bwerr" &>/dev/null
+                                        if grep -qio "bwrap: can't make overlay mount" "$RUNPIDDIR/bwerr" &>/dev/null
                                             then
                                                 sleep 0.05 &>/dev/null
                                                 if is_pid "$RUNPID" &>/dev/null
@@ -1501,7 +1505,7 @@ bwrun() {
                                 local EXEC_STATUS=$?
                                 if [ -f "$RUNPIDDIR/bwerr" ]
                                     then
-                                        if grep -qEo 'Invalid argument|Resource busy' "$RUNPIDDIR/bwerr" &>/dev/null
+                                        if grep -qio "bwrap: can't make overlay mount" "$RUNPIDDIR/bwerr" &>/dev/null
                                             then
                                                 sleep 0.05 &>/dev/null
                                                 if is_pid "$RUNPID" &>/dev/null
@@ -2162,17 +2166,19 @@ if [[ "$EUID" == 0 && "$RIM_ALLOW_ROOT" != 1 && "$INSIDE_RUNIMAGE" != 1 ]]
         exit 1
 fi
 
-if [[ -n "$RIM_AUTORUN" && "$RIM_AUTORUN" != 0 ]] && \
-   [[ "$RUNSRCNAME" =~ (Run|runimage).* ]]
+if [ "$RIM_AUTORUN" != 0 ]
     then
-        export RUNSRCNAME="$(basename "$RIM_AUTORUN")"
-elif [[ "${RUNSRCNAME,,}" =~ .*\.(runimage|rim)$ ]]
-   then
-        export RUNSRCNAME="$(sed 's|\.runimage$||i;s|\.rim$||i'<<<"$RUNSRCNAME")"
-        export RIM_AUTORUN="$RUNSRCNAME"
-elif [[ ! "$RUNSRCNAME" =~ (Run|runimage).* && "$RIM_AUTORUN" != 0 ]]
-   then
-        export RIM_AUTORUN="$RUNSRCNAME"
+        if [[ -n "$RIM_AUTORUN" && "$RUNSRCNAME" =~ ^(Run|runimage).* ]]
+            then
+                export RUNSRCNAME="$(basename "$RIM_AUTORUN")"
+        elif [[ "${RUNSRCNAME,,}" =~ .*\.(runimage|rim)$ ]]
+            then
+                export RUNSRCNAME="$(sed 's|\.runimage$||i;s|\.rim$||i'<<<"$RUNSRCNAME")"
+                export RIM_AUTORUN="$RUNSRCNAME"
+        elif [[ ! "$RUNSRCNAME" =~ (Run|runimage).* ]]
+            then
+                export RIM_AUTORUN="$RUNSRCNAME"
+        fi
 fi
 
 ARGS=("$@")
@@ -2234,7 +2240,7 @@ if [ "$RIM_CONFIG" != 0 ]
                 set +a
                 info_msg "Found RunImage internal config: $(basename "$RUNIMAGE_INTERNAL_CONFIG")"
         fi
-        if [[ -f "$RIM_CONFIG" && -n "$(echo "$RIM_CONFIG"|grep -o '\.rcfg$')" ]]
+        if [[ -f "$RIM_CONFIG" && "$RIM_CONFIG" =~ .*\.rcfg$ ]]
             then
                 SET_RUNIMAGE_CONFIG=1
         elif [ -f "$RUNIMAGEDIR/$RUNSRCNAME.rcfg" ]
@@ -2343,6 +2349,7 @@ if is_rio_running
         case "$ARG1" in
             rim-portfw|rim-exec|rim-shrink|rim-bootstrap);;
             rim-dinteg)
+                export RIM_DINTEG=1
                 if [ "$RIM_SHARE_ICONS" == 1 ]
                     then
                         RIO_SKIP_START=1
@@ -2360,7 +2367,7 @@ if is_rio_running
         fi
     else
         case "$ARG1" in
-            rim-dinteg    ) RIM_SHARE_ICONS=0 ;;
+            rim-dinteg    ) RIM_SHARE_ICONS=0 ; export RIM_DINTEG=1 ;;
             rim-pkgls  |\
             rim-binls     ) set_default_option ; RIM_QUIET_MODE=1 ; RIM_CONFIG=0
                             RIM_NO_RPIDSMON=1 ; RIM_DINTEG=0 ;;
@@ -3121,6 +3128,7 @@ if [[ "$RIM_SANDBOX_HOME" != 0 && "$RIM_SANDBOX_HOME_DL" != 0 ]]
                     then RIM_SANDBOX_HOME_DIR="$SANDBOXHOMEDIR/Run"
                 fi
         fi
+        [ -d "$RIM_SANDBOX_HOME_DIR" ] && RIM_SANDBOX_HOME=1
     else unset RIM_SANDBOX_HOME_DIR
 fi
 
@@ -3146,6 +3154,7 @@ if [ "$RIM_TMP_HOME" != 0 ] && [[ "$RIM_TMP_HOME" == 1 || "$RIM_TMP_HOME_DL" == 
             )
         HOME_BIND+=('--setenv' 'HOME' "$TMP_HOME")
         info_msg "Setting temporary \$HOME to: '$TMP_HOME'"
+        RIM_TMP_HOME=1
 elif [ "$RIM_UNSHARE_HOME" != 0 ] && [[ "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHARE_HOME_DL" == 1 ]]
     then
         [ "$EUID" == 0 ] && \
@@ -3195,6 +3204,7 @@ elif [ "$RIM_UNSHARE_HOME" != 0 ] && [[ "$RIM_UNSHARE_HOME" == 1 || "$RIM_UNSHAR
         fi
         HOME_BIND+=('--setenv' 'HOME' "$UNSHARED_HOME")
         warn_msg "Host HOME is unshared!"
+        RIM_UNSHARE_HOME=1
 elif [ "$RIM_SANDBOX_HOME" != 0 ] && [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBOX_HOME_DL" == 1 || -d "$RIM_SANDBOX_HOME_DIR" ]]
     then
         if [ "$EUID" == 0 ]
@@ -3223,6 +3233,7 @@ elif [ "$RIM_SANDBOX_HOME" != 0 ] && [[ "$RIM_SANDBOX_HOME" == 1 || "$RIM_SANDBO
             )
         HOME_BIND+=("--setenv" "HOME" "$NEW_HOME")
         info_msg "Setting sandbox \$HOME to: '$RIM_SANDBOX_HOME_DIR'"
+        RIM_SANDBOX_HOME=1
 else
     if [[ -n "$SYS_HOME" && "$SYS_HOME" != "/root" && \
         "$(echo "$SYS_HOME"|head -c 6)" != "/home/" ]]

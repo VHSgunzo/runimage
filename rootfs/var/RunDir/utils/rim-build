@@ -131,6 +131,11 @@ if [ ! -n "$RUNBASENAME" ]
         fi
 fi
 
+if [[ "${RUNSRC,,}" =~ .*\.(runimage|rim)$ && \
+    ! "${RUNBASENAME,,}" =~ .*\.(runimage|rim)$ ]]
+    then RUNBASENAME="${RUNBASENAME}.${RUNSRC##*.}"
+fi
+
 NEWRUNIMAGE="$(realpath "$RUNBASENAME").new$BUILDKEY"
 OLDRUNIMAGE="${NEWRUNIMAGE%.new$BUILDKEY}"
 [[ -f "$NEWRUNIMAGE" || -d "$NEWRUNIMAGE" || -L "$NEWRUNIMAGE" ]] && \

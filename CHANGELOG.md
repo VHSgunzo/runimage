@@ -1,3 +1,14 @@
+# v0.40.5
+
+* Fix downloading NVIDIA Data Center GPU Driver
+* Update [sharun](https://github.com/VHSgunzo/sharun) [v0.2.8](https://github.com/VHSgunzo/sharun/releases/tag/v0.2.8)
+* Update [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static) package
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Fix disabling Bubblewrap overlay if failed to start with it
+* Update example of `steam` packaging
+* Minor fixes
+
 # v0.40.4
 
 * Fix processes killing with `rim-kill`

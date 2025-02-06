@@ -34,14 +34,16 @@ run_install() {
 
     echo '== create RunImage config for app (optionally)'
     echo \
-'RIM_CMPRS_LVL="${RIM_CMPRS_LVL:=22}"
-RIM_CMPRS_BSIZE="${RIM_CMPRS_BSIZE:=22}"
+'RIM_SYS_NVLIBS="${RIM_SYS_NVLIBS:=1}"
 
-RIM_SYS_NVLIBS="${RIM_SYS_NVLIBS:=1}"
+RIM_CMPRS_LVL="${RIM_CMPRS_LVL:=22}"
+RIM_CMPRS_BSIZE="${RIM_CMPRS_BSIZE:=24}"
 
 RIM_SHARE_ICONS="${RIM_SHARE_ICONS:=1}"
 RIM_SHARE_FONTS="${RIM_SHARE_FONTS:=1}"
-RIM_SHARE_THEMES="${RIM_SHARE_THEMES:=1}"' \
+RIM_SHARE_THEMES="${RIM_SHARE_THEMES:=1}"
+
+RIM_UPDATE_SHRINK="${RIM_UPDATE_SHRINK:=1}"' \
 > "$RUNDIR/config/steam.rcfg"
 
     echo '== Build new DwarFS runimage with zstd 22 lvl and 24 block size'
