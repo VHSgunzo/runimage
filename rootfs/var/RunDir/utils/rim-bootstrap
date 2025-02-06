@@ -13,7 +13,7 @@ if [[ ! -x 'runimage' && ! -x 'RunDir/Run' ]]
         chmod +x runimage
 fi
 
-trap 'echo == cleanup ; rm -rf rootfs RunDir uruntime' EXIT INT TERM
+trap 'echo == cleanup ; chmod u+rw -R rootfs RunDir ; rm -rf rootfs RunDir uruntime' EXIT INT TERM
 
 if [ ! -x 'RunDir/Run' ]
     then

@@ -7,6 +7,7 @@
 * Update [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
 * Fix disabling Bubblewrap overlay if failed to start with it
 * Update example of `steam` packaging
+* Update `rim-bootstrap`
 * Minor fixes
 
 # v0.40.4
