@@ -23,7 +23,7 @@ post_install() {
         then /usr/share/libalpm/scripts/fix-ldconfig
     fi
     if [ -f '/usr/bin/gamemoderun' ] && \
-        ! grep -q 'pidof gamemoded' '/usr/bin/gamemoderun'
+        ! grep -q '/rdbus' '/usr/bin/gamemoderun'
         then /usr/share/libalpm/scripts/fix-gamemode
     fi
 }

@@ -61,7 +61,7 @@ nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
 info_msg() {
     if [ "$RIM_QUIET_MODE" != 1 ]
-        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
             if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
@@ -69,7 +69,7 @@ info_msg() {
 }
 
 error_msg() {
-    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
     if [ "$NOT_TERM" == 1 ]
         then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
     fi
@@ -152,7 +152,13 @@ dinteg() {
                                     exec_args+="RIM_AUTORUN=0 "
                                     exec_args+="'$RUNSRC' "
 
-                                    sed -i "s|^Icon.*|&-rim|g;s|^Name.*|& [RunImage]|g;s|^Exec=|Exec=$exec_args|g;/^TryExec/d;/^DBusActivatable/d" "$hinteg_file"
+                                    if grep -oq '^Icon=/' "$hinteg_file"
+                                        then
+                                            sed -i "s|^Icon.*|Icon=${hinteg_dir}/$(grep -m1 '^Icon=' "$hinteg_file"|\
+                                            cut -d'/' -f4-)|g;s|.png$|-rim.png|i;s|.svg$|-rim.svg|i" "$hinteg_file"
+                                        else sed -i "s|^Icon.*|&-rim|g" "$hinteg_file"
+                                    fi
+                                    sed -i "s|^Name.*|& [RunImage]|g;s|^Exec=|Exec=$exec_args|g;/^TryExec/d;/^DBusActivatable/d" "$hinteg_file"
                                     chmod $verb +x "$hinteg_file"
                             fi
                             if [ -d "$RUNDINTEGDIR" ]
@@ -243,7 +249,7 @@ if [ -n "$1" ]
                 for app in "$@"
                     do
                         (if [[ "$app" =~ ^[0-9]+$ ]]
-                            then app_name="$(awk '($1 == "'$app'")'<<<"$app_list"|awk '{$1=""}1'|sed 's|"||g'|sed 's|^ ||g')"
+                            then app_name="$(gawk '($1 == "'$app'")'<<<"$app_list"|gawk '{$1=""}1'|sed 's|"||g'|sed 's|^ ||g')"
                             else app_name="$app"
                         fi
                         integ_files=("$(grep -wim1 "^Name=$app_name$" -lr "$APPS_DIR" 2>/dev/null|head -1)")
@@ -255,8 +261,13 @@ if [ -n "$1" ]
                                 esac
                                 info_msg "$act_info app: $app_name"
                                 icon_name="$(grep -m1 "^Icon=" "$integ_files" 2>/dev/null|sed 's|^Icon=||')"
-                                [ -n "$icon_name" ] && \
-                                integ_files+=($(find_fl "$ICONS_DIR" -name "${icon_name}.*" 2>/dev/null))
+                                if [ -n "$icon_name" ]
+                                    then
+                                        if [ -f "$icon_name" ]
+                                            then integ_files+=("$icon_name")
+                                            else integ_files+=($(find_fl "$ICONS_DIR" -name "${icon_name}.*" 2>/dev/null))
+                                        fi
+                                fi
                                 for file in "${integ_files[@]}";do echo "$file";done|dinteg
                             else
                                 error_msg "The app was not found: $([ "$app_name" ] && echo "$app_name"||echo "$app")"

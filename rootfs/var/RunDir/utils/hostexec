@@ -15,7 +15,7 @@ SELFNAME="$(basename "$0")"
     NOT_TERM=1||NOT_TERM=0
 
 error_msg() {
-    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
     if [ "$NOT_TERM" == 1 ]
         then notify-send -a 'RunImage Error' "$@" 2>/dev/null &
     fi
@@ -111,7 +111,7 @@ if [ -e "$RIM_HEXEC_SOCK" ]
         [ "$RIM_EXEC_SAME_PWD" == 1 ] && \
             export SSRV_CWD="$PWD"
         SSRV_SOCK="unix:$RIM_HEXEC_SOCK" \
-        exec ssrv "${args[@]}" "$@"
+        exec /var/RunDir/static/ssrv "${args[@]}" "$@"
     else
         error_msg "HOSTEXEC socket not found!"
         exit 1

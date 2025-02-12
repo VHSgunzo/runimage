@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.40.5'
+export RUNIMAGE_VERSION='0.40.6'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -118,7 +118,7 @@ export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version)"
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
 error_msg() {
-    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
     if [ "$NOT_TERM" == 1 ]
         then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
     fi
@@ -126,7 +126,7 @@ error_msg() {
 
 info_msg() {
     if [ "$RIM_QUIET_MODE" != 1 ]
-        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
             if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
@@ -135,7 +135,7 @@ info_msg() {
 
 warn_msg() {
     if [[ "$RIM_QUIET_MODE" != 1 && "$RIM_NO_WARN" != 1 ]]
-        then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
             if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
@@ -1020,8 +1020,9 @@ run_attach() {
             else
                 info_msg "Exec RunImage RUNPID: $1"
                 export SSRV_SOCK="unix:$(get_sock "$1")"
-                export SSRV_ENV="all-:$(tr ' ' ','<<<"${!RIM_@}")"
+                export SSRV_ENV='all-:RIM_*'
                 export SSRV_ENV_PIDS="$(get_child_pids "$(cat "$RUNTMPDIR/$1/ssrv.pid" 2>/dev/null)"|head -1)"
+                export SSRV_ENV_PIDS="${SSRV_ENV_PIDS:=$(get_child_pids "$(cat "$RUNTMPDIR/$1/tini.pid" 2>/dev/null)"|head -1)}"
                 shift
                 try_unmount_rundir
                 [ "$RIM_EXEC_SAME_PWD" == 1 ] && \
@@ -2152,7 +2153,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_SHRINK_PKGCACHE$GREEN=1                    Shrink packages cache
         ${YELLOW}RIM_SHRINK_SRC$GREEN=1                         Shrink source code files for build
         ${YELLOW}RIM_SHRINK_PYCACHE$GREEN=1                     Shrink '__pycache__' directories
-    $RESETCOLOR" >&2
+    $RESETCOLOR"
 }
 
 trap cleanup EXIT
@@ -2701,6 +2702,7 @@ fi
 if [ "$RIM_NO_RPIDSMON" != 1 ]
     then
         RPIDSFL="$RUNPIDDIR/rpids"
+        TINI_PIDFL="$RUNPIDDIR/tini.pid"
         (wait_rpids=15
         while [[ ! -n "$oldrpids" && "$wait_rpids" -gt 0 ]]
             do
@@ -2727,6 +2729,12 @@ if [ "$RIM_NO_RPIDSMON" != 1 ]
                                 [ -d "$(dirname "$RPIDSFL")" ] && \
                                 echo "$newrpids" > "$RPIDSFL"
                                 oldrpids="$newrpids"
+                        fi
+                        if [[ ! -f "$TINI_PIDFL" && -f "$RPIDSFL" ]]
+                            then
+                                TINI_PID="$(ps -opid=,cmd= -p $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null|\
+                                            grep '^[0-9]* /var/RunDir/static/tini'|gawk '{print$1}')"
+                                [ -n "$TINI_PID" ] && echo "$TINI_PID" > "$TINI_PIDFL"
                         fi
                 fi
                 sleep 0.5 2>/dev/null

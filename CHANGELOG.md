@@ -1,3 +1,14 @@
+# v0.40.6
+
+* Update [sharun](https://github.com/VHSgunzo/sharun) [v0.2.9](https://github.com/VHSgunzo/sharun/releases/tag/v0.2.9)
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static) package
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Update [runimage-ssrv](https://github.com/VHSgunzo/runimage-ssrv) package
+* Send output from all `_msg()` functions to `stderr`
+* Update fix `GameMode` pacman hook
+* Fix `rim-exec` env vars for non ssrv childs
+* Minor fixes
+
 # v0.40.5
 
 * Fix downloading NVIDIA Data Center GPU Driver

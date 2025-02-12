@@ -21,7 +21,7 @@ RIM_DESKTOP_DISPLAY="${RIM_DESKTOP_DISPLAY:=1337}"
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
 error_msg() {
-    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
     if [ "$NOT_TERM" == 1 ]
         then notify-send -a 'RunImage Error' "$(echo -e "$@"|nocolor)" 2>/dev/null &
     fi
@@ -29,7 +29,7 @@ error_msg() {
 
 info_msg() {
     if [ "$RIM_QUIET_MODE" != 1 ]
-        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
             if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Info' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
@@ -38,7 +38,7 @@ info_msg() {
 
 warn_msg() {
     if [[ "$RIM_QUIET_MODE" != 1 && "$RIM_NO_WARN" != 1 ]]
-        then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${YELLOW}[ WARNING ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
             if [[ "$NOT_TERM" == 1 && "$RIM_NOTIFY" == 1 ]]
                 then notify-send -a 'RunImage Warning' "$(echo -e "$@"|nocolor)" 2>/dev/null &
             fi
