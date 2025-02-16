@@ -1891,7 +1891,7 @@ check_autorun() {
             WHICH_AUTORUN0ARG=($(IFS="$OLD_IFS" \
                 RIM_NO_NVIDIA_CHECK=1 RIM_WAIT_RPIDS_EXIT=0 RIM_NO_RPIDSMON=1 \
                 RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 RIM_NO_BWRAP_OVERLAY=1 \
-                "${archeck_cmd[@]}" which -a "$AUTORUN0ARG" 2>/dev/null </dev/null))
+                "${archeck_cmd[@]}" which -a "$AUTORUN0ARG" </dev/null))
             IFS="$OLD_IFS"
             unset REALAUTORUN
             for exe in "${WHICH_AUTORUN0ARG[@]}"
@@ -2733,7 +2733,7 @@ if [ "$RIM_NO_RPIDSMON" != 1 ]
                         if [[ ! -f "$TINI_PIDFL" && -f "$RPIDSFL" ]]
                             then
                                 TINI_PID="$(ps -opid=,cmd= -p $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null|\
-                                            grep '^[0-9]* /var/RunDir/static/tini'|gawk '{print$1}')"
+                                            grep '^ [0-9]* /var/RunDir/static/tini'|gawk '{print$1}')"
                                 [ -n "$TINI_PID" ] && echo "$TINI_PID" > "$TINI_PIDFL"
                         fi
                 fi
