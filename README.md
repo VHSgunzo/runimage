@@ -218,6 +218,7 @@ Configuration environment variables:
     rim-dinteg:
     RIM_DINTEG=1                             Enables desktop integration pacman hook
     RIM_DINTEG_MIME=1                        Desktop integration with MIME types
+    RIM_DINTEG_DIR=/path                     Desktop integration directory (Default: $HOME/.local/share)
     rim-desktop:
     RIM_XEPHYR_SIZE=HEIGHTxWIDTH             Sets RunImage desktop resolution (Default: 1600x900)
     RIM_DESKTOP_DISPLAY=9999                 Sets RunImage desktop $DISPLAY (Default: 1337)
@@ -487,6 +488,7 @@ Configuration environment variables:
         -h, --help                        Show this message
         -l, --list    [a|added]           List applications
         -m, --mime                        With MIME types (env: RIM_DINTEG_MIME=1)
+        -d, --dinteg-dir /path            Desktop integration directory (env: RIM_DINTEG_DIR=/path)
         -v, --verbose                     Verbose output
         -r, --remove  [num|name|all|mime] Remove applications from apps menu
 
@@ -559,6 +561,10 @@ Configuration environment variables:
     For example, you can use alpine (and others) rootfs with RunImage:
     ┌─[user@host]─[~]
     └──╼ $ ./runimage getdimg --extract rootfs alpine:latest
+    
+    Do not forget to configure the DNS server (if it is not already configured):
+    ┌─[user@host]─[~]
+    └──╼ $ echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' > rootfs/etc/resolv.conf
     
     And then just run runimage. By default, custom rootfs will be searched in "$RUNIMAGEDIR/rootfs":
     ┌─[user@host]─[~]

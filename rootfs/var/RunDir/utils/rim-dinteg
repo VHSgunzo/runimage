@@ -15,8 +15,8 @@ RESETCOLOR='\033[1;00m'
 [[ "$RIM_PORTABLE_HOME" == 1 && -d "$SYS_HOME" ]] && \
     HOME="$SYS_HOME"
 
-HINTEG_DIR="$HOME/.local/share"
-HINTEG_APPS_DIR="$HINTEG_DIR/applications"
+RIM_DINTEG_DIR="${RIM_DINTEG_DIR:=$HOME/.local/share}"
+DINTEG_APPS_DIR="$RIM_DINTEG_DIR/applications"
 ICONS_DIR='/usr/share/icons'
 APPS_DIR='/usr/share/applications'
 
@@ -75,6 +75,11 @@ error_msg() {
     fi
 }
 
+empty_msg() {
+    error_msg "${YELLOW}Option ${BLUE}$1 ${YELLOW}requires a non-empty argument!\n"
+    print_help
+}
+
 lsapps() {
     local apps="$(grep -m1 '^Name=' -nr "$APPS_DIR" 2>/dev/null|\
                   sed 's|.*:Name=||g;s|.*|"&"|g'|sort -u)"
@@ -85,17 +90,17 @@ lsintegapps() {
     if [ -d "$RUNDINTEGDIR" ]
         then fifo_ls
         else
-             local apps="$(grep -m1 '^Name=.* \[RunImage\]' -nr "$HINTEG_APPS_DIR"/*-rim.desktop 2>/dev/null|\
-                        sed 's|.*:Name=||g;s| \[RunImage\]$||g;s|.*|"&"|g'|sort -u)"
+             local apps="$(grep -m1 '^Name=.*' -nr "$DINTEG_APPS_DIR"/*-rim.desktop 2>/dev/null|\
+                           sed 's|.*:Name=||g;s| \[RunImage\]$||g;s|.*|"&"|g'|sort -u)"
              [ -n "$apps" ] && cat -n<<<"$apps"
     fi
 }
 
 find_fl() { find "$@" -type f 2>/dev/null|sort ; }
 
-upd_ddb() { update-desktop-database -q "$HINTEG_APPS_DIR" &>/dev/null ; }
+upd_ddb() { update-desktop-database -q "$DINTEG_APPS_DIR" &>/dev/null ; }
 
-upd_mdb() { update-mime-database "$HINTEG_DIR/mime" &>/dev/null ; }
+upd_mdb() { update-mime-database "$RIM_DINTEG_DIR/mime" &>/dev/null ; }
 
 fifo_add() {
     echo a > "$ACTINTEGFL"
@@ -123,11 +128,15 @@ dinteg() {
                 then
                     unset postfix postfix_dir exec_args
                     if [ -d "$RUNDINTEGDIR" ]
-                        then hinteg_dir="$RUNDINTEGDIR"
+                        then dinteg_dir="$RUNDINTEGDIR"
                         else
-                            [[ "$file" == *'/menus/'* ]] && \
-                                hinteg_dir="$HOME/.config"||\
-                                hinteg_dir="$HINTEG_DIR"
+                            if [ "$file" == *'/menus/'* ]
+                                then
+                                    [[ "$RIM_DINTEG_DIR" =~ ^"$HOME" ]] && \
+                                        dinteg_dir="$HOME/.config"||\
+                                        dinteg_dir='/etc/xdg'
+                                else dinteg_dir="$RIM_DINTEG_DIR"
+                            fi
                     fi
                     if [[ "$file" == "$RUNPIDDIR/dinteg/"* ]]
                         then
@@ -138,13 +147,13 @@ dinteg() {
                             postfix="$(cut -d'/' -f4-<<<"$file"|sed 's|.desktop$|-rim.desktop|i;s|.png$|-rim.png|i;s|.svg$|-rim.svg|i;s|.xml$|-rim.xml|i')"
                     fi
                     postfix_dir="$(dirname "$postfix")"
-                    hinteg_file="${hinteg_dir}/${postfix}"
-                    hinteg_file_dir="${hinteg_dir}/${postfix_dir}"
+                    dinteg_file="${dinteg_dir}/${postfix}"
+                    dinteg_file_dir="${dinteg_dir}/${postfix_dir}"
                     case "$act" in
                         a)
-                            mkdir $verb -p "$hinteg_file_dir"
-                            "$cp_mv" $verb -f "$file" "$hinteg_file"
-                            if [[ "$hinteg_file" == *'.desktop' && "$file" != "$RUNPIDDIR/dinteg/"* ]]
+                            mkdir $verb -p "$dinteg_file_dir"
+                            "$cp_mv" $verb -f "$file" "$dinteg_file"
+                            if [[ "$dinteg_file" == *'.desktop' && "$file" != "$RUNPIDDIR/dinteg/"* ]]
                                 then
                                     exec_args="env "
                                     [ -n "$RIM_OVERFS_ID" ] && \
@@ -152,25 +161,25 @@ dinteg() {
                                     exec_args+="RIM_AUTORUN=0 "
                                     exec_args+="'$RUNSRC' "
 
-                                    if grep -oq '^Icon=/' "$hinteg_file"
+                                    if grep -oq '^Icon=/' "$dinteg_file"
                                         then
-                                            sed -i "s|^Icon.*|Icon=${hinteg_dir}/$(grep -m1 '^Icon=' "$hinteg_file"|\
-                                            cut -d'/' -f4-)|g;s|.png$|-rim.png|i;s|.svg$|-rim.svg|i" "$hinteg_file"
-                                        else sed -i "s|^Icon.*|&-rim|g" "$hinteg_file"
+                                            sed -i "s|^Icon.*|Icon=${dinteg_dir}/$(grep -m1 '^Icon=' "$dinteg_file"|\
+                                            cut -d'/' -f4-)|g;s|.png$|-rim.png|i;s|.svg$|-rim.svg|i" "$dinteg_file"
+                                        else sed -i "s|^Icon.*|&-rim|g" "$dinteg_file"
                                     fi
-                                    sed -i "s|^Name.*|& [RunImage]|g;s|^Exec=|Exec=$exec_args|g;/^TryExec/d;/^DBusActivatable/d" "$hinteg_file"
-                                    chmod $verb +x "$hinteg_file"
+                                    sed -i "s|^Comment.*=.*|& [RunImage]|g;s|^Exec=|Exec=$exec_args|g;/^TryExec/d;/^DBusActivatable/d" "$dinteg_file"
+                                    chmod $verb +x "$dinteg_file"
                             fi
                             if [ -d "$RUNDINTEGDIR" ]
-                                then fifo_add "$hinteg_file"
+                                then fifo_add "$dinteg_file"
                             fi
                         ;;
                         r)
                             if [ -d "$RUNDINTEGDIR" ]
-                                then fifo_rm "$hinteg_file"
+                                then fifo_rm "$dinteg_file"
                                 else
-                                    [ -f "$hinteg_file" ] && \
-                                        rm $verb -f "$hinteg_file"
+                                    [ -f "$dinteg_file" ] && \
+                                        rm $verb -f "$dinteg_file"
                             fi
                         ;;
                         *) return 1 ;;
@@ -187,6 +196,7 @@ print_help() {
     -h, --help                        Show this message
     -l, --list    [a|added]           List applications
     -m, --mime                        With MIME types (env: RIM_DINTEG_MIME=1)
+    -d, --dinteg-dir /path            Desktop integration directory (env: RIM_DINTEG_DIR=/path)
     -v, --verbose                     Verbose output
     -r, --remove  [num|name|all|mime] Remove applications from apps menu"
     exit 1
@@ -197,6 +207,13 @@ while [[ $# -gt 0 ]]
     do
         case "$1" in
             -m|--mime   )   shift ; RIM_DINTEG_MIME=1 ;;
+            -d|--dinteg-dir)
+                if [[ -n "$2" && "$2" != -* ]]
+                    then
+                        RIM_DINTEG_DIR="$2"
+                        DINTEG_APPS_DIR="$RIM_DINTEG_DIR/applications"; shift 2
+                    else empty_msg "$1"
+                fi ;;
             -v|--verbose)   shift ; verb='-v' ;;
             -a|--add    )   shift ; act=a ;;
             -r|--remove )   shift ; act=r ;;

@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.40.6'
+export RUNIMAGE_VERSION='0.40.7'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -434,7 +434,7 @@ get_nvidia_driver_image() {
                         "nvidia-application-profiles-${nvidia_version}-rc"
                         'nvoptix.bin'
                     )
-                    NVWINELS=('_nvngx.dll'  'nvngx.dll')
+                    NVWINELS=('_nvngx.dll'  'nvngx.dll' 'nvngx_dlssg.dll')
                     LICENSES=(
                         '/usr/share/licenses/nvidia-utils/LICENSE'
                         /usr/share/doc/nvidia-driver-*/LICENSE
@@ -508,6 +508,7 @@ get_nvidia_driver_image() {
                     info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
                     nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
                     driver_url_list=(
+                        "https://storage.yandexcloud.net/runimage/nvidia-drivers/$nvidia_driver_image"
                         "https://huggingface.co/runimage/nvidia-drivers/resolve/main/releases/$nvidia_driver_image"
                         "https://github.com/VHSgunzo/runimage-nvidia-drivers/releases/download/v${nvidia_version}/$nvidia_driver_image"
                         "https://download.nvidia.com/XFree86/Linux-x86_64/${nvidia_version}/$nvidia_driver_run"
@@ -517,13 +518,14 @@ get_nvidia_driver_image() {
                         "https://developer.nvidia.com/linux-${nvidia_version//.}"
                     )
                     if try_dl "${driver_url_list[0]}" "$NVIDIA_DRIVERS_DIR"||\
-                        try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"
+                        try_dl "${driver_url_list[1]}" "$NVIDIA_DRIVERS_DIR"||\
+                        try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"
                         then return 0
-                    elif try_dl "${driver_url_list[2]}" "$NVIDIA_DRIVERS_DIR"||\
-                        try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"||\
-                        try_dl "${driver_url_list[4]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
+                    elif try_dl "${driver_url_list[3]}" "$NVIDIA_DRIVERS_DIR"||\
+                        try_dl "${driver_url_list[4]}" "$NVIDIA_DRIVERS_DIR"||\
                         try_dl "${driver_url_list[5]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
-                        try_dl "${driver_url_list[6]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"
+                        try_dl "${driver_url_list[6]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"||\
+                        try_dl "${driver_url_list[7]}" "$NVIDIA_DRIVERS_DIR" "$nvidia_driver_run"
                         then
                             trash_libs="libEGL.so* libGLdispatch.so* *.swidtag *.la \
                                 libGLESv!(*nvidia).so* libGL.so* libGLX.so* libOpenCL.so* libOpenGL.so*"
@@ -550,8 +552,12 @@ get_nvidia_driver_image() {
                                 [ -d "32/tls" ] && mv 32/tls/* 32 && rm -rf 32/tls)
                         else
                             error_msg "Failed to download nvidia driver!"
-                            RIM_SYS_NVLIBS=1 NVLIBS_DLFAILED=1 get_nvidia_driver_image
-                            return $?
+                            if [ "$NVLIBS_SYSFAILED" != 1 ]
+                                then
+                                    RIM_SYS_NVLIBS=1 NVLIBS_DLFAILED=1 get_nvidia_driver_image
+                                    return $?
+                            fi
+                            return 1
                     fi
             fi
             if [ -e "$NVIDIA_DRIVERS_DIR/$nvidia_version/64/libGLX_nvidia.so.$nvidia_version" ]
@@ -573,6 +579,11 @@ get_nvidia_driver_image() {
                 then
                     info_msg "Deleting the source directory of the driver..."
                     rm -rf "$NVIDIA_DRIVERS_DIR/$nvidia_version"
+            fi
+            if [[ "$RIM_SYS_NVLIBS" == 1 && "$rmnvsrc" == 1 ]]
+                then
+                    RIM_SYS_NVLIBS=0 NVLIBS_SYSFAILED=1 get_nvidia_driver_image
+                    return $?
             fi
         else
             error_msg "You must specify the nvidia driver version!"
@@ -608,7 +619,7 @@ mount_nvidia_driver_image() {
 }
 
 check_nvidia_driver() {
-    unset NVIDIA_DRIVER_BIND NVLIBS_DLFAILED
+    unset NVIDIA_DRIVER_BIND NVLIBS_DLFAILED NVLIBS_SYSFAILED
     is_inside_ver_eq() { [ "$(cat "$RUNROOTFS/etc/ld.so.version" 2>/dev/null)" == "$RUNROOTFS_VERSION-$nvidia_version" ] ; }
     print_nv_drv_dir() { info_msg "Found nvidia driver directory: $(basename "$nvidia_driver_dir")" ; }
     update_ld_cache() {
@@ -992,8 +1003,9 @@ run_attach() {
     }
     attach_act() {
         try_unmount_rundir() {
-            (sleep 0.3; [ -n "$RUNIMAGE" ] && \
-            try_unmount "$RUNDIR") &
+            if [[ -n "$RUNIMAGE" && ! "$RUNDIR" =~ /remp[0-9]*$ ]]
+                then (sleep 0.3; try_unmount "$RUNDIR") &
+            fi
         }
         local ATT_RUNDIRFL="${RUNTMPDIR}/$1/rundir"
         if [ -f "$ATT_RUNDIRFL" ]
@@ -1788,7 +1800,7 @@ encrypt_rootfs() {
                             upd_sharun() {
                                 unset -f upd_sharun
                                 rm -rf "$RUNDIR/sharun/shared"
-                                "$RUNDIR/sharun/sharun" lib4bin -s -p -g -d "$RUNDIR/sharun" \
+                                "$RUNDIR/sharun/lib4bin" -s -p -g -d "$RUNDIR/sharun" \
                                     $(cat "$RUNDIR/sharun/bin.list")
                             }
                             export -f upd_sharun
@@ -2137,6 +2149,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${BLUE}rim-dinteg:
         ${YELLOW}RIM_DINTEG$GREEN=1                             Enables desktop integration pacman hook
         ${YELLOW}RIM_DINTEG_MIME$GREEN=1                        Desktop integration with MIME types
+        ${YELLOW}RIM_DINTEG_DIR$GREEN=/path                     Desktop integration directory (Default: $HOME/.local/share)
         ${BLUE}rim-desktop:
         ${YELLOW}RIM_XEPHYR_SIZE$GREEN=HEIGHTxWIDTH             Sets RunImage desktop resolution (Default: 1600x900)
         ${YELLOW}RIM_DESKTOP_DISPLAY$GREEN=9999                 Sets RunImage desktop ${YELLOW}\$DISPLAY$GREEN (Default: 1337)
@@ -2733,7 +2746,7 @@ if [ "$RIM_NO_RPIDSMON" != 1 ]
                         if [[ ! -f "$TINI_PIDFL" && -f "$RPIDSFL" ]]
                             then
                                 TINI_PID="$(ps -opid=,cmd= -p $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null|\
-                                            grep '^ [0-9]* /var/RunDir/static/tini'|gawk '{print$1}')"
+                                            grep -E '^( *)?[0-9]* /var/RunDir/static/tini'|gawk '{print$1}')"
                                 [ -n "$TINI_PID" ] && echo "$TINI_PID" > "$TINI_PIDFL"
                         fi
                 fi

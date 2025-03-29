@@ -1,3 +1,20 @@
+# v0.40.7
+
+* Update [sharun](https://github.com/VHSgunzo/sharun) [v0.5.6](https://github.com/VHSgunzo/sharun/releases/tag/v0.5.6)
+* Update [uruntime](https://github.com/VHSgunzo/uruntime) [v0.3.1](https://github.com/VHSgunzo/uruntime/releases/tag/v0.3.1)
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static) package
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Update [fake-systemd](https://github.com/VHSgunzo/runimage-fake-systemd) package
+* Update [runimage-mirrorlist](https://github.com/VHSgunzo/runimage-mirrorlist) package
+* Update [fake-sudo-pkexec](https://github.com/VHSgunzo/runimage-fake-sudo-pkexec) package
+* Add `Void Lnux` support for `rim-desktop`
+* Add `-d, --dinteg-dir /path` Desktop integration directory (env: `RIM_DINTEG_DIR=/path`) for `rim-dinteg`
+* Remove `[RunImage]` from name of integrated desktops
+* Reduce `DwarFS` RAM usage and speedup startup
+* Revert `Yandex Cloud` mirrors
+* Update `README`
+* Minor fixes
+
 # v0.40.6
 
 * Update [sharun](https://github.com/VHSgunzo/sharun) [v0.2.9](https://github.com/VHSgunzo/sharun/releases/tag/v0.2.9)
