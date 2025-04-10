@@ -70,7 +70,6 @@ export_rsrc() {
         export RUNSRC="$2"||\
         export RUNSRC="$1"
     fi
-    export REALRUNSRC="$(realpath "$RUNSRC")"
 }
 
 export_rootfs_info() {
@@ -100,6 +99,7 @@ if [[ -n "$RUNOFFSET" && -n "$ARG0" ]]
         [ ! -n "$RUNSRC" ] && \
         export_rsrc "$0" "$RUNDIR/Run"
 fi
+export REALRUNSRC="$(realpath "$RUNSRC")"
 
 export RUNTTY="$(LANG= tty|grep -v 'not a')"
 [[ ! "$RUNTTY" =~ tty|pts ]] && \

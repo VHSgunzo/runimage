@@ -17,7 +17,7 @@ RESETCOLOR='\033[1;00m'
 
 RIM_DINTEG_DIR="${RIM_DINTEG_DIR:=$HOME/.local/share}"
 DINTEG_APPS_DIR="$RIM_DINTEG_DIR/applications"
-ICONS_DIR='/usr/share/icons'
+ICONS_DIRS=('/usr/share/icons' '/usr/share/pixmaps')
 APPS_DIR='/usr/share/applications'
 
 IGNORE_FILES=(
@@ -26,12 +26,12 @@ IGNORE_FILES=(
 )
 INTEG_DIRS=(
     "$APPS_DIR"
-    "$ICONS_DIR"/*.svg
-    "$ICONS_DIR"/*.png
-    "$ICONS_DIR/hicolor"
     '/usr/share/desktop-directories'
     '/etc/xdg/menus/applications-merged'
 )
+for ICONS_DIR in "${ICONS_DIRS[@]}"
+    do INTEG_DIRS+=("$ICONS_DIR"/*.svg "$ICONS_DIR"/*.png "$ICONS_DIR/hicolor")
+done
 MIME_DIRS=(
     '/usr/share/mime/packages'
     '/usr/share/mime/inode'
@@ -235,7 +235,7 @@ while [[ $# -gt 0 ]]
         esac
 done
 
-if [ -n "$1" ]
+if [[ -n "$1" && -n "$act" ]]
     then
         case "$1" in
             hook) shift
@@ -282,7 +282,7 @@ if [ -n "$1" ]
                                     then
                                         if [ -f "$icon_name" ]
                                             then integ_files+=("$icon_name")
-                                            else integ_files+=($(find_fl "$ICONS_DIR" -name "${icon_name}.*" 2>/dev/null))
+                                            else integ_files+=($(find_fl "${ICONS_DIRS[@]}" -name "${icon_name}.*" 2>/dev/null))
                                         fi
                                 fi
                                 for file in "${integ_files[@]}";do echo "$file";done|dinteg
@@ -294,6 +294,6 @@ if [ -n "$1" ]
             ;;
         esac
     else
-        error_msg "Specify the name or number of the app!"
+        error_msg "Specify the action and the name or number of the app!"
         print_help
 fi

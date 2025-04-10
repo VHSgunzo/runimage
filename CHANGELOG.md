@@ -1,3 +1,13 @@
+# v0.40.8
+
+* Update [sharun](https://github.com/VHSgunzo/sharun) [v0.6.2](https://github.com/VHSgunzo/sharun/releases/tag/v0.6.2)
+* Update [uruntime](https://github.com/VHSgunzo/uruntime) [v0.3.4](https://github.com/VHSgunzo/uruntime/releases/tag/v0.3.4)
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static) package
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage-utils.git) package
+* Update `rim-dinteg` (add new path for search icons)
+* Add `categorize=hotness` for creating DwarFS runimage
+* Minor fixes
+
 # v0.40.7
 
 * Update [sharun](https://github.com/VHSgunzo/sharun) [v0.5.6](https://github.com/VHSgunzo/sharun/releases/tag/v0.5.6)

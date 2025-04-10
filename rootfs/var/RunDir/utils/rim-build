@@ -164,7 +164,7 @@ case "$RIM_CMPRS_FS" in
           CMPRS_CMD+=(
             -f --set-owner 0 --set-group 0 --no-history --log-level error
             --no-create-timestamp --header "$RUNRUNTIME" --chmod u+rw
-            -i "$RUNDIR" -o "$NEWRUNIMAGE" -B16 --compression
+            -i "$RUNDIR" -o "$NEWRUNIMAGE" --categorize=hotness -B16 --compression
           )
           info_msg "Compression file system: DwarFS"
     ;;
