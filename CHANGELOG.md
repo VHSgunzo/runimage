@@ -1,3 +1,15 @@
+# v0.40.9
+
+* Update [sharun](https://github.com/VHSgunzo/sharun) [v0.6.3](https://github.com/VHSgunzo/sharun/releases/tag/v0.6.3)
+* Update [uruntime](https://github.com/VHSgunzo/uruntime) [v0.3.6](https://github.com/VHSgunzo/uruntime/releases/tag/v0.3.6)
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static) package
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage.git) package
+* Add env var `RIM_BUILD_DWFS_HFILE=/path` DwarFS hotness list file for creating DwarFS runimage
+* Add `memory-limit=auto` for creating DwarFS runimage
+* Add the ability to use other docker registries for `getdimg`
+* Update `README` for [RunImage build](https://github.com/VHSgunzo/runimage?tab=readme-ov-file#runimage-build)
+* Minor fixes
+
 # v0.40.8
 
 * Update [sharun](https://github.com/VHSgunzo/sharun) [v0.6.2](https://github.com/VHSgunzo/sharun/releases/tag/v0.6.2)

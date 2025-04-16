@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.40.7'
+export RUNIMAGE_VERSION='0.40.9'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -2143,6 +2143,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_CMPRS_BSIZE$GREEN={1M|20}                  Specifies the compression filesystem block size for RunImage build
         ${YELLOW}RIM_CMPRS_ALGO$GREEN={zstd|xz|lz4}             Specifies the compression algo for RunImage build
         ${YELLOW}RIM_CMPRS_LVL$GREEN={1-22|1-9|1-12}            Specifies the compression ratio for RunImage build
+        ${YELLOW}RIM_BUILD_DWFS_HFILE$GREEN=/path               DwarFS hotness list file (Default: $RUNIMAGEDIR/dwarfs.prof) (0 to disable)
         ${BLUE}rim-update:
         ${YELLOW}RIM_UPDATE_SHRINK$GREEN=1                      Run rim-shrink --all after update
         ${YELLOW}RIM_UPDATE_CLEANUP$GREEN=1                     Run rim-shrink --pkgcache after update
@@ -2440,7 +2441,7 @@ xhost +si:localuser:$RUNUSER &>/dev/null
 
 ulimit -n $(ulimit -n -H) &>/dev/null
 
-if [ -d "$RIM_ROOTFS" ]
+if [[ -d "$RIM_ROOTFS" && "$RIMSHRINKLDSO" != 1 ]]
     then
         RIM_TMP_HOME="${RIM_TMP_HOME:=0}"
         RIM_XORG_CONF="${RIM_XORG_CONF:=0}"
@@ -2462,7 +2463,9 @@ if [ -d "$RIM_ROOTFS" ]
             then
                 lib_pathfl="$RUNROOTFS/usr/lib/lib.path"
                 if [ ! -e "$lib_pathfl" ]
-                    then echo '+' > "$lib_pathfl"
+                    then
+                        mkdir -p "$(dirname "$lib_pathfl")"
+                        echo '+' > "$lib_pathfl"
                 fi
                 for ver in 2 1
                     do

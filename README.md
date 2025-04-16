@@ -212,6 +212,7 @@ Configuration environment variables:
     RIM_CMPRS_BSIZE={1M|20}                  Specifies the compression filesystem block size for RunImage build
     RIM_CMPRS_ALGO={zstd|xz|lz4}             Specifies the compression algo for RunImage build
     RIM_CMPRS_LVL={1-22|1-9|1-12}            Specifies the compression ratio for RunImage build
+    RIM_BUILD_DWFS_HFILE=/path               DwarFS hotness list file (Default: $RUNIMAGEDIR/dwarfs.prof) (0 to disable)
     rim-update:
     RIM_UPDATE_SHRINK=1                      Run rim-shrink --all after update
     RIM_UPDATE_CLEANUP=1                     Run rim-shrink --pkgcache after update
@@ -403,8 +404,15 @@ Configuration environment variables:
 ### RunImage build:
     Allows you to create your own runimage containers.
     By default, runimage is created in the current directory with a standard name, 
-        with DwarFS filesystem, zstd 1 lvl compression and 1 MB block size.
+        with DwarFS filesystem, zstd 1 lvl compression and 128 KB block size.
         If a new RunImage is successfully build, the old one is deleted.
+    To optimize the launch of an image with the DwarFS filesystem, you can run the 
+        runimage with open file profiling enabled (env var DWARFS_ANALYSIS_FILE=dwarfs.prof)
+        Then you can rebuild the image. The file will be automatically found in the directories:
+        $RUNIMAGEDIR/dwarfs.prof
+        $RUNIMAGEDIR/config/dwarfs.prof
+        $RUNDIR/config/dwarfs.prof
+        Or you can specify it in the RIM_BUILD_DWFS_HFILE=/dwarfs.prof var (see rim-build usage)
     
     This works both externally by passing build args:
     ┌─[user@host]─[~]
@@ -416,15 +424,16 @@ Configuration environment variables:
     
     [ Usage ]: rim-build [OPTIONS] /path/runimage
     [ Options ]:
-        -b, --bsize '1M|20'    Set block size (env: RIM_CMPRS_BSIZE=1M)
-        -c, --clvl  '1-22'     Set compression level (env: RIM_CMPRS_LVL=1)
-        -d, --dwfs             Use DwarFS file system (env: RIM_CMPRS_FS=dwfs)
-        -l, --lz4              Use lz4 compression (for DwarFS clvl 1-12) (env: RIM_CMPRS_ALGO=lz4)
-        -h, --help             Show this message
-        -k, --keep             Creates a backup of the old RunImage (env: RIM_KEEP_OLD_BUILD=1)
-        -s, --sqfs             Use SquashFS file system (env: RIM_CMPRS_FS=sqfs)
-        -x, --xz               Use xz (lzma for DwarFS clvl 1-9) compression (env: RIM_CMPRS_ALGO=xz)
-        -z, --zstd             Use zstd compression (clvl 1-22) (env: RIM_CMPRS_ALGO=zstd)
+        -b, --bsize '1M|20'       Set block size (env: RIM_CMPRS_BSIZE=1M)
+        -c, --clvl  '1-22'        Set compression level (env: RIM_CMPRS_LVL=1)
+        -d, --dwfs                Use DwarFS file system (env: RIM_CMPRS_FS=dwfs)
+        -f, --dwfs-hfile '/path'  DwarFS hotness list file (env: RIM_BUILD_DWFS_HFILE=/path) (0 to disable)
+        -l, --lz4                 Use lz4 compression (for DwarFS clvl 1-12) (env: RIM_CMPRS_ALGO=lz4)
+        -h, --help                Show this message
+        -k, --keep                Creates a backup of the old RunImage (env: RIM_KEEP_OLD_BUILD=1)
+        -s, --sqfs                Use SquashFS file system (env: RIM_CMPRS_FS=sqfs)
+        -x, --xz                  Use xz (lzma for DwarFS clvl 1-9) compression (env: RIM_CMPRS_ALGO=xz)
+        -z, --zstd                Use zstd compression (clvl 1-22) (env: RIM_CMPRS_ALGO=zstd)
 
 ### RunImage update:
     Allows you to update packages and rebuild RunImage. When running outside the container, 
@@ -551,10 +560,13 @@ Configuration environment variables:
     Allows you to use custom rootfs with RIM_ROOTFS=/path/rootfs env var.
     
     You can also use getdimg to download a Docker image:
-    [ Usage ]: getdimg [OPTIONS] dir image[:tag][@digest] ...
-               getdimg [OPTIONS] /tmp/old-hello-world hello-world:latest@sha256:8be990ef2aeb16dbcb9271ddfe2610fa6658d13f6dfb8bc72074cc1ca36966a7
+    [ Usage ]: /home/user/.local/bin/getdimg [OPTIONS] dir image[:tag][@digest] ...
+    /home/user/.local/bin/getdimg /tmp/my-images hello-world:latest alpine:3.18 ghcr.io/void-linux/void-musl:latest
+    /home/user/.local/bin/getdimg /tmp/specific-digest hello-world:latest@sha256:8be990ef2aeb16dbcb9271ddfe2610fa6658d13f6dfb8bc72074cc1ca36966a7
+
     [ Options ]:
         -a, --arch            Override the machine architecture (env: TARGETARCH=amd64)
+            --variant         Override the machine architecture variant (env: TARGETVARIANT=v8)
         -x, --extract         Extract image layers (env: EXTRACT_LAYERS=1)
         -h, --help            Show this message
     

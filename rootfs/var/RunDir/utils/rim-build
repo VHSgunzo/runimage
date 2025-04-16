@@ -51,15 +51,16 @@ print_help() {
     echo -e "[ Usage ]: rim-build [OPTIONS] /path/runimage
 
 [ Options ]:
-    -b, --bsize '1M|20'    Set block size (env: RIM_CMPRS_BSIZE=1M)
-    -c, --clvl  '1-22'     Set compression level (env: RIM_CMPRS_LVL=1)
-    -d, --dwfs             Use DwarFS file system (env: RIM_CMPRS_FS=dwfs)
-    -l, --lz4              Use lz4 compression (for DwarFS clvl 1-12) (env: RIM_CMPRS_ALGO=lz4)
-    -h, --help             Show this message
-    -k, --keep             Creates a backup of the old RunImage (env: RIM_KEEP_OLD_BUILD=1)
-    -s, --sqfs             Use SquashFS file system (env: RIM_CMPRS_FS=sqfs)
-    -x, --xz               Use xz (lzma for DwarFS clvl 1-9) compression (env: RIM_CMPRS_ALGO=xz)
-    -z, --zstd             Use zstd compression (clvl 1-22) (env: RIM_CMPRS_ALGO=zstd)"
+    -b, --bsize '1M|20'       Set block size (env: RIM_CMPRS_BSIZE=1M)
+    -c, --clvl  '1-22'        Set compression level (env: RIM_CMPRS_LVL=1)
+    -d, --dwfs                Use DwarFS file system (env: RIM_CMPRS_FS=dwfs)
+    -f, --dwfs-hfile '/path'  DwarFS hotness list file (env: RIM_BUILD_DWFS_HFILE=/path) (0 to disable)
+    -l, --lz4                 Use lz4 compression (for DwarFS clvl 1-12) (env: RIM_CMPRS_ALGO=lz4)
+    -h, --help                Show this message
+    -k, --keep                Creates a backup of the old RunImage (env: RIM_KEEP_OLD_BUILD=1)
+    -s, --sqfs                Use SquashFS file system (env: RIM_CMPRS_FS=sqfs)
+    -x, --xz                  Use xz (lzma for DwarFS clvl 1-9) compression (env: RIM_CMPRS_ALGO=xz)
+    -z, --zstd                Use zstd compression (clvl 1-22) (env: RIM_CMPRS_ALGO=zstd)"
     exit 1
 }
 
@@ -99,6 +100,11 @@ while [[ $# -gt 0 ]]
             -b|--bsize)
                 if [[ -n "$2" && "$2" != -* ]]
                     then RIM_CMPRS_BSIZE="$2"; shift
+                    else empty_msg "$1"
+                fi ;;
+            -f| --dwfs-hfile )
+                if [[ -n "$2" && "$2" != -* ]]
+                    then RIM_BUILD_DWFS_HFILE="$2"; shift
                     else empty_msg "$1"
                 fi ;;
             -*) error_msg "Unknown parameter: ${BLUE}$1\n"; print_help ;;
@@ -145,6 +151,7 @@ CMPRS_CMD=()
 CMPRS_EXCLUDE=()
 case "$RIM_CMPRS_FS" in
     sqfs)
+          info_msg "Compression file system: SquashFS"
           RUNOFFSET="$("$RUNRUNTIME" --runtime-offset)"
           CMPRS_CMD+=("$RUNSTATIC/mksquashfs" "$RUNDIR" "$NEWRUNIMAGE")
           [ -f "$RUNDIR/cryptfs/gocryptfs.conf" ] && \
@@ -154,19 +161,42 @@ case "$RIM_CMPRS_FS" in
             -noappend -mkfs-time 0 -action "chmod(u+rw)@! perm(u+rw)"
             -action "prune @ type(c) || type(s) || type(b) || type(p)" -b
           )
-          info_msg "Compression file system: SquashFS"
     ;;
     dwfs)
+          info_msg "Compression file system: DwarFS"
           trap "rm -f '$NEWRUNIMAGE'" INT TERM EXIT
           CMPRS_CMD+=("$RUNSTATIC/mkdwarfs")
+          if [ "$RIM_BUILD_DWFS_HFILE" != 0 ]
+              then
+                  DWFS_BHOTFILE="$RUNDIR/config/dwarfs.prof"
+                  DWFS_CHOTFILE="$RUNIMAGEDIR/config/dwarfs.prof"
+                  DWFS_HOTFILE="$RUNIMAGEDIR/dwarfs.prof"
+                  if [ ! -f "$RIM_BUILD_DWFS_HFILE" ]
+                      then
+                          if [ -f "$DWFS_HOTFILE" ]
+                              then RIM_BUILD_DWFS_HFILE="$DWFS_HOTFILE"
+                          elif [ -f "$DWFS_CHOTFILE" ]
+                              then RIM_BUILD_DWFS_HFILE="$DWFS_CHOTFILE"
+                          elif [ -f "$DWFS_BHOTFILE" ]
+                              then RIM_BUILD_DWFS_HFILE="$DWFS_BHOTFILE"
+                          fi
+                  fi
+                  if [ -f "$RIM_BUILD_DWFS_HFILE" ]
+                        then
+                          CMPRS_CMD+=(
+                              --hotness-list="$RIM_BUILD_DWFS_HFILE"
+                              --order hotness::explicit:file="$RIM_BUILD_DWFS_HFILE"
+                          )
+                          info_msg "Found DwarFS hotness list file: $RIM_BUILD_DWFS_HFILE"
+                  fi
+          fi
           [ -f "$RUNDIR/cryptfs/gocryptfs.conf" ] && \
           CMPRS_EXCLUDE+=("--filter=- rootfs/*/**" "--filter=- rootfs/.*"  "--filter=- rootfs/*")
           CMPRS_CMD+=(
             -f --set-owner 0 --set-group 0 --no-history --log-level error
-            --no-create-timestamp --header "$RUNRUNTIME" --chmod u+rw
+            --no-create-timestamp --header "$RUNRUNTIME" --chmod u+rw --memory-limit=auto
             -i "$RUNDIR" -o "$NEWRUNIMAGE" --categorize=hotness -B16 --compression
           )
-          info_msg "Compression file system: DwarFS"
     ;;
     *) error_msg "Invalid compression file system: $RIM_CMPRS_FS"; print_help ;;
 esac

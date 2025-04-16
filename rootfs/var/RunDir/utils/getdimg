@@ -1,135 +1,263 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# based on https://github.com/moby/moby/blob/master/contrib/download-frozen-image-v2.sh
+# Based on https://github.com/moby/moby/blob/master/contrib/download-frozen-image-v2.sh
+# Modified to support multiple registries (Docker Hub, GHCR, etc.)
 
-# check if essential commands are in our PATH
-for cmd in curl jq gawk grep tar; do
+# Check if essential commands are in our PATH
+for cmd in curl jq gawk grep tar sha256sum; do
     if ! command -v $cmd &> /dev/null; then
-        echo >&2 "error: \"$cmd\" not found!"
+        echo >&2 "error: '$cmd' not found!"
         exit 1
     fi
 done
 
 usage() {
     echo "[ Usage ]: $0 [OPTIONS] dir image[:tag][@digest] ..."
-    echo "$0 [OPTIONS] /tmp/old-hello-world hello-world:latest@sha256:8be990ef2aeb16dbcb9271ddfe2610fa6658d13f6dfb8bc72074cc1ca36966a7"
+    echo "$0 /tmp/my-images hello-world:latest alpine:3.18 ghcr.io/void-linux/void-musl:latest"
+    echo "$0 /tmp/specific-digest hello-world:latest@sha256:8be990ef2aeb16dbcb9271ddfe2610fa6658d13f6dfb8bc72074cc1ca36966a7"
     echo
     echo "[ Options ]:"
     echo "    -a, --arch            Override the machine architecture (env: TARGETARCH=amd64)"
+    echo "        --variant         Override the machine architecture variant (env: TARGETVARIANT=v8)"
     echo "    -x, --extract         Extract image layers (env: EXTRACT_LAYERS=1)"
     echo "    -h, --help            Show this message"
     [ -z "$1" ] || exit "$1"
 }
 
+# --- Colors for output ---
+# Reset
+Color_Off='\033[0m'       # Text Reset
+# Regular Colors
+Red='\033[0;31m'          # Red
+Green='\033[0;32m'        # Green
+Yellow='\033[0;33m'       # Yellow
+Blue='\033[0;34m'         # Blue
+Purple='\033[0;35m'       # Purple
+Cyan='\033[0;36m'         # Cyan
+# --- End Colors ---
+
+# Script-level variables (no 'local' here)
+TARGETARCH=
+EXTRACT_LAYERS=0
+workDir=""
+extractDir=""
+
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        -h|--help) usage 1 >&2 ;;
+        -h|--help) usage 0 >&2 ;;
         -x|--extract) EXTRACT_LAYERS=1; shift ;;
+        --variant)
+            if [[ -n "$2" && "$2" != -* ]]
+                then TARGETVARIANT="$2"; shift 2
+                else
+                    echo -e >&2 -e "${Yellow}Option ${Blue}$1 ${Yellow}requires a non-empty argument!${Color_Off}\n"
+                    usage 1 >&2
+            fi
+            ;;
         -a|--arch)
             if [[ -n "$2" && "$2" != -* ]]
                 then TARGETARCH="$2"; shift 2
                 else
-                    echo >&2 -e "${YELLOW}Option ${BLUE}$1 ${YELLOW}requires a non-empty argument!\n"
+                    echo -e >&2 -e "${Yellow}Option ${Blue}$1 ${Yellow}requires a non-empty argument!${Color_Off}\n"
                     usage 1 >&2
             fi
             ;;
-         -*) echo >&2 -e "Unknown parameter: $1\n"; usage 1 >&2 ;;
+         -*) echo -e >&2 -e "${Red}Unknown parameter: $1${Color_Off}\n"; usage 1 >&2 ;;
         *) break ;;
     esac
 done
 
 if [ "$EXTRACT_LAYERS" != 1 ]
-    then dir="$1" # dir for building tar in
-    else dir="$1/tmpdir-$$"
+    then workDir="$1" # dir for building tar in
+    else extractDir="$1"; workDir="$extractDir/tmpdir-$$"
 fi
 shift || usage 1 >&2
 
-if ! [ $# -gt 0 ] && [ "$dir" ]; then
+if ! [ $# -gt 0 ] || [ -z "$workDir" ]; then
     usage 2 >&2
 fi
-mkdir -p "$dir"
+mkdir -p "$workDir"
 
-# hacky workarounds for Bash 3 support (no associative arrays)
-images=()
-rm -f "$dir"/tags-*.tmp
-manifestJsonEntries=()
-doNotGenerateManifestJson=
-# repositories[busybox]='"latest": "...", "ubuntu-14.04": "..."'
+# Script-level data structures and flags (no 'local' here)
+declare -A repositories_data # Associative array for repositories file content
+manifestJsonEntries=()       # Array for manifest.json entries
+doNotGenerateManifestJson="" # Flag
+# These will be set by functions but need script scope
+auth_base_url=""
+auth_service_name=""
+bearer_token=""
 
-# bash v4 on Windows CI requires CRLF separator... and linux doesn't seem to care either way
+# Bash v4+ needed for associative arrays, using temp files for wider compatibility
+# Using script-level variable (no 'local' here)
 newlineIFS=$'\n'
 major=$(echo "${BASH_VERSION%%[^0.9]}" | cut -d. -f1)
 if [ "$major" -ge 4 ]; then
     newlineIFS=$'\r\n'
 fi
 
-registryBase='https://registry-1.docker.io'
-authBase='https://auth.docker.io'
-authService='registry.docker.io'
+# --- Helper Functions ---
 
-# https://github.com/moby/moby/issues/33700
+# Tries to parse realm and service from WWW-Authenticate header
+# Sets global variables: auth_base_url, auth_service_name
+parse_auth_header() {
+    local header_line="$1"
+    # Reset globals
+    auth_base_url=""
+    auth_service_name=""
+
+    # Example Header: Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:library/alpine:pull"
+    if [[ "$header_line" =~ realm=\"([^\"]+)\" ]]; then
+        auth_base_url="${BASH_REMATCH[1]}"
+    fi
+    if [[ "$header_line" =~ service=\"([^\"]+)\" ]]; then
+        auth_service_name="${BASH_REMATCH[1]}"
+    fi
+
+    # Fallback for Docker Hub if service is missing
+    if [[ -n "$auth_base_url" && -z "$auth_service_name" ]] && [[ "$auth_base_url" == *"auth.docker.io"* ]]; then
+        auth_service_name="registry.docker.io"
+    fi
+}
+
+# Get Authentication Token
+# Usage: get_token registry_host image_path
+# Sets global variable: bearer_token
+get_token() {
+    local registry_host="$1"
+    local image_path="$2"
+    bearer_token="" # Reset global token
+
+    # 1. Make a preliminary request to V2 endpoint to get WWW-Authenticate header
+    local auth_header
+    auth_header=$(curl -s -D - "${registry_host}/v2/" -o /dev/null | grep -i -E '^WWW-Authenticate:') || true
+
+    if [[ -z "$auth_header" ]]; then
+      # Try the manifest endpoint directly if /v2/ didn't give auth header (e.g., for GCR)
+      auth_header=$(curl -s -D - "${registry_host}/v2/${image_path}/manifests/latest" -o /dev/null | grep -i -E '^WWW-Authenticate:') || true
+    fi
+
+    if [[ -n "$auth_header" ]]; then
+        parse_auth_header "$auth_header" # This function sets globals auth_base_url, auth_service_name
+
+        if [[ -n "$auth_base_url" ]] && [[ -n "$auth_service_name" ]]; then
+            local scope="repository:${image_path}:pull"
+            echo "  Authenticating with ${auth_service_name} at ${auth_base_url} for scope ${scope}..." >&2
+            # Set the global bearer_token
+            bearer_token=$(curl -fsSL "${auth_base_url}?service=${auth_service_name}&scope=${scope}" | jq --raw-output '.token // .access_token // ""')
+            if [[ -z "$bearer_token" ]]; then
+                echo -e >&2 "  ${Yellow}Warning: Failed to get token. Proceeding anonymously (might fail for private images).${Color_Off}"
+            else
+                 echo -e >&2 "  ${Green}Authentication token obtained.${Color_Off}"
+            fi
+        else
+             echo -e >&2 "  ${Yellow}Warning: Could not parse authentication realm/service from WWW-Authenticate header. Proceeding anonymously.${Color_Off}"
+             echo -e >&2 "  Header was: ${auth_header}"
+        fi
+    else
+        echo -e >&2 "  ${Yellow}Warning: No WWW-Authenticate header found. Proceeding anonymously (might fail).${Color_Off}"
+        # Special handling for known public registries if needed (e.g. Docker Hub allows anonymous pulls for public images)
+        if [[ "$registry_host" == "https://registry-1.docker.io" ]]; then
+           echo -e >&2 "  (Registry is Docker Hub, anonymous pull might work for public images)"
+        fi
+    fi
+}
+
+# Fetch Blob (Layer or Config)
+# Usage: fetch_blob token registry_base image_path digest target_file [curl_args...]
 fetch_blob() {
     local token="$1"
-    shift
-    local image="$1"
-    shift
-    local digest="$1"
-    shift
-    local targetFile="$1"
-    shift
+    local registry_base="$2"
+    local image_path="$3"
+    local digest="$4"
+    local targetFile="$5"
+    shift 5
     local curlArgs=("$@")
 
-    local curlHeaders
-    curlHeaders="$(
-        curl -S "${curlArgs[@]}" \
-            -H "Authorization: Bearer $token" \
-            "$registryBase/v2/$image/blobs/$digest" \
-            -o "$targetFile" \
-            -D-
-    )"
-    curlHeaders="$(echo "$curlHeaders" | tr -d '\r')"
-    if grep -qE "^HTTP/[0-9].[0-9] 3" <<< "$curlHeaders"; then
-        rm -f "$targetFile"
+    local authHeader=""
+    if [[ -n "$token" ]]; then
+        authHeader="Authorization: Bearer $token"
+    fi
 
-        local blobRedirect
-        blobRedirect="$(echo "$curlHeaders" | gawk -F ': ' 'tolower($1) == "location" { print $2; exit }')"
-        if [ -z "$blobRedirect" ]; then
-            echo >&2 "error: failed fetching '$image' blob '$digest'"
-            echo "$curlHeaders" | head -1 >&2
-            return 1
-        fi
+    local blobUrl="${registry_base}/v2/${image_path}/blobs/${digest}"
+    echo "  Fetching blob: ${digest:0:16}..." >&2
 
+    local curlHeadersResponse
+    # Use -f to fail on server errors, -L to follow redirects
+    curlHeadersResponse=$(
         curl -fSL "${curlArgs[@]}" \
-            "$blobRedirect" \
-            -o "$targetFile"
+            ${authHeader:+-H "$authHeader"} \
+            "$blobUrl" \
+            -o "$targetFile" \
+            -D - # Capture headers to check for redirects if needed (though -L handles them)
+    )
+
+    # Check if the file was downloaded successfully (curl -f checks HTTP status)
+    if [ $? -ne 0 ]; then
+        echo -e >&2 "${Red}Error: Failed to download blob ${digest} from ${blobUrl}${Color_Off}"
+        # Optionally print headers for debugging
+        # echo "$curlHeadersResponse" >&2
+        rm -f "$targetFile" # Clean up partial download
+        return 1
     fi
+
+     # Check if file has content (curl might succeed with 0 bytes on certain errors without -f)
+     if [ ! -s "$targetFile" ]; then
+       echo -e >&2 "${Red}Error: Downloaded blob ${digest} is empty.${Color_Off}"
+       rm -f "$targetFile"
+       return 1
+     fi
+
+     echo "  Blob ${digest:0:16} downloaded successfully." >&2
+     return 0
 }
 
+# Extract Layer if requested
 try_extract_layer() {
-    if [ "$EXTRACT_LAYERS" == 1 ]
-        then
-            local layerIdDir="$(dirname "$1")"
+    if [ "$EXTRACT_LAYERS" == 1 ]; then
+            local layerTarPath="$1"
+            local layerIdDir="$(dirname "$layerTarPath")"
             local layerId="$(basename "$layerIdDir")"
-            echo "extracting layer: ${layerId:0:12}..."
-            tar --exclude='dev/*' --exclude='run/*' --exclude='sys/*' \
-                --exclude='tmp/*' --exclude='proc/*' \
-                --no-same-owner -xf "$1" -C "$(dirname "$dir")"
+            echo "  Extracting layer: ${layerId:0:12}..." >&2
+            # Ensure target directory exists
+            mkdir -p "$extractDir"
+            # Use tar options for potentially better overlay handling if available, but stick to basics for compatibility
+            if ! tar --exclude='dev/*' --exclude='proc/*' --exclude='sys/*' \
+                 --exclude='run/*' --exclude='tmp/*' \
+                 --no-same-owner -xf "$layerTarPath" -C "$extractDir"; then
+                 echo -e >&2 "${Red}Error extracting layer ${layerId:0:12}. Check permissions or tar integrity.${Color_Off}"
+                 # Decide whether to stop or continue
+                 # exit 1 # Uncomment to stop on extraction error
+            fi
+            # Remove the layer directory from the temporary workDir after extraction
             rm -rf "$layerIdDir"
+            echo "  Layer ${layerId:0:12} extracted." >&2
     fi
 }
 
-# handle 'application/vnd.docker.distribution.manifest.v2+json' manifest
+# Handle 'application/vnd.docker.distribution.manifest.v2+json' or OCI v1 manifest
+# Usage: handle_single_manifest_v2 manifest_json registry_base image_path image_tag bearer_token image_identifier
 handle_single_manifest_v2() {
     local manifestJson="$1"
-    shift
+    local registry_base="$2"
+    local image_path="$3"
+    local image_tag="$4"
+    local token="$5"
+    local imageIdentifier="$6"
 
     local configDigest
     configDigest="$(echo "$manifestJson" | jq --raw-output '.config.digest')"
-    local imageId="${configDigest#*:}" # strip off "sha256:"
+    if [[ -z "$configDigest" || "$configDigest" == "null" ]]; then
+        echo -e >&2 "${Red}Error: Could not find config digest in manifest for ${imageIdentifier}${Color_Off}"
+        return 1
+    fi
+    local imageId="${configDigest#*:}"
 
     local configFile="$imageId.json"
-    fetch_blob "$token" "$image" "$configDigest" "$dir/$configFile" -s
+    if ! fetch_blob "$token" "$registry_base" "$image_path" "$configDigest" "$workDir/$configFile" -s; then
+        echo -e >&2 "${Red}Error fetching config blob ${configDigest} for ${imageIdentifier}${Color_Off}"
+        return 1
+    fi
 
     local layersFs
     layersFs="$(echo "$manifestJson" | jq --raw-output --compact-output '.layers[]')"
@@ -138,9 +266,11 @@ handle_single_manifest_v2() {
     mapfile -t layers <<< "$layersFs"
     unset IFS
 
-    echo "Downloading '$imageIdentifier' (${#layers[@]} layers)..."
-    local layerId=
+    echo "  Downloading ${#layers[@]} layers for '${imageIdentifier}'..." >&2
+    local layerId=""
     local layerFiles=()
+
+    local i # Loop variable, effectively local to the loop
     for i in "${!layers[@]}"; do
         local layerMeta="${layers[$i]}"
 
@@ -148,327 +278,567 @@ handle_single_manifest_v2() {
         layerMediaType="$(echo "$layerMeta" | jq --raw-output '.mediaType')"
         local layerDigest
         layerDigest="$(echo "$layerMeta" | jq --raw-output '.digest')"
+        local layerSize
+        layerSize="$(echo "$layerMeta" | jq --raw-output '.size')" # For info
 
-        # save the previous layer's ID
+        if [[ -z "$layerDigest" || "$layerDigest" == "null" ]]; then
+             echo -e >&2 "${Red}Error: Found layer with missing digest in manifest for ${imageIdentifier}${Color_Off}"
+             continue # Skip this layer or return 1? Skipping for now.
+        fi
+
+        # Create a fake layer ID based on this layer's digest and the previous layer's fake ID
+        # This matches the structure `docker save` creates
         local parentId="$layerId"
-        # create a new fake layer ID based on this layer's digest and the previous layer's fake ID
-        layerId="$(echo "$parentId"$'\n'"$layerDigest" | sha256sum | cut -d' ' -f1)"
-        # this accounts for the possibility that an image contains the same layer twice (and thus has a duplicate digest value)
+        layerId="$(echo -n "$parentId"$'\n'"$layerDigest" | sha256sum | cut -d' ' -f1)" # Updates local layerId
 
-        mkdir -p "$dir/$layerId"
+        mkdir -p "$workDir/$layerId"
 
-        if [ "$EXTRACT_LAYERS" != 1 ]
-            then
-                echo '1.0' > "$dir/$layerId/VERSION"
+        local layerTar="$layerId/layer.tar"
+        local layerTarPath="$workDir/$layerTar"
 
-                if [ ! -s "$dir/$layerId/json" ]; then
-                    local parentJson
-                    parentJson="$(printf ', parent: "%s"' "$parentId")"
-                    local addJson
-                    addJson="$(printf '{ id: "%s"%s }' "$layerId" "${parentId:+$parentJson}")"
-                    # this starter JSON is taken directly from Docker's own "docker save" output for unimportant layers
-                    jq "$addJson + ." > "$dir/$layerId/json" <<- 'EOJSON'
-{
-    "created": "0001-01-01T00:00:00Z",
-    "container_config": {
-        "Hostname": "",
-        "Domainname": "",
-        "User": "",
-        "AttachStdin": false,
-        "AttachStdout": false,
-        "AttachStderr": false,
-        "Tty": false,
-        "OpenStdin": false,
-        "StdinOnce": false,
-        "Env": null,
-        "Cmd": null,
-        "Image": "",
-        "Volumes": null,
-        "WorkingDir": "",
-        "Entrypoint": null,
-        "OnBuild": null,
-        "Labels": null
-    }
-}
-EOJSON
+        # Check if layer already exists (useful for resuming or deduplication)
+        if [ -f "$layerTarPath" ]; then
+            # Optional: Add size/checksum verification here if needed
+            echo "  Skipping existing layer: ${layerId:0:12} (${layerDigest:0:16})" >&2
+        else
+            case "$layerMediaType" in
+                application/vnd.oci.image.layer.v1.tar+gzip | application/vnd.docker.image.rootfs.diff.tar.gzip | \
+                application/vnd.oci.image.layer.v1.tar+zstd | application/vnd.docker.image.rootfs.diff.tar.zst ) # Add zstd support if needed
+                    # Note: Handling zstd would require 'unzstd' command and potentially different tar options
+                    if [[ "$layerMediaType" == *zstd || "$layerMediaType" == *zst ]]; then
+                        echo -e >&2 "${Yellow}Warning: Zstandard layer found (${layerDigest:0:16}). Extraction might require 'zstd' package.${Color_Off}"
+                    fi
+
+                    # Fetch the blob
+                    if ! fetch_blob "$token" "$registry_base" "$image_path" "$layerDigest" "$layerTarPath" --progress-bar; then
+                         echo -e >&2 "${Red}Error fetching layer blob ${layerDigest} for ${imageIdentifier}. Skipping layer.${Color_Off}"
+                         rm -rf "$workDir/$layerId" # Clean up failed layer dir
+                         continue # Skip to next layer
+                    fi
+                    ;;
+                 # Handle non-compressed variants if they exist
+                 application/vnd.oci.image.layer.v1.tar | application/vnd.docker.image.rootfs.diff.tar )
+                    if ! fetch_blob "$token" "$registry_base" "$image_path" "$layerDigest" "$layerTarPath" --progress-bar; then
+                         echo -e >&2 "${Red}Error fetching layer blob ${layerDigest} for ${imageIdentifier}. Skipping layer.${Color_Off}"
+                         rm -rf "$workDir/$layerId" # Clean up failed layer dir
+                         continue # Skip to next layer
+                    fi
+                    ;;
+                *)
+                    echo -e >&2 "${Red}Error: Unsupported layer mediaType for ${layerDigest}: '$layerMediaType'${Color_Off}"
+                    # Decide whether to skip or fail
+                    # return 1 # Fail hard
+                    rm -rf "$workDir/$layerId" # Clean up
+                    continue # Skip layer
+                    ;;
+            esac
+        fi
+
+        # Add layer tar path to list for manifest.json generation (only if not extracting)
+        if [ "$EXTRACT_LAYERS" != 1 ]; then
+            layerFiles+=("$layerTar") # Modifies local layerFiles
+        fi
+
+        # Generate metadata files if not extracting
+        if [ "$EXTRACT_LAYERS" != 1 ]; then
+                echo '1.0' > "$workDir/$layerId/VERSION"
+                # Create minimal json file for the layer ID
+                if [ ! -s "$workDir/$layerId/json" ]; then
+                    local parentJson=""
+                    [[ -n "$parentId" ]] && parentJson="$(printf ', "parent": "%s"' "$parentId")"
+                    # Create a basic JSON structure. More fields could be added if needed,
+                    # but Docker load seems tolerant of minimal info here.
+                    # Using epoch timestamp for simplicity, actual timestamp isn't critical here.
+                    printf '{ "id": "%s", "created": "1970-01-01T00:00:00Z"%s }' "$layerId" "$parentJson" > "$workDir/$layerId/json"
                 fi
         fi
 
-        case "$layerMediaType" in
-            application/vnd.oci.image.layer.v1.tar+gzip | application/vnd.docker.image.rootfs.diff.tar.gzip)
-                local layerTar="$layerId/layer.tar"
-                layerFiles=("${layerFiles[@]}" "$layerTar")
-                # TODO figure out why "-C -" doesn't work here
-                # "curl: (33) HTTP server doesn't seem to support byte ranges. Cannot resume."
-                # "HTTP/1.1 416 Requested Range Not Satisfiable"
-                if [ -f "$dir/$layerTar" ]; then
-                    # TODO hackpatch for no -C support :'(
-                    echo "skipping existing ${layerId:0:12}"
-                    try_extract_layer "$dir/$layerId/layer.tar"
-                    continue
+        # Extract the layer if requested
+        try_extract_layer "$layerTarPath"
+
+    done # End layer loop
+
+
+    if [ "$EXTRACT_LAYERS" != 1 ]; then
+            # Use the ID of the *last* layer created as the image ID for the repositories file
+            local finalImageId="$layerId"
+
+            # Munge the top layer manifest (config) to create the final layer's json for older Docker versions
+            # It expects the main config under the final layer ID directory.
+            # We copy the downloaded config and add id/parent references.
+                        if [[ -n "$finalImageId" ]] && [[ -f "$workDir/$configFile" ]]; then
+                # parentId holds the ID of the second-to-last layer processed (parent of the final layer)
+                # We need to pass either the JSON string value of parentId or the JSON literal null.
+                local parentIdJsonValue="null" # Default to JSON null literal
+                if [[ -n "$parentId" ]]; then
+                    # Safely create a valid JSON string from the parentId variable
+                    # Using jq -n ensures correct quoting/escaping if parentId contains special chars
+                    parentIdJsonValue=$(jq -n --arg p "$parentId" '$p')
                 fi
-                local token
-                token="$(curl -fsSL "$authBase/token?service=$authService&scope=repository:$image:pull" | jq --raw-output '.token')"
-                fetch_blob "$token" "$image" "$layerDigest" "$dir/$layerTar" --progress-bar
-                try_extract_layer "$dir/$layerId/layer.tar"
-                ;;
 
-            *)
-                echo >&2 "error: unknown layer mediaType ($imageIdentifier, $layerDigest): '$layerMediaType'"
-                exit 1
-                ;;
-        esac
-    done
+                # Use --argjson with the correctly formatted JSON value (string or null)
+                jq --arg id "$finalImageId" --argjson parentIdValue "$parentIdJsonValue" \
+                   '. | . + {id: $id} + (if $parentIdValue != null then {parent: $parentIdValue} else {} end)' \
+                   "$workDir/$configFile" > "$workDir/$finalImageId/json"
 
+            elif [[ -z "$finalImageId" ]] && [[ -n "$imageId" ]]; then
+                 # This case might occur if there were 0 layers? Unlikely but handle fallback.
+                 echo >&2 "${Yellow}Warning: No layers processed for ${imageIdentifier}, cannot generate final layer JSON structure correctly. Using base config ID.${Color_Off}"
+                 finalImageId=$imageId # Fallback to original image ID from config digest
+                 # If we fallback, maybe copy the config without parent info?
+                 if [[ -f "$workDir/$configFile" ]]; then
+                     jq --arg id "$finalImageId" '. | . + {id: $id}' "$workDir/$configFile" > "$workDir/$finalImageId/json"
+                 fi
+            elif [[ -z "$finalImageId" ]]; then
+                 echo >&2 "${Red}Error: Cannot determine final image ID for ${imageIdentifier}.${Color_Off}"
+                 # Decide how critical this is - maybe return 1?
+                 return 1 # Or continue if possible
+            fi
 
-    if [ "$EXTRACT_LAYERS" != 1 ]
-        then
-            # change "$imageId" to be the ID of the last layer we added (needed for old-style "repositories" file which is created later -- specifically for older Docker daemons)
-            imageId="$layerId"
+            # --- The rest of the 'if [ "$EXTRACT_LAYERS" != 1 ]; then' block follows ---
+            # Add entry for manifest.json
+            local repoTagName="${image_path#library\/}:${image_tag}"
+             # If registry was not docker hub, include it
+             if [[ "$registry_base" != "https://registry-1.docker.io" ]]; then
+                local registryHostName="${registry_base#https://}"
+                repoTagName="${registryHostName}/${image_path}:${image_tag}"
+             fi
 
-            # munge the top layer image manifest to have the appropriate image configuration for older daemons
-            local imageOldConfig
-            imageOldConfig="$(jq --raw-output --compact-output '{ id: .id } + if .parent then { parent: .parent } else {} end' "$dir/$imageId/json")"
-            jq --raw-output "$imageOldConfig + del(.history, .rootfs)" "$dir/$configFile" > "$dir/$imageId/json"
+            local layersJsonArray="[]"
+            if [ ${#layerFiles[@]} -gt 0 ]; then
+                layersJsonArray=$(printf '%s\n' "${layerFiles[@]}" | jq -R . | jq -s .)
+            fi
 
             local manifestJsonEntry
-            manifestJsonEntry="$(
-                echo '{}' | jq --raw-output --compact-output '. + {
-                    Config: "'"$configFile"'",
-                    RepoTags: ["'"${image#library\/}:$tag"'"],
-                    Layers: '"$(echo '[]' | jq --raw-output --compact-output ".$(for layerFile in "${layerFiles[@]}"; do echo " + [ \"$layerFile\" ]"; done)")"'
-                }'
-            )"
-            manifestJsonEntries=("${manifestJsonEntries[@]}" "$manifestJsonEntry")
+            manifestJsonEntry="$(jq -n --arg cfg "$configFile" --argjson layers "$layersJsonArray" --argjson tags "[\"$repoTagName\"]" \
+              '{ Config: $cfg, RepoTags: $tags, Layers: $layers }')"
+
+            # Modify global manifestJsonEntries array
+            manifestJsonEntries+=("$manifestJsonEntry")
+
+            # Add to global repositories_data structure
+            local repoKey="${repoTagName%:*}"
+            local tagKey="$image_tag"
+            # Make sure finalImageId is actually set before using it
+            if [[ -n "$finalImageId" ]]; then
+                 repositories_data["$repoKey:$tagKey"]="$finalImageId" # Modify global repo data
+            else
+                 echo >&2 "${Yellow}Warning: finalImageId was not set when trying to update repositories data for ${repoKey}:${tagKey}.${Color_Off}"
+            fi
     fi
+    return 0 # Success
 }
 
+# Get Target Architecture
 get_target_arch() {
     if [ -n "${TARGETARCH:-}" ]; then
         echo "${TARGETARCH}"
         return 0
     fi
 
+    # Try uname
     if type uname > /dev/null; then
+        local uArch
         uArch="$(uname -m)"
         case "${uArch}" in
-            x86_64)
-                echo amd64
-                return 0
-                ;;
-            arm | armv[0-9]*)
-                echo arm
-                return 0
-                ;;
-            aarch64)
-                echo arm64
-                return 0
-                ;;
-            mips*)
-                echo >&2 "I see you are running on mips but I don't know how to determine endianness yet, so I cannot select a correct arch to fetch."
-                echo >&2 "Consider installing \"go\" on the system which I can use to determine the correct arch or specify it explicitly by setting TARGETARCH"
-                exit 1
-                ;;
+            x86_64 | amd64) echo "amd64" ;;
+            aarch64 | arm64) echo "arm64" ;;
+            armv[78]l*) echo "arm" ;; # Basic ARM detection
+            arm) echo "arm" ;;        # Generic ARM
+            i[3-6]86) echo "386" ;;
             *)
-                echo "${uArch}"
-                return 0
-                ;;
+              echo -e >&2 "${Yellow}Warning: Unsupported architecture '${uArch}'. Falling back to amd64. Set TARGETARCH manually.${Color_Off}"
+              echo "amd64"
+              ;;
         esac
-
+        return 0
     fi
 
-    # default value
-    echo >&2 "Unable to determine CPU arch, falling back to amd64. You can specify a target arch by setting TARGETARCH"
-    echo amd64
+    echo -e >&2 "${Yellow}Warning: Cannot determine CPU arch using 'uname'. Falling back to amd64. Set TARGETARCH manually.${Color_Off}"
+    echo "amd64"
 }
 
+# Get Target Variant (less common, usually empty)
 get_target_variant() {
-    echo "${TARGETVARIANT:-}"
+    echo "${TARGETVARIANT:-}" # Often v6, v7, v8 for ARM
 }
 
-while [ $# -gt 0 ]; do
-    imageTag="$1"
-    shift
-    image="${imageTag%%[:@]*}"
-    imageTag="${imageTag#*:}"
-    digest="${imageTag##*@}"
-    tag="${imageTag%%@*}"
+# --- Main Processing Loop ---
 
-    # add prefix library if passed official image
-    if [[ "$image" != *"/"* ]]; then
-        image="library/$image"
+# Script-level counter (no 'local' here)
+processed_images=0
+# imageSpec is loop variable, effectively local to loop iteration
+for imageSpec in "$@"; do
+    echo -e "${Cyan}Processing image: ${imageSpec}${Color_Off}"
+
+    # --- Parse Image Specification ---
+    # Format: [registry/][user/]repository[:tag][@digest]
+    # These variables are scoped to the loop iteration (no 'local' needed/allowed here)
+    registryHost="registry-1.docker.io" # Default registry
+    imagePath=""
+    tag="latest" # Default tag
+    digest=""
+
+    # Extract digest if present
+    if [[ "$imageSpec" == *@* ]]; then
+        digest="${imageSpec##*@}"
+        imageSpec="${imageSpec%%@*}" # Remove digest part for now
     fi
 
-    imageFile="${image//\//_}" # "/" can't be in filenames :)
+    # Extract tag if present
+    if [[ "$imageSpec" == *:* ]]; then
+        tag="${imageSpec##*:}"
+        imageSpec="${imageSpec%%:*}" # Remove tag part
+    fi
 
-    token="$(curl -fsSL "$authBase/token?service=$authService&scope=repository:$image:pull" | jq --raw-output '.token')"
+    # Check for registry hostname (contains '.' or ':')
+    if [[ "${imageSpec%%/*}" == *.* ]] || [[ "${imageSpec%%/*}" == *:* ]]; then
+        registryHost="${imageSpec%%/*}"
+        imagePath="${imageSpec#*/}"
+    else
+        # No registry specified, assume Docker Hub
+        imagePath="$imageSpec"
+        # Add 'library/' prefix for official Docker Hub images unless already namespaced
+        if [[ "$imagePath" != */* ]]; then
+            imagePath="library/$imagePath"
+        fi
+    fi
 
-    manifestJson="$(
+    # Final check for empty image path (e.g., user provided only "ghcr.io/")
+    if [[ -z "$imagePath" ]]; then
+        echo -e >&2 "${Red}Error: Invalid image specification '${imageSpec}'. Image path cannot be empty.${Color_Off}"
+        continue # Skip to next image
+    fi
+
+    # Variables scoped to the loop iteration (no 'local' needed/allowed here)
+    registryBase="https://${registryHost}" # Construct registry base URL
+    fetchRef="${digest:-$tag}" # Use digest if specified, otherwise tag
+    imageIdentifier="${registryHost}/${imagePath}:${tag}${digest:+@$digest}" # For display
+
+    echo "  Registry: ${registryBase}" >&2
+    echo "  Image Path: ${imagePath}" >&2
+    echo "  Tag: ${tag}" >&2
+    [[ -n "$digest" ]] && echo "  Digest: ${digest}" >&2
+    echo "  Reference to fetch: ${fetchRef}" >&2
+
+
+    # --- Get Authentication Token ---
+    # Global var bearer_token is set by this function
+    get_token "$registryBase" "$imagePath" # Updates global bearer_token
+
+    # Variable scoped to the loop iteration (no 'local' needed/allowed here)
+    authCurlHeader=() # Array for curl header option
+    if [[ -n "$bearer_token" ]]; then
+        authCurlHeader=(-H "Authorization: Bearer $bearer_token")
+    fi
+
+    # --- Fetch Manifest ---
+    echo "  Fetching manifest for ${fetchRef}..." >&2
+    # Variable scoped to the loop iteration (no 'local' needed/allowed here)
+    manifestJson=""
+    manifestJson=$(
         curl -fsSL \
-            -H "Authorization: Bearer $token" \
-            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            "${authCurlHeader[@]}" \
             -H 'Accept: application/vnd.oci.image.index.v1+json' \
-            -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
             -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
-            -H 'Accept: application/vnd.docker.distribution.manifest.v1+json' \
-            "$registryBase/v2/$image/manifests/$digest"
-    )"
-    if [ "${manifestJson:0:1}" != '{' ]; then
-        echo >&2 "error: /v2/$image/manifests/$digest returned something unexpected:"
-        echo >&2 "  $manifestJson"
-        exit 1
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
+            "${registryBase}/v2/${imagePath}/manifests/${fetchRef}"
+    )
+
+    if [ $? -ne 0 ] || [[ "${manifestJson:0:1}" != '{' ]]; then
+        echo -e >&2 "${Red}Error: Failed to fetch manifest for ${imageIdentifier} (${fetchRef})."
+        echo -e >&2 "  Response was: ${manifestJson:-<empty>}"
+        # Attempt to get a more specific error using -i
+        echo -e >&2 "  Trying fetch with headers..."
+        curl -fSL -i \
+            "${authCurlHeader[@]}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+            -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
+            "${registryBase}/v2/${imagePath}/manifests/${fetchRef}" >&2 || true
+        continue # Skip to next image
     fi
 
-    imageIdentifier="$image:$tag@$digest"
+    # --- Process Manifest ---
+    # Variable scoped to the loop iteration (no 'local' needed/allowed here)
+    schemaVersion=""
+    schemaVersion="$(echo "$manifestJson" | jq --raw-output '.schemaVersion // 1')" # Default to 1 if missing
 
-    schemaVersion="$(echo "$manifestJson" | jq --raw-output '.schemaVersion')"
     case "$schemaVersion" in
         2)
-            mediaType="$(echo "$manifestJson" | jq --raw-output '.mediaType')"
+            # Variable scoped to the case block (no 'local' needed/allowed here)
+            mediaType=""
+            mediaType="$(echo "$manifestJson" | jq --raw-output '.mediaType // ""')"
 
             case "$mediaType" in
-                application/vnd.oci.image.manifest.v1+json | application/vnd.docker.distribution.manifest.v2+json)
-                    handle_single_manifest_v2 "$manifestJson"
+                # Single Architecture Manifests
+                application/vnd.oci.image.manifest.v1+json | \
+                application/vnd.docker.distribution.manifest.v2+json)
+                    echo "  Processing V2 manifest (${mediaType})..." >&2
+                    # Pass the global bearer_token to the function
+                    if ! handle_single_manifest_v2 "$manifestJson" "$registryBase" "$imagePath" "$tag" "$bearer_token" "$imageIdentifier"; then
+                       echo -e >&2 "${Red}Failed to process manifest for ${imageIdentifier}${Color_Off}"
+                       # Decide whether to continue or exit
+                    else
+                       processed_images=$((processed_images + 1)) # Update global counter
+                    fi
                     ;;
-                application/vnd.oci.image.index.v1+json | application/vnd.docker.distribution.manifest.list.v2+json)
-                    layersFs="$(echo "$manifestJson" | jq --raw-output --compact-output '.manifests[]')"
-                    IFS="$newlineIFS"
-                    mapfile -t layers <<< "$layersFs"
+
+                # Multi-Architecture Manifest (Manifest List / OCI Index)
+                application/vnd.oci.image.index.v1+json | \
+                application/vnd.docker.distribution.manifest.list.v2+json)
+                    echo "  Processing manifest list (${mediaType})..." >&2
+                    # Variables scoped to this case block (no 'local' needed/allowed here)
+                    manifestsFs=""
+                    manifestsFs="$(echo "$manifestJson" | jq --raw-output --compact-output '.manifests[]')"
+                    IFS="$newlineIFS" # Temporarily shadow global IFS in this scope
+                    manifests=()
+                    mapfile -t manifests <<< "$manifestsFs"
                     unset IFS
 
-                    found=""
-                    targetArch="$(get_target_arch)"
-                    targetVariant="$(get_target_variant)"
-                    # parse first level multi-arch manifest
-                    for i in "${!layers[@]}"; do
-                        layerMeta="${layers[$i]}"
-                        maniArch="$(echo "$layerMeta" | jq --raw-output '.platform.architecture')"
-                        maniVariant="$(echo "$layerMeta" | jq --raw-output '.platform.variant')"
-                        if [[ "$maniArch" = "${targetArch}" ]] && [[ -z "${targetVariant}" || "$maniVariant" = "${targetVariant}" ]]; then
-                            digest="$(echo "$layerMeta" | jq --raw-output '.digest')"
-                            # get second level single manifest
-                            submanifestJson="$(
+                    found_manifest=""
+                    targetArch=$(get_target_arch)
+                    targetVariant=$(get_target_variant)
+                    echo "  Searching for architecture: ${targetArch}${targetVariant:+/${targetVariant}}" >&2
+
+                    # 'i' is loop variable
+                    for i in "${!manifests[@]}"; do
+                        # Variables scoped to this inner loop (no 'local' needed/allowed here)
+                        manifestEntryJson="${manifests[$i]}"
+                        entryDigest="" entryArch="" entryVariant="" entryOS=""
+                        entryDigest="$(echo "$manifestEntryJson" | jq --raw-output '.digest // ""')"
+                        entryArch="$(echo "$manifestEntryJson" | jq --raw-output '.platform.architecture // ""')"
+                        entryVariant="$(echo "$manifestEntryJson" | jq --raw-output '.platform.variant // ""')"
+                        entryOS="$(echo "$manifestEntryJson" | jq --raw-output '.platform.os // "linux"')" # Assume linux if unspecified
+
+                        # Match criteria: OS (usually linux), Architecture, and Variant (if specified)
+                        if [[ "$entryOS" == "linux" ]] && \
+                           [[ "$entryArch" == "$targetArch" ]] && \
+                           ( [[ -z "$targetVariant" ]] || [[ "$entryVariant" == "$targetVariant" ]] || [[ "$entryVariant" == "null" ]] ); then
+
+                            echo "  Found matching manifest: Digest=${entryDigest:0:16}, Arch=${entryArch}, Variant=${entryVariant:-<none>}" >&2
+                            # Fetch the architecture-specific manifest
+                            # Variable scoped here (no 'local' needed/allowed here)
+                            subManifestJson=""
+                            subManifestJson=$(
                                 curl -fsSL \
-                                    -H "Authorization: Bearer $token" \
+                                    "${authCurlHeader[@]}" \
                                     -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
-                                    -H 'Accept: application/vnd.oci.image.index.v1+json' \
                                     -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
-                                    -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
-                                    -H 'Accept: application/vnd.docker.distribution.manifest.v1+json' \
-                                    "$registryBase/v2/$image/manifests/$digest"
-                            )"
-                            handle_single_manifest_v2 "$submanifestJson"
-                            found="found"
-                            break
+                                    "${registryBase}/v2/${imagePath}/manifests/${entryDigest}"
+                            )
+                            if [ $? -ne 0 ] || [[ "${subManifestJson:0:1}" != '{' ]]; then
+                                echo -e >&2 "${Red}Error: Failed to fetch specific manifest ${entryDigest} for ${imageIdentifier}${Color_Off}"
+                                # Optionally try next match? For now, fail this image.
+                                found_manifest="error"
+                                break
+                            fi
+
+                            # Process the fetched single-arch manifest
+                            # Pass the global bearer_token
+                            if ! handle_single_manifest_v2 "$subManifestJson" "$registryBase" "$imagePath" "$tag" "$bearer_token" "${imageIdentifier} (arch ${entryArch})"; then
+                                echo -e >&2 "${Red}Failed to process arch-specific manifest for ${imageIdentifier}${Color_Off}"
+                                found_manifest="error"
+                            else
+                                found_manifest="found"
+                                processed_images=$((processed_images + 1)) # Update global counter
+                            fi
+                            break # Found a match, stop searching
                         fi
-                    done
-                    if [ -z "$found" ]; then
-                        echo >&2 "error: manifest for ${targetArch}${targetVariant:+/${targetVariant}} is not found"
-                        exit 1
+                    done # End manifest list loop
+
+                    if [[ -z "$found_manifest" ]]; then
+                        echo -e >&2 "${Red}Error: Manifest for ${targetArch}${targetVariant:+/${targetVariant}} not found in list for ${imageIdentifier}${Color_Off}"
+                        echo -e >&2 "Available Architectures:"
+                        echo "$manifestJson" | jq -c '.manifests[] | { arch: .platform.architecture, variant: .platform.variant, os: .platform.os, digest: .digest }' >&2
+                    elif [[ "$found_manifest" == "error" ]]; then
+                        echo -e >&2 "${Red}Error occurred while processing the selected architecture manifest for ${imageIdentifier}${Color_Off}"
                     fi
                     ;;
                 *)
-                    echo >&2 "error: unknown manifest mediaType ($imageIdentifier): '$mediaType'"
-                    exit 1
+                    echo -e >&2 "${Red}Error: Unknown V2 manifest mediaType for ${imageIdentifier}: '$mediaType'${Color_Off}"
                     ;;
             esac
             ;;
-
         1)
+             echo -e >&2 "${Yellow}Warning: Schema V1 manifest found for ${imageIdentifier}. Support is limited and may be less reliable.${Color_Off}"
+             if [[ -z "$doNotGenerateManifestJson" && "$EXTRACT_LAYERS" != 1 ]]; then
+                 echo -e >&2 "${Yellow}  Schema V1 does not support generating manifest.json. Docker history might be incomplete.${Color_Off}"
+                 doNotGenerateManifestJson=1 # Set global flag
+             fi
 
-            if [[ -z "$doNotGenerateManifestJson" && "$EXTRACT_LAYERS" != 1 ]]; then
-                echo >&2 "warning: '$imageIdentifier' uses schemaVersion '$schemaVersion'"
-                echo >&2 "  this script cannot (currently) recreate the 'image config' to put in a 'manifest.json' (thus any schemaVersion 2+ images will be imported in the old way, and their 'docker history' will suffer)"
-                echo >&2
-                doNotGenerateManifestJson=1
-            fi
+             # V1 handling adapted from original script - might need adjustments
+             # Variables scoped to this case block (no 'local' needed/allowed here)
+             layersFs="" history="" imageId=""
+             layersFs="$(echo "$manifestJson" | jq --raw-output '.fsLayers | .[] | .blobSum')"
+             history="$(echo "$manifestJson" | jq --compact-output '.history // .fsLayers | [.[] | .v1Compatibility // {id: .blobSum}]')" # Try to get history, fallback to blobsums as IDs
+             imageId="$(echo "$history" | jq --raw-output '.[0] | fromjson? | .id // .[0] // ""' )" # Get ID from first history entry
 
-            layersFs="$(echo "$manifestJson" | jq --raw-output '.fsLayers | .[] | .blobSum')"
-            IFS="$newlineIFS"
-            mapfile -t layers <<< "$layersFs"
-            unset IFS
+             if [[ -z "$imageId" ]]; then
+                echo -e >&2 "${Red}Error: Could not determine base image ID for V1 manifest ${imageIdentifier}${Color_Off}"
+                continue
+             fi
 
-            history="$(echo "$manifestJson" | jq '.history | [.[] | .v1Compatibility]')"
-            imageId="$(echo "$history" | jq --raw-output '.[0]' | jq --raw-output '.id')"
+             # Variable scoped here (no 'local' needed/allowed here)
+             IFS="$newlineIFS" # Shadow global IFS
+             layers=()
+             mapfile -t layers <<< "$layersFs"
+             unset IFS
 
-            echo "Downloading '$imageIdentifier' (${#layers[@]} layers)..."
-            for i in "${!layers[@]}"; do
-                imageJson="$(echo "$history" | jq --raw-output ".[${i}]")"
-                layerId="$(echo "$imageJson" | jq --raw-output '.id')"
-                imageLayer="${layers[$i]}"
+             echo "  Downloading V1 layers for '$imageIdentifier' (${#layers[@]} layers)..." >&2
+             # Variable scoped here (no 'local' needed/allowed here)
+             layerId="" # Track parent for V1 structure if possible
 
-                mkdir -p "$dir/$layerId"
+             # 'i' is loop variable
+             for i in "${!layers[@]}"; do
+                 # Variables scoped to this loop (no 'local' needed/allowed here)
+                 imageLayer="${layers[$i]}" # This is the layer digest (blobSum)
+                 layerJson="{}" # Default minimal JSON
+                 currentLayerId=$imageId # Use base ID for first, generate for subsequent? V1 structure is tricky.
+                                               # Let's try generating IDs similar to V2 for consistency in tar structure.
 
-                if [ "$EXTRACT_LAYERS" != 1 ]
-                    then
-                        echo '1.0' > "$dir/$layerId/VERSION"
+                 # Try to get layer-specific ID from history if possible
+                 histEntryJson=$(echo "$history" | jq --raw-output ".[$i] | fromjson?")
+                 if [[ -n "$histEntryJson" ]]; then
+                      layerJson=$histEntryJson
+                      currentLayerId=$(echo "$layerJson" | jq -r '.id // ""')
+                 fi
+                 # If no ID from history, generate one based on blob + parent (less standard for V1)
+                 if [[ -z "$currentLayerId" ]]; then
+                      parentId="$layerId" # Use previous loop's layerId
+                      currentLayerId="$(echo -n "$parentId"$'\n'"$imageLayer" | sha256sum | cut -d' ' -f1)"
+                 fi
+                 layerId=$currentLayerId # Update for next parent tracking
 
-                        echo "$imageJson" > "$dir/$layerId/json"
-                fi
+                 mkdir -p "$workDir/$layerId"
+                 layerTar="$layerId/layer.tar"
+                 layerTarPath="$workDir/$layerTar"
 
-                # TODO figure out why "-C -" doesn't work here
-                # "curl: (33) HTTP server doesn't seem to support byte ranges. Cannot resume."
-                # "HTTP/1.1 416 Requested Range Not Satisfiable"
-                if [ -f "$dir/$layerId/layer.tar" ]; then
-                    # TODO hackpatch for no -C support :'(
-                    echo "skipping existing ${layerId:0:12}"
-                    try_extract_layer "$dir/$layerId/layer.tar"
-                    continue
-                fi
-                token="$(curl -fsSL "$authBase/token?service=$authService&scope=repository:$image:pull" | jq --raw-output '.token')"
-                fetch_blob "$token" "$image" "$imageLayer" "$dir/$layerId/layer.tar" --progress-bar
-                try_extract_layer "$dir/$layerId/layer.tar"
-            done
+                 if [ -f "$layerTarPath" ]; then
+                     echo "  Skipping existing V1 layer: ${layerId:0:12} (${imageLayer:0:16})" >&2
+                 else
+                    # Pass the global bearer_token
+                     if ! fetch_blob "$bearer_token" "$registryBase" "$imagePath" "$imageLayer" "$layerTarPath" --progress-bar; then
+                         echo -e >&2 "${Red}Error fetching V1 layer blob ${imageLayer}. Skipping layer.${Color_Off}"
+                         rm -rf "$workDir/$layerId"
+                         continue
+                     fi
+                 fi
+
+                 if [ "$EXTRACT_LAYERS" != 1 ]; then
+                     echo '1.0' > "$workDir/$layerId/VERSION"
+                     echo "$layerJson" > "$workDir/$layerId/json" # Save the v1Compatibility JSON if found
+                 fi
+
+                 try_extract_layer "$layerTarPath"
+             done # End V1 layer loop
+
+             if [ "$EXTRACT_LAYERS" != 1 ]; then
+                # Add to repositories data structure for V1
+                # Variables scoped here (no 'local' needed/allowed here)
+                repoTagName="${imagePath#library\/}:${tag}" # Use image path (strip library/ if present) and tag
+                 # If registry was not docker hub, include it
+                 if [[ "$registryBase" != "https://registry-1.docker.io" ]]; then
+                    registryHostName="${registryBase#https://}"
+                    repoTagName="${registryHostName}/${imagePath}:${tag}"
+                 fi
+                 repoKey="${repoTagName%:*}" # Key is image name without tag
+                 tagKey="$tag"
+                 repositories_data["$repoKey:$tagKey"]="$layerId" # Use the *last* layer ID generated - update global
+             fi
+             processed_images=$((processed_images + 1)) # Update global counter
             ;;
-
         *)
-            echo >&2 "error: unknown manifest schemaVersion ($imageIdentifier): '$schemaVersion'"
-            exit 1
+            echo -e >&2 "${Red}Error: Unknown manifest schemaVersion for ${imageIdentifier}: '$schemaVersion'${Color_Off}"
             ;;
-    esac
+    esac # End schemaVersion case
 
-    echo
+    echo -e "${Green}Finished processing: ${imageIdentifier}${Color_Off}\n"
 
-    if [ "$EXTRACT_LAYERS" != 1 ]
-        then
-            if [ -s "$dir/tags-$imageFile.tmp" ]; then
-                echo -n ', ' >> "$dir/tags-$imageFile.tmp"
-            else
-                images=("${images[@]}" "$image")
-            fi
-            echo -n '"'"$tag"'": "'"$imageId"'"' >> "$dir/tags-$imageFile.tmp"
-    fi
-done
+done # End imageSpec loop
 
-if [ "$EXTRACT_LAYERS" != 1 ]
-    then
-        echo -n '{' > "$dir/repositories"
-        firstImage=1
-        for image in "${images[@]}"; do
-            imageFile="${image//\//_}" # "/" can't be in filenames :)
-            image="${image#library\/}"
+# --- Finalization ---
 
-            [ "$firstImage" ] || echo -n ',' >> "$dir/repositories"
-            firstImage=
-            echo -n $'\n\t' >> "$dir/repositories"
-            echo -n '"'"$image"'": { '"$(cat "$dir/tags-$imageFile.tmp")"' }' >> "$dir/repositories"
+if [ "$processed_images" -eq 0 ]; then
+    echo -e >&2 "${Red}No images were successfully processed.${Color_Off}"
+    rm -rf "$workDir" # Clean up temp dir if nothing worked
+    exit 1
+fi
+
+if [ "$EXTRACT_LAYERS" != 1 ]; then
+        # --- Create repositories File ---
+        echo "Generating repositories metadata..." >&2
+        # Variable scoped here (no 'local' needed/allowed here)
+        repositoriesJson=$(jq -n '{}') # Start with empty JSON object
+        # Group tags by repository key
+        # Associative array scoped here (no 'local' needed/allowed here)
+        declare -A grouped_repos
+        # Loop variables scoped to loop (no 'local' needed/allowed here)
+        repo_tag_key=""
+        repo_key=""
+        tag_key=""
+        image_id=""
+        for repo_tag_key in "${!repositories_data[@]}"; do
+            repo_key="${repo_tag_key%:*}"
+            tag_key="${repo_tag_key#*:}"
+            image_id="${repositories_data[$repo_tag_key]}"
+            grouped_repos["$repo_key"]="${grouped_repos[$repo_key]:+$grouped_repos[$repo_key],}\"$tag_key\": \"$image_id\""
         done
-        echo -n $'\n}\n' >> "$dir/repositories"
 
+        # Build the final JSON string
+        # Array scoped here (no 'local' needed/allowed here)
+        repo_entries=()
+        # Loop variable scoped to loop (no 'local' needed/allowed here)
+        for repo_key in "${!grouped_repos[@]}"; do
+           repo_entries+=("\"$repo_key\": { ${grouped_repos[$repo_key]} }")
+        done
+        repositoriesJson="{$(IFS=,; echo "${repo_entries[*]}")}"
 
-        rm -f "$dir"/tags-*.tmp
-
-        if [ -z "$doNotGenerateManifestJson" ] && [ "${#manifestJsonEntries[@]}" -gt 0 ]; then
-            echo '[]' | jq --raw-output ".$(for entry in "${manifestJsonEntries[@]}"; do echo " + [ $entry ]"; done)" > "$dir/manifest.json"
+        # Validate and write JSON
+        if echo "$repositoriesJson" | jq '.' > "$workDir/repositories"; then
+            echo "  repositories file created." >&2
         else
-            rm -f "$dir/manifest.json"
+            echo -e >&2 "${Red}Error: Failed to generate valid JSON for repositories file.${Color_Off}"
+            echo "$repositoriesJson" > "$workDir/repositories.invalid" # Save for debugging
         fi
 
-        echo "Download of images into '$dir' complete."
-        echo "Use something like the following to load the result into a Docker daemon:"
-        echo "  tar -cC '$dir' . | docker load"
-    else
-        rm -rf "$dir"
-        chmod u+rw -R "$(dirname "$dir")"
-        echo "Extract of images into '$(dirname "$dir")' complete."
+        # --- Create manifest.json File ---
+        if [ -z "$doNotGenerateManifestJson" ] && [ ${#manifestJsonEntries[@]} -gt 0 ]; then
+            echo "Generating manifest.json..." >&2
+            # Combine individual manifest entries into a JSON array
+            # Variable scoped here (no 'local' needed/allowed here)
+            manifestJsonArrayString="[$(IFS=,; echo "${manifestJsonEntries[*]}")]"
+             if echo "$manifestJsonArrayString" | jq '.' > "$workDir/manifest.json"; then
+                 echo "  manifest.json created." >&2
+             else
+                 echo -e >&2 "${Red}Error: Failed to generate valid JSON for manifest.json.${Color_Off}"
+                 echo "$manifestJsonArrayString" > "$workDir/manifest.json.invalid" # Save for debugging
+             fi
+        else
+            rm -f "$workDir/manifest.json" # Ensure no outdated manifest exists if skipped
+            if [ -n "$doNotGenerateManifestJson" ]; then
+                 echo -e >&2 "${Yellow}Skipped manifest.json generation due to V1 schema image(s).${Color_Off}"
+            fi
+        fi
+
+        echo -e "${Green}Download of image(s) into ${Cyan}'${workDir}' complete.${Color_Off}"
+        echo "Use 'docker load' to import the image(s):"
+        echo -e "  ${Cyan}tar -cC '$workDir' . | docker load${Color_Off}"
+else
+    # --- Extraction Mode ---
+    echo -e "${Green}Image(s) layer(s) extraction complete.${Color_Off}"
+    # Move contents from temp working dir to final extraction dir if needed
+    # (Currently extraction happens directly into extractDir, tmpdir just holds tars briefly)
+    if [ -d "$workDir" ]; then
+        # If anything is left in workDir (e.g., config files), move it?
+        # Or just clean it up. Let's clean it up.
+        rm -rf "$workDir"
+    fi
+    # Ensure correct permissions if needed
+    chmod -R u+rw "$extractDir"
+    echo -e "Layer(s) extracted to: ${Green}${extractDir}${Color_Off}"
 fi
+
+exit 0
