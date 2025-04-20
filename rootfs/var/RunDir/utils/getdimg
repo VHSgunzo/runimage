@@ -37,9 +37,6 @@ Purple='\033[0;35m'       # Purple
 Cyan='\033[0;36m'         # Cyan
 # --- End Colors ---
 
-# Script-level variables (no 'local' here)
-TARGETARCH=
-EXTRACT_LAYERS=0
 workDir=""
 extractDir=""
 
