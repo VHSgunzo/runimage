@@ -178,7 +178,6 @@ Configuration environment variables:
     RIM_ENABLE_HOSTEXEC=1                    Enables the ability to execute commands at the host level
     RIM_HOST_TOOLS=cmd,cmd                   Enables specified commands from the host (0 to disable)
     RIM_HOST_XDG_OPEN=1                      Enables xdg-open from the host
-    RIM_NO_RPIDSMON=1                        Disables the monitoring thread of running processes
     RIM_WAIT_RPIDS_EXIT=1                    Wait for all processes to exit
     RIM_EXEC_SAME_PWD=1                      Use same $PWD for rim-exec and hostexec
     RIM_SANDBOX_NET=1                        Creates a network sandbox

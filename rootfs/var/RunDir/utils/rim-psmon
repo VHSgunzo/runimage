@@ -16,15 +16,14 @@ yellow_msg() { echo -e "${YELLOW}${@}${RESETCOLOR}" ; }
 
 rpids_ps() {
     set -o pipefail
-    for rpids in "$@"
+    for rpid in "$@"
         do
-            if [ -f "$rpids" ]
+            if [[ -n "$rpid" && -d "/proc/$rpid" ]]
                 then
                     red_msg "\n==========================================================="
-                    green_msg "Monitoring of processes from: ${BLUE}'$rpids'"
+                    green_msg "Monitoring of processes from RUNPID: ${BLUE}$rpid"
                     red_msg "-----------------------------------------------------------"
-                    echo "$(ps -fp $(cat "$rpids" 2>/dev/null) 2>/dev/null||\
-                                rm -f "$rpids" 2>/dev/null)"
+                    echo "$(ps -fp $("$RUNSTATIC/cpids" "$rpid" 2>/dev/null) 2>/dev/null)"
                     red_msg "==========================================================="
                 else norpids="$(( norpids + 1 ))"
             fi
@@ -40,12 +39,11 @@ rpids_check() {
         then
             [[ "$A_RPIDS" =~ ^declare ]] && \
             eval "$A_RPIDS" && unset A_RPIDS
-            RPIDSFLS=($(for rpid in "${RPIDS[@]}"; do echo "$RUNTMPDIR/$rpid/rpids"; done))
-            rpids_ps "${RPIDSFLS[@]}"
+            rpids_ps "${RPIDS[@]}"
         else
-            RPIDSFLS=($(ls "$RUNTMPDIR"/*/rpids 2>/dev/null))
-            if [ -n "$RPIDSFLS" ]
-                then rpids_ps "${RPIDSFLS[@]}"
+            RPIDS=($(ls -d "$RUNTMPDIR"/* 2>/dev/null|grep -v "$RUNPID"|awk -F/ '{print$NF}'))
+            if [ -n "$RPIDS" ]
+                then rpids_ps "${RPIDS[@]}"
                 else
                     green_msg "Waiting for RunImage containers..."
                     return 1

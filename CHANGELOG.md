@@ -1,3 +1,15 @@
+# v0.41.1
+
+* Update [sharun](https://github.com/VHSgunzo/sharun) [v0.6.5](https://github.com/VHSgunzo/sharun/releases/tag/v0.6.5)
+* Update [uruntime](https://github.com/VHSgunzo/uruntime) [v0.3.9](https://github.com/VHSgunzo/uruntime/releases/tag/v0.3.9)
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static) package
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage.git) package
+* Create [runimage-cpids](https://github.com/VHSgunzo/runimage-cpids.git) A utility for tracking child processes of the runimage container
+* Remove monitoring thread of running processes
+* Сhange logic of tracking running processes and `rim-psmon`
+* Reduced CPU utilization in idle time
+* Remove `noatime` fuse mount options: https://github.com/pkgforge-dev/Lutris-AppImage/issues/7
+
 # v0.40.9
 
 * Update [sharun](https://github.com/VHSgunzo/sharun) [v0.6.3](https://github.com/VHSgunzo/sharun/releases/tag/v0.6.3)

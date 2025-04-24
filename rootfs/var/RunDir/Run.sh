@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.40.9'
+export RUNIMAGE_VERSION='0.41.1'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -600,7 +600,7 @@ mount_nvidia_driver_image() {
                 NVDRVMNT="$RUNPIDDIR/mnt/nv${nvidia_version}drv"
             info_msg "Mounting the nvidia driver image: $(basename "$1")"
             try_mkdir "$NVDRVMNT"
-            "$SQFUSE" -f -o ro,nodev,noatime,uid=$EUID,gid=$EGID \
+            "$SQFUSE" -f -o ro,nodev,uid=$EUID,gid=$EGID \
                 "$1" "$NVDRVMNT" &>/dev/null &
             FUSE_PID="$!"
             FUSE_PIDS="$FUSE_PID $FUSE_PIDS"
@@ -1003,7 +1003,7 @@ run_attach() {
     }
     attach_act() {
         try_unmount_rundir() {
-            if [[ -n "$RUNIMAGE" && ! "$RUNDIR" =~ /remp[0-9]*$ ]]
+            if [[ -n "$RUNIMAGE" && ! "$RUNDIR" =~ /*remp[0-9]*$ ]]
                 then (sleep 0.3; try_unmount "$RUNDIR") &
             fi
         }
@@ -1081,7 +1081,7 @@ force_kill() {
                         then
                             if ! kill "$runpid" 2>/dev/null
                                 then
-                                    kill $(cat "$RUNTMPDIR/$runpid/rpids" 2>/dev/null) 2>/dev/null && ret=0
+                                    kill $(get_child_pids "$runpid" 2>/dev/null) 2>/dev/null && ret=0
                                     sleep 0.1
                                     rm -rf "$runpiddir" 2>/dev/null
                                 else ret=0
@@ -1095,7 +1095,7 @@ force_kill() {
         then
             if ! kill $(get_runpids) 2>/dev/null
                 then
-                    kill $(cat "$RUNTMPDIR"/*/rpids 2>/dev/null) 2>/dev/null && ret=0
+                    kill $(get_child_pids $(ls -d "$RUNTMPDIR"/* 2>/dev/null|gawk -F'/' '{print$NF}')) 2>/dev/null && ret=0
                     sleep 0.1
                     rm -rf "$RUNTMPDIR" 2>/dev/null
                 else ret=0
@@ -1173,7 +1173,7 @@ cleanup() {
                     [ -S "$DBUSP_SOCKET" ] && \
                         rm -f "$DBUSP_SOCKET" 2>/dev/null
             fi
-            try_kill "$(cat "$RPIDSFL" 2>/dev/null)"
+            try_kill "$(get_child_pids "$RUNPID")"
             if [[ -d "$OVERFS_DIR" && "$RIM_KEEP_OVERFS" != 1 ]]
                 then
                     info_msg "Removing OverlayFS..."
@@ -1201,24 +1201,12 @@ cleanup() {
     fi
 }
 
-child_pids_walk() {
-    echo "$1"
-    for i in ${child_pids[$1]}
-        do child_pids_walk "$i"
-    done
-}
 get_child_pids() {
     if [ -n "$1" ]
         then
-            declare -A child_pids
-            while read pid ppid
-                do child_pids[$ppid]+=" $pid"
-            done < <(ps -eo user=,pid=,ppid=,cmd= 2>/dev/null|grep "^$RUNUSER"|\
-                     grep -v "bash $RUNDIR/Run.sh"|grep -wv "$RUNPPID"|\
-                     grep -Pv '\d+ sleep \d+'|gawk '{print$2,$3}'|sort -nu)
-            for i in "$@"
-                do ps -o pid= -p $(child_pids_walk "$i") 2>/dev/null|grep -v "$i"
-            done|sed 's|^[[:space:]]*||g'
+            local CPIDS="$("${RUNSTATIC}/cpids" "$@" 2>/dev/null)"
+            ps -o pid=,cmd= -p $CPIDS 2>/dev/null|\
+                grep -v "bash /.*/Run.sh"|gawk '{print$1}'
         else return 1
     fi
 }
@@ -1901,7 +1889,7 @@ check_autorun() {
             OLD_IFS="$IFS"
             IFS=$'\n'
             WHICH_AUTORUN0ARG=($(IFS="$OLD_IFS" \
-                RIM_NO_NVIDIA_CHECK=1 RIM_WAIT_RPIDS_EXIT=0 RIM_NO_RPIDSMON=1 \
+                RIM_NO_NVIDIA_CHECK=1 RIM_WAIT_RPIDS_EXIT=0 \
                 RIM_QUIET_MODE=1 RIM_SANDBOX_NET=0 RIM_NO_BWRAP_OVERLAY=1 \
                 "${archeck_cmd[@]}" which -a "$AUTORUN0ARG" </dev/null))
             IFS="$OLD_IFS"
@@ -2109,7 +2097,6 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_ENABLE_HOSTEXEC$GREEN=1                    Enables the ability to execute commands at the host level
         ${YELLOW}RIM_HOST_TOOLS$GREEN=cmd,cmd                   Enables specified commands from the host (0 to disable)
         ${YELLOW}RIM_HOST_XDG_OPEN$GREEN=1                      Enables xdg-open from the host
-        ${YELLOW}RIM_NO_RPIDSMON$GREEN=1                        Disables the monitoring thread of running processes
         ${YELLOW}RIM_WAIT_RPIDS_EXIT$GREEN=1                    Wait for all processes to exit
         ${YELLOW}RIM_EXEC_SAME_PWD$GREEN=1                      Use same ${YELLOW}\$PWD$GREEN for rim-exec and hostexec
         ${YELLOW}RIM_SANDBOX_NET$GREEN=1                        Creates a network sandbox
@@ -2228,12 +2215,12 @@ case "$ARG1" in
     rim-psmon   ) set_default_option ; RIM_TMP_HOME=1
                     RIM_UNSHARE_PIDS=0 ; RIM_CONFIG=0
                     export SSRV_SOCK="unix:$RUNPIDDIR/rmp"
-                    RIM_NO_RPIDSMON=1 ; RIM_QUIET_MODE=1
+                    RIM_QUIET_MODE=1
                     RIM_DINTEG=0 ;;
     rim-kill   |\
     rim-help   |\
     rim-ofsls   ) set_default_option ; RIM_NO_CRYPTFS_MOUNT=1 ; RIM_CONFIG=0
-                  RIM_NO_RPIDSMON=1 ; RIM_DINTEG=0 ;;
+                  RIM_DINTEG=0 ;;
 esac
 
 unset SET_RUNIMAGE_CONFIG SET_RUNIMAGE_INTERNAL_CONFIG
@@ -2385,7 +2372,7 @@ if is_rio_running
             rim-dinteg    ) RIM_SHARE_ICONS=0 ; export RIM_DINTEG=1 ;;
             rim-pkgls  |\
             rim-binls     ) set_default_option ; RIM_QUIET_MODE=1 ; RIM_CONFIG=0
-                            RIM_NO_RPIDSMON=1 ; RIM_DINTEG=0 ;;
+                            RIM_DINTEG=0 ;;
             rim-decfs     ) set_overfs_option crypt ;;
             rim-encfs  |\
             rim-enc-passwd) set_overfs_option crypt ; RIM_NO_CRYPTFS_MOUNT=1 ;;
@@ -2715,47 +2702,14 @@ if [ "$RIM_UNSHARE_LOCALTIME" == 1 ]
     else LOCALTIME_BIND+=("--ro-bind-try" "/etc/localtime" "/etc/localtime")
 fi
 
-if [ "$RIM_NO_RPIDSMON" != 1 ]
-    then
-        RPIDSFL="$RUNPIDDIR/rpids"
-        TINI_PIDFL="$RUNPIDDIR/tini.pid"
-        (wait_rpids=15
-        while [[ ! -n "$oldrpids" && "$wait_rpids" -gt 0 ]]
-            do
-                oldrpids="$(get_child_pids "$RUNPID")"
-                wait_rpids="$(( $wait_rpids - 1 ))"
-                sleep 0.01 2>/dev/null
-        done
-        while ps -o pid= -p $oldrpids &>/dev/null
-            do
-                newrpids="$(get_child_pids "$RUNPID")"
-                if [ ! -n "$newrpids" ]
-                    then
-                        if [ "$wait_rpids" -gt 0 ]
-                            then
-                                wait_rpids="$(( $wait_rpids - 1 ))"
-                                sleep 0.01 2>/dev/null
-                                continue
-                        fi
-                        break
-                    else
-                        if [[ -n "$(echo -e "$newrpids\n$oldrpids"|\
-                            sort -n|uniq -u)" || ! -f "$RPIDSFL" ]]
-                            then
-                                [ -d "$(dirname "$RPIDSFL")" ] && \
-                                echo "$newrpids" > "$RPIDSFL"
-                                oldrpids="$newrpids"
-                        fi
-                        if [[ ! -f "$TINI_PIDFL" && -f "$RPIDSFL" ]]
-                            then
-                                TINI_PID="$(ps -opid=,cmd= -p $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null|\
-                                            grep -E '^( *)?[0-9]* /var/RunDir/static/tini'|gawk '{print$1}')"
-                                [ -n "$TINI_PID" ] && echo "$TINI_PID" > "$TINI_PIDFL"
-                        fi
-                fi
-                sleep 0.5 2>/dev/null
-        done) &
-fi
+TINI_PIDFL="$RUNPIDDIR/tini.pid"
+(while is_pid "$RUNPID" && [ ! -f "$TINI_PIDFL" ]
+    do
+        TINI_PID="$(ps -opid=,cmd= -p $(get_child_pids "$RUNPID") 2>/dev/null|\
+                    grep -E '^( *)?[0-9]* /var/RunDir/static/tini'|gawk '{print$1}')"
+        [ -n "$TINI_PID" ] && echo "$TINI_PID" > "$TINI_PIDFL"
+        sleep 0.1 2>/dev/null
+done) &
 
 if [[ ! -n "$DBUS_SESSION_BUS_ADDRESS" && "$RIM_UNSHARE_DBUS" != 1 ]]
     then
@@ -2955,7 +2909,7 @@ if [ "$RIM_OVERFS_MODE" != 0 ] && [[ "$RIM_OVERFS_MODE" == 1 || "$RIM_KEEP_OVERF
             else
                 mkdir -p "$OVERFS_DIR"/{layers,mnt}
                 UNIONFS_ARGS=(
-                    -f -o max_files=$(ulimit -n -H),nodev,hide_meta_files,cow,noatime,nodev
+                    -f -o max_files=$(ulimit -n -H),nodev,hide_meta_files,cow,nodev
                     -o uid=$EUID,gid=${EGID}$([ "$EUID" != 0 ] && echo ,relaxed_permissions)
                     -o dirs="$OVERFS_DIR/layers"=RW:"$RUNDIR"=RO
                 )
@@ -3782,7 +3736,7 @@ if [ "$RIM_WAIT_RPIDS_EXIT" == 1 ]
     then
         trap cleanup INT
         find_processes() {
-            processes="$(ps -ocmd= -p $(cat "$RPIDSFL" 2>/dev/null) 2>/dev/null|grep -Ev "$IGNPS")"
+            processes="$(ps -ocmd= -p $(get_child_pids "$RUNPID") 2>/dev/null|grep -Ev "$IGNPS")"
         }
         IGNPS="$RUNPIDDIR|$RUNDIR|/var/RunDir|$RUNIMAGEDIR"
         [ -n "$SSRV_PID" ] && IGNPS+="|slirp4netns.*$SSRV_PID"
@@ -3790,7 +3744,7 @@ if [ "$RIM_WAIT_RPIDS_EXIT" == 1 ]
         while is_pid "$RUNPID" && \
             [ -n "$processes" ]
             do
-                sleep 0.5
+                sleep 1
                 find_processes
         done
         [ -f "$BWINFFL" ] && \
