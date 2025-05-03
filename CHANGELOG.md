@@ -1,3 +1,10 @@
+# v0.41.2
+
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage.git) package
+* Update [runimage-tini](https://github.com/VHSgunzo/runimage-tini.git) package
+* Add [tini option](https://github.com/VHSgunzo/tini/commit/2b1264629e5535d3291729c5510d794ab771fb83) for kill all descendant processes when the main child exits
+* Minor fixes
+
 # v0.41.1
 
 * Update [sharun](https://github.com/VHSgunzo/sharun) [v0.6.5](https://github.com/VHSgunzo/sharun/releases/tag/v0.6.5)

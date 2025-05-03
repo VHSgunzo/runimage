@@ -1382,7 +1382,7 @@ bwrun() {
                 BWRAP_EXEC+=(--uid 0 --gid 0)
             [ -n "$LIB_PATH" ] && \
                 BWRAP_EXEC+=(--setenv LD_LIBRARY_PATH "$LIB_PATH")
-            BWRAP_EXEC+=(/var/RunDir/static/tini -s -p SIGTERM -g --)
+            BWRAP_EXEC+=(/var/RunDir/static/tini -a -k SIGTERM -s -p SIGTERM -g --)
             if is_snet
                 then
                     unset CHANGE_TAPIP DROP_CIDRS

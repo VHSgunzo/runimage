@@ -142,7 +142,7 @@ if [[ "${RUNSRC,,}" =~ .*\.(runimage|rim)$ && \
     then RUNBASENAME="${RUNBASENAME}.${RUNSRC##*.}"
 fi
 
-NEWRUNIMAGE="$(realpath "$RUNBASENAME").new$BUILDKEY"
+NEWRUNIMAGE="$(realpath "$RUNBASENAME" 2>/dev/null||echo "$(dirname "$RUNBASENAME")/$(basename "$RUNBASENAME")").new$BUILDKEY"
 OLDRUNIMAGE="${NEWRUNIMAGE%.new$BUILDKEY}"
 [[ -f "$NEWRUNIMAGE" || -d "$NEWRUNIMAGE" || -L "$NEWRUNIMAGE" ]] && \
      rm -rf "$NEWRUNIMAGE"
