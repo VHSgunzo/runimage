@@ -4,7 +4,7 @@
 
 ![image](screenshots/rim-shell.png)
 
-RunImage is designed to be completely static and portable to run on almost any Linux distribution. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs). The technology of single-file containerization is based on [unprivileged user namespaces](https://lwn.net/Articles/531114) and works with a [uruntime](https://github.com/VHSgunzo/uruntime), [DwarFS](https://github.com/mhx/dwarfs) (or [SquashFS](https://docs.kernel.org/filesystems/squashfs.html)) image, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static) and [sharun](https://github.com/VHSgunzo/sharun) for the operation of the container [Run.sh script](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/Run.sh), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap) with [tini](https://github.com/krallin/tini) as init and [ssrv](https://github.com/VHSgunzo/ssrv) as shell server/client.
+RunImage is designed to be completely static and portable to run on almost any Linux distribution. It is based on a specially configured [Arch Linux rootfs](https://github.com/VHSgunzo/runimage-rootfs). The technology of single-file containerization is based on [unprivileged user namespaces](https://lwn.net/Articles/531114) and works with a [uruntime](https://github.com/VHSgunzo/uruntime), [DwarFS](https://github.com/mhx/dwarfs) (or [SquashFS](https://docs.kernel.org/filesystems/squashfs.html)) image, statically compiled [binaries](https://github.com/VHSgunzo/runimage-static) and [sharun](https://github.com/VHSgunzo/sharun) for the operation of the container [Run.sh script](https://github.com/VHSgunzo/runimage/blob/main/rootfs/var/RunDir/Run.sh), and containerization itself is carried out by [statically compiled](https://github.com/VHSgunzo/bubblewrap-static/releases) [Bubblewrap](https://github.com/containers/bubblewrap) with [tini](https://github.com/VHSgunzo/tini) as init and [ssrv](https://github.com/VHSgunzo/ssrv) as shell server/client.
 
 In addition, RunImage has the ability to isolate itself from the main system, use separate portable or sandbox home directories and configuration files for each executable file, and has the ability to run separate X11 servers, including running multiple Xorg servers on TTY (XFCE is used as DE)
 
@@ -697,7 +697,7 @@ Main used projects
 * [sharun](https://github.com/VHSgunzo/sharun)
 * [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper)
 * [bubblewrap-static](https://github.com/VHSgunzo/bubblewrap-static) and [runimage-bubblewrap](https://github.com/VHSgunzo/runimage-bubblewrap)
-* [tini-static](https://github.com/VHSgunzo/tini-static) and [runimage-tini](https://github.com/VHSgunzo/runimage-tini)
+* [tini](https://github.com/VHSgunzo/tini) and [runimage-tini](https://github.com/VHSgunzo/runimage-tini)
 * [ssrv](https://github.com/VHSgunzo/ssrv) and [runimage-ssrv](https://github.com/VHSgunzo/runimage-ssrv)
 * [runimage-repo](https://github.com/runimage/repo)
 * [runimage-mirrorlist](https://github.com/VHSgunzo/runimage-mirrorlist)
@@ -714,6 +714,7 @@ Main used projects
 * [fakechroot](https://github.com/dex4er/fakechroot)
 * [pacutils](https://github.com/andrewgregory/pacutils)
 * [chisel](https://github.com/VHSgunzo/chisel) and [runimage-chisel](https://github.com/VHSgunzo/runimage-chisel)
+* [runimage-cpids](https://github.com/VHSgunzo/runimage-cpids)
 
 </details> 
 
