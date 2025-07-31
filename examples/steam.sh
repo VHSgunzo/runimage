@@ -34,9 +34,7 @@ run_install() {
 
     echo '== create RunImage config for app (optionally)'
     echo \
-'RIM_SYS_NVLIBS="${RIM_SYS_NVLIBS:=1}"
-
-RIM_CMPRS_LVL="${RIM_CMPRS_LVL:=22}"
+'RIM_CMPRS_LVL="${RIM_CMPRS_LVL:=22}"
 RIM_CMPRS_BSIZE="${RIM_CMPRS_BSIZE:=24}"
 
 RIM_SHARE_ICONS="${RIM_SHARE_ICONS:=1}"

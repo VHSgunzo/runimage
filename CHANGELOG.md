@@ -1,3 +1,15 @@
+# v0.42.1
+
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage.git) package
+* Update [sharun](https://github.com/VHSgunzo/sharun) [v0.7.3](https://github.com/VHSgunzo/sharun/releases/tag/v0.7.3)
+* Update [uruntime](https://github.com/VHSgunzo/uruntime) [v0.4.3](https://github.com/VHSgunzo/uruntime/releases/tag/v0.4.3)
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static) package
+* Add `index=off` overlay option patch for [bubblewrap-static](https://github.com/VHSgunzo/bubblewrap-static)
+* Update [runimage-bubblewrap](https://github.com/VHSgunzo/runimage-bubblewrap.git) package
+* Update [examples](https://github.com/VHSgunzo/runimage/tree/main/examples)
+* Update [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs) package
+* Minor fixes
+
 # v0.41.2
 
 * Update [runimage-utils](https://github.com/VHSgunzo/runimage.git) package

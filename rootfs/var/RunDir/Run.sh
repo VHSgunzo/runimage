@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.41.1'
+export RUNIMAGE_VERSION='0.42.1'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -18,6 +18,7 @@ export RUNPIDDIR="$RUNTMPDIR/$RUNPID"
 export BWINFFL="$RUNPIDDIR/bwinf"
 export RIMENVFL="$RUNPIDDIR/rimenv"
 export RUNDIRFL="$RUNPIDDIR/rundir"
+export TINI_PIDFL="$RUNPIDDIR/tini.pid"
 export SSRV_CPIDS_DIR="$RUNPIDDIR/cpids"
 export SSRV_PID_FILE="$RUNPIDDIR/ssrv.pid"
 export SSRV_NOSEP_CPIDS=1
@@ -397,45 +398,46 @@ get_nvidia_driver_image() {
                 then
                     info_msg "Find Nvidia ${nvidia_version} local libs, please wait..."
                     cp_nvfiles() (
-                        local sys_pth
+                        local sys_pth sys_pths
                         local dir="$1"
                         shift
                         mkdir -p "$dir" && \
                         cd "$dir"||return 1
-                        for file in "$@"
+                        for item in "$@"
                             do
+                                OLD_IFS="$IFS"
+                                IFS=$'\n'
                                 case "$dir" in
-                                    64|32) sys_pth="$(realpath "$file" 2>/dev/null)" ;;
-                                    bin) sys_pth="$(command -v "$file" 2>/dev/null)" ;;
-                                    wine) sys_pth="$(find /usr -type f -name "$file" 2>/dev/null|head -1)" ;;
-                                    .) sys_pth="$(ls "$file" 2>/dev/null|head -1)" ;;
-                                    *) sys_pth="$(find /etc/ /usr/share -name "*${file}" -type f 2>/dev/null|head -1)" ;;
+                                    64|32) sys_pths="$(realpath "$item" 2>/dev/null)" ;;
+                                    bin) sys_pths="$(command -v "$item" 2>/dev/null)" ;;
+                                    wine) sys_pths=($(find /usr -type f -name "$item" 2>/dev/null)) ;;
+                                    .) sys_pths=($(ls "$item" 2>/dev/null)) ;;
+                                    *) sys_pths=($(find /etc/ /usr/share -name "*${item}" -type f 2>/dev/null)) ;;
                                 esac
-                                if [ -n "$sys_pth" ]
+                                IFS="$OLD_IFS"
+                                if [ -n "$sys_pths" ]
                                     then
-                                        local file="$(basename "$sys_pth")"
-                                        if [[ ! -e "$file" && -e "$sys_pth" ]]
-                                            then cp -f "$sys_pth" "$file"
-                                        fi
+                                        for sys_pth in "${sys_pths[@]}"
+                                            do
+                                                local file="$(basename "$sys_pth")"
+                                                if [[ ! -e "$file" && -e "$sys_pth" ]]
+                                                    then cp -f "$sys_pth" "$file"
+                                                fi
+                                        done
                                 fi
                         done
                     )
                     [ "$NVDRVARCH" != 'x86_64' ] && \
                         RIM_NO_32BIT_NVLIBS_CHECK=1
                     NVTRASH_LIBS=('libnvidia-container*')
-                    NVCONFS=('nvidia-dbus.conf' '-nvidia-drm-outputclass.conf' 'nvidia.icd' '-nvidia.conf')
-                    NVJSONS=(
-                        '_nvidia.json' '_nvidia_wayland.json' '_nvidia_gbm.json'
-                        'nvidia_icd.json' 'nvidia_layers.json' '_nvidia_xcb.json'
-                        '_nvidia_xlib.json' 'nvidia_icd_vksc.json'
-                    )
-                    PROFS=(
-                        "nvidia-application-profiles-${nvidia_version}-key-documentation"
-                        "nvidia-application-profiles-${nvidia_version}-rc"
+                    NVCONFS=('nvidia*.conf' 'nvidia.icd')
+                    NVJSONS=('nvidia*.json')
+                    NVPROFS=(
+                        "nvidia-application-profiles-${nvidia_version}-*"
                         'nvoptix.bin'
                     )
-                    NVWINELS=('_nvngx.dll'  'nvngx.dll' 'nvngx_dlssg.dll')
-                    LICENSES=(
+                    NVWINELS=('*nvngx*.dll')
+                    NVLICENSES=(
                         '/usr/share/licenses/nvidia-utils/LICENSE'
                         /usr/share/doc/nvidia-driver-*/LICENSE
                     )
@@ -448,12 +450,13 @@ get_nvidia_driver_image() {
                         do NVLIBS="$(grep -v "$lib"<<<"$NVLIBS")"
                     done
                     NVLIBS64=($(grep -E "/lib/|/${NVDRVARCH}-linux-gnu/"<<<"$NVLIBS"))
-                    for pth in lib "${NVDRVARCH}-linux-gnu"
+                    for pth in lib "lib/${NVDRVARCH}-linux-gnu"
                         do
                             libs=(
-                                "/usr/$pth/vdpau/libvdpau_nvidia.so"
+                                "/usr/$pth/vdpau/libvdpau_nvidia.so.1"
                                 "/usr/$pth/xorg/modules/drivers/nvidia_drv.so"
                                 "/usr/$pth/nvidia/xorg/libglxserver_nvidia.so"
+                                "/usr/$pth/nvidia/libglxserver_nvidia.so"
                             )
                             for lib in "${libs[@]}"
                                 do [ -e "$lib" ] && NVLIBS64+=("$lib")
@@ -495,15 +498,21 @@ get_nvidia_driver_image() {
                     cp_nvfiles bin "${NVBINS[@]}"
                     cp_nvfiles conf "${NVCONFS[@]}"
                     cp_nvfiles json "${NVJSONS[@]}"
-                    if [[ ! -e 'profiles' && -d '/usr/share/nvidia' ]]
-                        then cp -rf '/usr/share/nvidia' 'profiles'
-                        else cp_nvfiles profiles "${NVJSONS[@]}"
+                    if [[ ! -e 'profiles' ]]
+                        then
+                            if [ -d '/usr/share/nvidia'  ]
+                                then cp -TLrf '/usr/share/nvidia' 'profiles'
+                                else cp_nvfiles profiles "${NVPROFS[@]}"
+                            fi
                     fi
-                    if [[ ! -e 'wine' && -d '/usr/lib/nvidia/wine' ]]
-                        then cp -rf '/usr/lib/nvidia/wine' 'wine'
-                        else cp_nvfiles wine "${NVWINELS[@]}"
+                    if [ ! -e 'wine' ]
+                        then
+                            if [ -d '/usr/lib/nvidia/wine' ]
+                                then cp -TLrf '/usr/lib/nvidia/wine' 'wine'
+                                else cp_nvfiles wine "${NVWINELS[@]}"
+                            fi
                     fi
-                    cp_nvfiles . "${LICENSES[@]}")
+                    cp_nvfiles . "${NVLICENSES[@]}")
                 else
                     info_msg "Downloading Nvidia ${nvidia_version} driver, please wait..."
                     nvidia_driver_run="NVIDIA-Linux-x86_64-${nvidia_version}.run"
@@ -680,14 +689,14 @@ check_nvidia_driver() {
             else
                 if [ -d "/usr/lib/${NVDRVARCH}-linux-gnu" ]
                     then
-                        nvidia_version="$(basename /usr/lib/${NVDRVARCH}-linux-gnu/libGLX_nvidia.so.*.*|tail -c +18)"
+                        nvidia_version="$(basename "$(realpath /usr/lib/${NVDRVARCH}-linux-gnu/libGLX_nvidia.so.*|head -1)"|tail -c +18)"
                     else
-                        nvidia_version="$(basename /usr/lib/libGLX_nvidia.so.*.*|tail -c +18)"
+                        nvidia_version="$(basename "$(realpath /usr/lib/libGLX_nvidia.so.*)"|tail -c +18)"
                 fi
             fi
-            if [[ -n "$nvidia_version" && "$nvidia_version" != "*.*" ]]
+            if [[ -n "$nvidia_version" && "$nvidia_version" != ".*" ]]
                 then
-                    nvidia_version_inside="$(basename "$RUNROOTFS/usr/lib/libGLX_nvidia.so".*.*|tail -c +18)"
+                    nvidia_version_inside="$(basename "$(realpath "$RUNROOTFS/usr/lib/libGLX_nvidia.so".*|head -1)"|tail -c +18)"
                     if [ "$nvidia_version" != "$nvidia_version_inside" ]
                         then
                             if [[ -n "$nvidia_version_inside" && "$nvidia_version_inside" != "*.*" ]]
@@ -1340,6 +1349,12 @@ bwrun() {
     export SSRV_SOCK_PATH="$(sed "s|^unix:||"<<<"$SSRV_SOCK")"
     if [ ! -e "$SSRV_SOCK_PATH" ]
         then
+            (if wait_exist "$BWINFFL"
+                then
+                    TINI_PID="$(ps -opid=,cmd= -p $(get_child_pids "$RUNPID") 2>/dev/null|\
+                                grep -E '^( *)?[0-9]* /var/RunDir/static/tini'|gawk '{print$1}')"
+                    [ -n "$TINI_PID" ] && echo "$TINI_PID" > "$TINI_PIDFL"
+            fi) &
             BWRAP_EXEC=("$BWRAP")
             if [[ -d "$OVERFS_DIR" && -d "$BOVERLAY_SRC" && "$RIM_NO_BWRAP_OVERLAY" != 1 ]]
                 then
@@ -2701,15 +2716,6 @@ if [ "$RIM_UNSHARE_LOCALTIME" == 1 ]
     then warn_msg "Host /etc/localtime is unshared!"
     else LOCALTIME_BIND+=("--ro-bind-try" "/etc/localtime" "/etc/localtime")
 fi
-
-TINI_PIDFL="$RUNPIDDIR/tini.pid"
-(while is_pid "$RUNPID" && [ ! -f "$TINI_PIDFL" ]
-    do
-        TINI_PID="$(ps -opid=,cmd= -p $(get_child_pids "$RUNPID") 2>/dev/null|\
-                    grep -E '^( *)?[0-9]* /var/RunDir/static/tini'|gawk '{print$1}')"
-        [ -n "$TINI_PID" ] && echo "$TINI_PID" > "$TINI_PIDFL"
-        sleep 0.1 2>/dev/null
-done) &
 
 if [[ ! -n "$DBUS_SESSION_BUS_ADDRESS" && "$RIM_UNSHARE_DBUS" != 1 ]]
     then

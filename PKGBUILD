@@ -1,7 +1,7 @@
 # Maintainer: VHSgunzo <vhsgunzo.github.io>
 
 pkgname='runimage-utils'
-pkgver='0.41.2'
+pkgver='0.42.1'
 pkgrel='1'
 pkgdesc='Utilities and scripts for RunImage container'
 url="https://github.com/VHSgunzo/runimage"
