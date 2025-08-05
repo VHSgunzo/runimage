@@ -1,3 +1,12 @@
+# v0.42.2
+
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage.git) package
+* Update [runimage-bubblewrap](https://github.com/VHSgunzo/runimage-bubblewrap.git) package
+* Update [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs) package
+* Fix bind `ld.so.cache`
+* Fix install `xorg` packages (`archlinux`) for RunImage Desktop mode
+* Update a file for profiling open files when launching the application for DwarFS
+
 # v0.42.1
 
 * Update [runimage-utils](https://github.com/VHSgunzo/runimage.git) package

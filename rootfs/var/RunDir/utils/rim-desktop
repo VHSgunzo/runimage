@@ -117,7 +117,7 @@ if is_exe_exist pacman
             then
                 info_msg "Installing the necessary dependencies..."
                 pac -Syu --noconfirm && \
-                pac --needed --noconfirm -S xorg tk tcl xclip xfce4 xfce4-goodies pavucontrol qt5ct && \
+                pac --needed --noconfirm -S extra/xorg tk tcl xclip xfce4 xfce4-goodies pavucontrol qt5ct && \
                 pac --noconfirm -Rdd xfce4-screensaver xfce4-power-manager||\
                 exit 1
         fi

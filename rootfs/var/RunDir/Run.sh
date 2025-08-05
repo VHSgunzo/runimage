@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.42.1'
+export RUNIMAGE_VERSION='0.42.2'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -653,8 +653,6 @@ check_nvidia_driver() {
                                             "$RUNROOTFS/etc/ld.so.cache" 2>/dev/null
                                         echo "$RUNROOTFS_VERSION-$nvidia_version" > \
                                             "$RUNROOTFS/etc/ld.so.version"
-                                    else
-                                        BIND_LDSO_CACHE=1
                                 fi
                             else
                                 error_msg "Failed to merge nvidia library cache!"
@@ -883,7 +881,9 @@ check_nvidia_driver() {
                                             add_bin_pth "$nvidia_driver_dir/bin"
                                             add_lib_pth "$nvidia_driver_dir/64:$nvidia_driver_dir/32"
                                     fi
-                                    update_ld_cache
+                                    if update_ld_cache && [ ! -w "$RUNROOTFS" ]
+                                        then BIND_LDSO_CACHE=1
+                                    fi
                                     if [ "$RIM_UNSHARE_RUN" != 1 ]
                                         then
                                             NVXSOCKET="$(ls /run/nvidia-xdriver-* 2>/dev/null|head -1)"
