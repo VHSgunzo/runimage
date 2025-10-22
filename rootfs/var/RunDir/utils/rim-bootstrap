@@ -69,6 +69,7 @@ if [ ! -x '/tmp/strap.sh' ]
         chmod +x /tmp/strap.sh
 fi
 ./RunDir/Run /tmp/strap.sh
+./RunDir/Run pacman --noconfirm -S blackarch-keyring --overwrite '*'
 
 if [ "$ROOTFS_ARCH" == 'x86_64' ]
     then
