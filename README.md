@@ -131,6 +131,7 @@ Configuration environment variables:
     RIM_UNSHARE_HOSTNAME=1                   Unshares UTS namespace and hostname
     RIM_UNSHARE_HOSTS=1                      Unshares host /etc/hosts
     RIM_UNSHARE_RESOLVCONF=1                 Unshares host /etc/resolv.conf
+    RIM_COPY_RESOLVCONF=1                    Copies host /etc/resolv.conf
     RIM_UNSHARE_RUN=1                        Unshares host /run
     RIM_SHARE_SYSTEMD=1                      Shares host SystemD
     RIM_UNSHARE_DBUS=1                       Unshares host DBUS
@@ -142,6 +143,9 @@ Configuration environment variables:
     RIM_UNSHARE_NSS=1                        Unshares host NSS (/etc/nsswitch.conf)
     RIM_UNSHARE_TMP=1                        Unshares host /tmp
     RIM_UNSHARE_TMPX11UNIX=1                 Unshares host /tmp/.X11-unix
+    RIM_UNSHARE_MACHINEID=1                  Unshares host /etc/machine-id
+    RIM_SPOOF_MACHINEID=1                    Spoof /etc/machine-id with a random id
+    RIM_MACHINEID_FILE=/path/machine-id      Binds machine-id to /etc/machine-id in RunImage (0 to disable)
     RIM_UNSHARE_DEF_MOUNTS=1                 Unshares default mount points (/mnt /media /run/media)
     RIM_SHARE_BOOT=1                         Shares host /boot
     RIM_SHARE_ICONS=1                        Shares host /usr/share/icons
@@ -149,7 +153,9 @@ Configuration environment variables:
     RIM_SHARE_THEMES=1                       Shares host /usr/share/themes
     RIM_SHARE_PKGCACHE=1                     Shares host packages cache
     RIM_BIND=/path:/path,/path1:/path1       Binds specified paths to the container
+    RIM_BIND_RO=/path:/path,/path1:/path1    Binds specified paths to the container in read-only
     RIM_BIND_PWD=1                           Binds $PWD to the container
+    RIM_BIND_RO_PWD=1                        Binds $PWD to the container in read-only
     RIM_NO_NVIDIA_CHECK=1                    Disables checking the nvidia driver version
     RIM_SYS_NVLIBS=1                         Try to use system Nvidia libraries
     RIM_NO_32BIT_NVLIBS_CHECK=1              Disable 32-bit Nvidia libraries check
@@ -172,7 +178,7 @@ Configuration environment variables:
     RIM_QUIET_MODE=1                         Disables all non-error RunImage messages
     RIM_NO_WARN=1                            Disables all warning RunImage messages
     RIM_NOTIFY=1                             Enables non-error RunImage notification
-    RUNTIME_EXTRACT_AND_RUN=1                Run RunImage after extraction without using FUSE
+    RUNIMAGE_EXTRACT_AND_RUN=1               Run RunImage after extraction without using FUSE
     TMPDIR=/path/TMPDIR                      Used for extract and run options
     RIM_CONFIG=/path/config.rcfg             RunImage сonfiguration file (0 to disable)
     RIM_ENABLE_HOSTEXEC=1                    Enables the ability to execute commands at the host level

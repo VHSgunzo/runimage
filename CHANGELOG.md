@@ -1,3 +1,22 @@
+# v0.43.1
+
+* Update [runimage-utils](https://github.com/VHSgunzo/runimage.git) package
+* Update [runimage-rootfs](https://github.com/VHSgunzo/runimage-rootfs) package
+* Update [Run-wrapper](https://github.com/VHSgunzo/Run-wrapper.git) package
+* Update [sharun](https://github.com/VHSgunzo/sharun) [v0.7.3](https://github.com/VHSgunzo/sharun/releases/tag/v0.7.3) -> [v0.7.8](https://github.com/VHSgunzo/sharun/releases/tag/v0.7.8) ([changes](https://github.com/VHSgunzo/sharun/compare/v0.7.3...v0.7.8))
+* Update [uruntime](https://github.com/VHSgunzo/uruntime) [v0.4.3](https://github.com/VHSgunzo/uruntime/releases/tag/v0.4.3) -> [v0.5.6](https://github.com/VHSgunzo/uruntime/releases/tag/v0.5.6) ([changes](https://github.com/VHSgunzo/uruntime/compare/v0.4.3...v0.5.6))
+* Update [runimage-static](https://github.com/VHSgunzo/runimage-static) package
+* Add `RIM_BIND_RO=/path:/path,/path1:/path1` Binds specified paths to the container in read-only
+* Add `RIM_BIND_RO_PWD=1` Binds `$PWD` to the container in read-only
+* Add `RIM_COPY_RESOLVCONF=1` Copies host `/etc/resolv.conf` (fix https://github.com/ivan-hc/Steam-appimage/issues/26)
+* Add `RIM_UNSHARE_MACHINEID=1` Unshares host `/etc/machine-id`
+* Add `RIM_SPOOF_MACHINEID=1` Spoof `/etc/machine-id` with a random id
+* Add `RIM_MACHINEID_FILE=/path/machine-id` Binds machine-id to `/etc/machine-id` in RunImage (0 to disable)
+* Fix nvidia driver check when musl installed
+* Update [examples](https://github.com/VHSgunzo/runimage/tree/main/examples)
+* Fix compatibility for repackaged RunImage with AppImage uruntime ([Steam-appimage](https://github.com/ivan-hc/Steam-appimag))
+* Minor fixes
+
 # v0.42.2
 
 * Update [runimage-utils](https://github.com/VHSgunzo/runimage.git) package

@@ -9,11 +9,10 @@ Run.sh
 rootfs/usr/bin/sed
 rootfs/usr/lib/libacl.so.1.1.2302
 rootfs/usr/bin/realpath
-rootfs/usr/bin/dirname
 rootfs/usr/bin/basename
 rootfs/usr/bin/tty
 rootfs/usr/bin/grep
-rootfs/usr/lib/libpcre2-8.so.0.14.0
+rootfs/usr/lib/libpcre2-8.so.0.15.0
 rootfs/usr/bin/cat
 sharun/bin/.version
 rootfs/.version
@@ -25,7 +24,7 @@ rootfs/usr/bin/chmod
 rootfs/usr/bin/id
 rootfs/usr/lib/libnss_systemd.so.2
 rootfs/usr/lib/libm.so.6
-rootfs/usr/lib/libcap.so.2.76
+rootfs/usr/lib/libcap.so.2.77
 rootfs/usr/lib/libgcc_s.so.1
 rootfs/usr/bin/xhost
 rootfs/usr/lib/libXmuu.so.1.0.0
@@ -41,13 +40,13 @@ rootfs/usr/bin/tr
 sharun/bin/bwrap
 sharun/bin/cpids
 rootfs/usr/bin/gawk
-sharun/bin/tini
 rootfs/usr/lib/libmpfr.so.6.2.2
 rootfs/usr/lib/libgmp.so.10.5.0
+sharun/bin/tini
 sharun/bin/ssrv
 rootfs/usr/bin/ps
 rootfs/usr/lib/libproc2.so.1.0.0
-rootfs/usr/lib/libsystemd.so.0.40.0
+rootfs/usr/lib/libsystemd.so.0.41.0
 rootfs/usr/bin/true
 rootfs/etc/ld.so.cache
 rootfs/usr/bin/rm

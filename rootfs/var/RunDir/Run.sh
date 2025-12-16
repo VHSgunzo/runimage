@@ -2,7 +2,7 @@
 shopt -s extglob
 
 DEVELOPERS="VHSgunzo"
-export RUNIMAGE_VERSION='0.42.2'
+export RUNIMAGE_VERSION='0.43.1'
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -25,7 +25,8 @@ export SSRV_NOSEP_CPIDS=1
 export SSRV_ENV='SSRV_PID'
 
 unset SESSION_MANAGER POSIXLY_CORRECT LD_PRELOAD ENV FORCE_KILL_PPID \
-    NVIDIA_DRIVER_BIND BIND_LDSO_CACHE FUSE_PIDS REBUILD_RUNIMAGE
+    NVIDIA_DRIVER_BIND BIND_LDSO_CACHE FUSE_PIDS REBUILD_RUNIMAGE \
+    NVIDIA_DRIVERS_DIR
 
 if [ ! -n "$SYS_PATH" ]
     then
@@ -48,6 +49,9 @@ export_rusp() {
 }
 
 export_rimg() {
+    if [ -f "$URUNTIME" ]
+        then export RUNIMAGE="$URUNTIME" && return
+    fi
     local rpth="$(realpath "$1" 2>/dev/null)"
     local wrpth="$(realpath "$(which_exe "$1")" 2>/dev/null)"
     if is_exe "$rpth"
@@ -73,6 +77,13 @@ export_rsrc() {
     fi
 }
 
+export_rdir() {
+    if [ -d "$URUNTIME_DIR" ]
+        then export RUNIMAGEDIR="$URUNTIME_DIR"
+        else export RUNIMAGEDIR="$(dirname "$RUNIMAGE" 2>/dev/null)"
+    fi
+}
+
 export_rootfs_info() {
     export RUNROOTFS_VERSION="$(cat "$RUNROOTFS/.version" \
                             "$RUNROOTFS/.type" \
@@ -83,14 +94,24 @@ export_rootfs_info() {
 
 [[ ! -n "$LANG" || "$LANG" =~ "UTF8" ]] && \
     export LANG=en_US.UTF-8
-
+if [[ -n "$APPOFFSET" && -n "$ARGV0" && -d "$APPDIR" ]]
+    then
+        export ARG0="$ARGV0"
+        export RUNDIR="$APPDIR"
+        export RUNOFFSET="$APPOFFSET"
+        if [ -f "$APPIMAGE" ]
+            then export RUNIMAGE="$APPIMAGE"
+            else export_rimg "$ARGV0"
+        fi
+        unset APPDIR ARGV0 APPOFFSET APPIMAGE
+fi
 if [[ -n "$RUNOFFSET" && -n "$ARG0" ]]
     then
         export_rusp
-        [ ! -n "$RUNIMAGE" ] && \
+        [ ! -f "$RUNIMAGE" ] && \
         export_rimg "$ARG0" # KDE Neon, CachyOS, Puppy Linux bug
         export_rsrc "$ARG0" "$RUNIMAGE"
-        export RUNIMAGEDIR="$(dirname "$RUNIMAGE" 2>/dev/null)"
+        export_rdir
         RUNIMAGENAME="$(basename "$RUNIMAGE" 2>/dev/null)"
     else
         [ ! -d "$RUNDIR" ] && \
@@ -114,7 +135,8 @@ export PORTABLEHOMEDIR="$RUNIMAGEDIR/portable-home"
 export RUNSRCNAME="$(basename "$RUNSRC" 2>/dev/null)"
 export RUNSTATIC_VERSION="$(cat "$RUNSTATIC/.version" 2>/dev/null)"
 export_rootfs_info
-export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version)"
+export RUNRUNTIME_VERSION="$("$RUNRUNTIME" --runtime-version 2>/dev/null||\
+                             "$RUNRUNTIME" --appimage-version 2>/dev/null)"
 
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
@@ -692,12 +714,12 @@ check_nvidia_driver() {
                         nvidia_version="$(basename "$(realpath /usr/lib/libGLX_nvidia.so.*)"|tail -c +18)"
                 fi
             fi
-            if [[ -n "$nvidia_version" && "$nvidia_version" != ".*" ]]
+            if [[ -n "$nvidia_version" && "$nvidia_version" != '*' ]]
                 then
                     nvidia_version_inside="$(basename "$(realpath "$RUNROOTFS/usr/lib/libGLX_nvidia.so".*|head -1)"|tail -c +18)"
                     if [ "$nvidia_version" != "$nvidia_version_inside" ]
                         then
-                            if [[ -n "$nvidia_version_inside" && "$nvidia_version_inside" != "*.*" ]]
+                            if [[ -n "$nvidia_version_inside" && "$nvidia_version_inside" != '*' ]]
                                 then
                                     nvidia_driver_image="$nvidia_version.nv.drv"
                                     NVDRVMNT="$RUNPIDDIR/mnt/nv${nvidia_version}drv"
@@ -1331,8 +1353,7 @@ create_sandbox_net() {
 
 bwrun() {
     unset EXEC_STATUS
-    if [ ! -f "$RUNROOTFS"/lib/ld-musl-*.so.1 ] && \
-        [ -f "$RUNROOTFS"/lib/ld-linux-*.so.* ]
+    if [ -f "$RUNROOTFS"/lib/ld-linux-*.so.* ]
         then
             if [ "$RIM_NO_NVIDIA_CHECK" == 1 ]
                 then warn_msg "Nvidia driver check is disabled!"
@@ -1382,7 +1403,8 @@ bwrun() {
                 "${NETWORK_BIND[@]}" "${XDG_RUN_BIND[@]}"
                 "${LD_CACHE_BIND[@]}" "${TMPDIR_BIND[@]}"
                 "${UNSHARE_BIND[@]}" "${HOME_BIND[@]}"
-                "${XORG_CONF_BIND[@]}" "${BWRAP_BIND[@]}"
+                "${XORG_CONF_BIND[@]}"
+                "${BWRAP_BIND[@]}" "${BWRAP_BIND_RO[@]}"
                 "${FONTS_BIND[@]}" "${ICONS_BIND[@]}"
                 "${BOOT_BIND[@]}" "${THEMES_BIND[@]}"
                 "${PKGCACHE_BIND[@]}"
@@ -2065,6 +2087,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_UNSHARE_HOSTNAME$GREEN=1                   Unshares UTS namespace and hostname
         ${YELLOW}RIM_UNSHARE_HOSTS$GREEN=1                      Unshares host /etc/hosts
         ${YELLOW}RIM_UNSHARE_RESOLVCONF$GREEN=1                 Unshares host /etc/resolv.conf
+        ${YELLOW}RIM_COPY_RESOLVCONF$GREEN=1                    Copies host /etc/resolv.conf
         ${YELLOW}RIM_UNSHARE_RUN$GREEN=1                        Unshares host /run
         ${YELLOW}RIM_SHARE_SYSTEMD$GREEN=1                      Shares host SystemD
         ${YELLOW}RIM_UNSHARE_DBUS$GREEN=1                       Unshares host DBUS
@@ -2076,6 +2099,9 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_UNSHARE_NSS$GREEN=1                        Unshares host NSS (/etc/nsswitch.conf)
         ${YELLOW}RIM_UNSHARE_TMP$GREEN=1                        Unshares host /tmp
         ${YELLOW}RIM_UNSHARE_TMPX11UNIX$GREEN=1                 Unshares host /tmp/.X11-unix
+        ${YELLOW}RIM_UNSHARE_MACHINEID$GREEN=1                  Unshares host /etc/machine-id
+        ${YELLOW}RIM_SPOOF_MACHINEID$GREEN=1                    Spoof /etc/machine-id with a random id
+        ${YELLOW}RIM_MACHINEID_FILE$GREEN=/path/machine-id      Binds machine-id to /etc/machine-id in RunImage (0 to disable)
         ${YELLOW}RIM_UNSHARE_DEF_MOUNTS$GREEN=1                 Unshares default mount points (/mnt /media /run/media)
         ${YELLOW}RIM_SHARE_BOOT$GREEN=1                         Shares host /boot
         ${YELLOW}RIM_SHARE_ICONS$GREEN=1                        Shares host /usr/share/icons
@@ -2083,7 +2109,9 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_SHARE_THEMES$GREEN=1                       Shares host /usr/share/themes
         ${YELLOW}RIM_SHARE_PKGCACHE$GREEN=1                     Shares host packages cache
         ${YELLOW}RIM_BIND$GREEN=/path:/path,/path1:/path1       Binds specified paths to the container
+        ${YELLOW}RIM_BIND_RO$GREEN=/path:/path,/path1:/path1    Binds specified paths to the container in read-only
         ${YELLOW}RIM_BIND_PWD$GREEN=1                           Binds ${YELLOW}\$PWD$GREEN to the container
+        ${YELLOW}RIM_BIND_RO_PWD$GREEN=1                        Binds ${YELLOW}\$PWD$GREEN to the container in read-only
         ${YELLOW}RIM_NO_NVIDIA_CHECK$GREEN=1                    Disables checking the nvidia driver version
         ${YELLOW}RIM_SYS_NVLIBS$GREEN=1                         Try to use system Nvidia libraries
         ${YELLOW}RIM_NO_32BIT_NVLIBS_CHECK$GREEN=1              Disable 32-bit Nvidia libraries check
@@ -2106,7 +2134,7 @@ ${GREEN}RunImage ${RED}v${RUNIMAGE_VERSION} ${GREEN}by $DEVELOPERS
         ${YELLOW}RIM_QUIET_MODE$GREEN=1                         Disables all non-error RunImage messages
         ${YELLOW}RIM_NO_WARN$GREEN=1                            Disables all warning RunImage messages
         ${YELLOW}RIM_NOTIFY$GREEN=1                             Enables non-error RunImage notification
-        ${YELLOW}RUNTIME_EXTRACT_AND_RUN$GREEN=1                Run RunImage after extraction without using FUSE
+        ${YELLOW}RUNIMAGE_EXTRACT_AND_RUN$GREEN=1               Run RunImage after extraction without using FUSE
         ${YELLOW}TMPDIR$GREEN=/path/TMPDIR                      Used for extract and run options
         ${YELLOW}RIM_CONFIG$GREEN=/path/config.rcfg             RunImage сonfiguration file (0 to disable)
         ${YELLOW}RIM_ENABLE_HOSTEXEC$GREEN=1                    Enables the ability to execute commands at the host level
@@ -2185,14 +2213,14 @@ fi
 
 if [ "$RIM_AUTORUN" != 0 ]
     then
-        if [[ -n "$RIM_AUTORUN" && "$RUNSRCNAME" =~ ^(Run|runimage).* ]]
+        if [[ -n "$RIM_AUTORUN" && "$RUNSRCNAME" =~ ^(AppRun|Run|runimage).* ]]
             then
                 export RUNSRCNAME="$(basename "$RIM_AUTORUN")"
         elif [[ "${RUNSRCNAME,,}" =~ .*\.(runimage|rim)$ ]]
             then
                 export RUNSRCNAME="$(sed 's|\.runimage$||i;s|\.rim$||i'<<<"$RUNSRCNAME")"
                 export RIM_AUTORUN="$RUNSRCNAME"
-        elif [[ ! "$RUNSRCNAME" =~ (Run|runimage).* ]]
+        elif [[ ! "$RUNSRCNAME" =~ (AppRun|Run|runimage).* ]]
             then
                 export RIM_AUTORUN="$RUNSRCNAME"
         fi
@@ -2539,7 +2567,7 @@ EOF
                     then sed -i 's|^DownloadUser|#DownloadUser|;s|^SigLevel.*|SigLevel = Never|;s|^#Color|Color|;s|^#ParallelDownloads|ParallelDownloads|' "$pacman_conffl"
                 fi
                 BIND_FILES=(
-                    etc/machine-id var/lib/dbus/machine-id
+                    etc/machine-id
                     etc/resolv.conf etc/localtime etc/hosts
                     etc/hostname etc/X11/xorg.conf var/log/wtmp
                     var/log/lastlog home/runimage/.Xauthority
@@ -2557,6 +2585,8 @@ EOF
                                 touch "$bind_file"
                         fi
                 done
+                try_mkdir "$RUNROOTFS/var/lib/dbus"
+                ln -sf /etc/machine-id "$RUNROOTFS/var/lib/dbus/machine-id"
                 BIND_DIRS=(
                     home/runimage/.cache home/runimage/.config
                     usr/lib/modules lib/modules var/home
@@ -3416,9 +3446,18 @@ if [[ "$RIM_NO_NET" == 1 || "$RIM_SANDBOX_NET" == 1 ]]
             then warn_msg "Host /etc/hosts is unshared!"
             else NETWORK_BIND+=("--ro-bind-try" "/etc/hosts" "/etc/hosts")
         fi
-        if [ "$RIM_UNSHARE_RESOLVCONF" == 1 ]
-            then warn_msg "Host /etc/resolv.conf is unshared!"
-            else NETWORK_BIND+=("--ro-bind-try" "/etc/resolv.conf" "/etc/resolv.conf")
+        if [ "$RIM_UNSHARE_RESOLVCONF" != 1 ] && \
+            [[ -e "/etc/resolv.conf" && "$(stat -c %h "/etc/resolv.conf" 2>/dev/null||echo 0)" == 0 ]]
+            then
+                warn_msg "/etc/resolv.conf has an incorrect state: Links 0"
+                export RIM_COPY_RESOLVCONF=1
+        fi
+        if [ "$RIM_COPY_RESOLVCONF" != 1 ]
+            then
+                if [ "$RIM_UNSHARE_RESOLVCONF" == 1 ]
+                    then warn_msg "Host /etc/resolv.conf is unshared!"
+                    else NETWORK_BIND+=("--ro-bind-try" "/etc/resolv.conf" "/etc/resolv.conf")
+                fi
         fi
 fi
 if [ ! -n "$RIM_HOSTS_FILE" ]
@@ -3434,9 +3473,18 @@ if [[ -f "$RIM_HOSTS_FILE" && "$RIM_HOSTS_FILE" != 0 ]]
         info_msg "Bind: '$RIM_HOSTS_FILE' -> '/etc/hosts'"
         NETWORK_BIND+=("--bind-try" "$RIM_HOSTS_FILE" "/etc/hosts")
 fi
+if [[ "$RIM_COPY_RESOLVCONF" == 1 && -f "/etc/resolv.conf" ]]
+    then
+        (if [ -w "$RUNROOTFS" ]
+            then mkdir -p "$RUNROOTFS/etc" && cp -f "/etc/resolv.conf" "$RUNROOTFS/etc/resolv.conf"
+            else cp -f "/etc/resolv.conf" "$RUNPIDDIR/resolv.conf"
+        fi) && info_msg "Host /etc/resolv.conf is copied!"
+fi
 if [ ! -n "$RIM_RESOLVCONF_FILE" ]
     then
-        if [ -f "$RUNIMAGEDIR/resolv.conf" ]
+        if [ -f "$RUNPIDDIR/resolv.conf" ]
+            then RIM_RESOLVCONF_FILE="$RUNPIDDIR/resolv.conf"
+        elif [ -f "$RUNIMAGEDIR/resolv.conf" ]
             then RIM_RESOLVCONF_FILE="$RUNIMAGEDIR/resolv.conf"
         elif [ -f "$RUNDIR/resolv.conf" ]
             then RIM_RESOLVCONF_FILE="$RUNDIR/resolv.conf"
@@ -3462,7 +3510,7 @@ if [ "$RIM_XORG_CONF" != 0 ]
         if [ -f "$RIM_XORG_CONF" ]
             then
                 info_msg "Found xorg.conf in: '$RIM_XORG_CONF'"
-                XORG_CONF_BIND+=("--ro-bind-try" \
+                XORG_CONF_BIND+=("--bind-try" \
                                 "$RIM_XORG_CONF" "/etc/X11/xorg.conf")
         elif [ -f "/etc/X11/xorg.conf" ]
             then
@@ -3513,15 +3561,71 @@ if [ "$RIM_ENABLE_HOSTEXEC" == 1 ]
 fi
 
 MACHINEID_BIND=()
-if [[ -f "/var/lib/dbus/machine-id" && -f "/etc/machine-id" ]]
-    then MACHINEID_BIND+=("--ro-bind-try" "/etc/machine-id" "/etc/machine-id" \
-                          "--ro-bind-try" "/var/lib/dbus/machine-id" "/var/lib/dbus/machine-id")
-elif [[ -f "/var/lib/dbus/machine-id" && ! -f "/etc/machine-id" ]]
-    then MACHINEID_BIND+=("--ro-bind-try" "/var/lib/dbus/machine-id" "/etc/machine-id" \
-                          "--ro-bind-try" "/var/lib/dbus/machine-id" "/var/lib/dbus/machine-id")
-elif [[ -f "/etc/machine-id" && ! -f "/var/lib/dbus/machine-id" ]]
-    then MACHINEID_BIND+=("--ro-bind-try" "/etc/machine-id" "/etc/machine-id" \
-                          "--ro-bind-try" "/etc/machine-id" "/var/lib/dbus/machine-id")
+if [[ "$RIM_MACHINEID_FILE" != 0 && "$RIM_UNSHARE_MACHINEID" != 1 ]]
+    then
+        unset NEWMACHINEID
+        [ -L "$RUNROOTFS/var/lib/dbus/machine-id" ] && \
+            is_machineid_link=1||is_machineid_link=0
+        if [ "$RIM_SPOOF_MACHINEID" == 1 ]
+            then
+                NEWMACHINEID="$(dbus-uuidgen)"
+                if [ -n "$NEWMACHINEID" ]
+                    then
+                        info_msg "Spoof machine-id: $NEWMACHINEID"
+                        if [ -w "$RUNROOTFS" ]
+                            then
+                                mkdir -p "$RUNROOTFS/etc"
+                                echo "$NEWMACHINEID" > "$RUNROOTFS/etc/machine-id"
+                                [ "$is_machineid_link" != 1 ] && \
+                                ln -sf "/etc/machine-id" "$RUNROOTFS/var/lib/dbus/machine-id"
+                            else
+                                echo "$NEWMACHINEID" > "$RUNPIDDIR/machine-id"
+                                MACHINEID_BIND+=("--bind-try" "$RUNPIDDIR/machine-id" "/etc/machine-id")
+                                [ "$is_machineid_link" != 1 ] && \
+                                MACHINEID_BIND+=("--bind-try" "$RUNPIDDIR/machine-id" "/var/lib/dbus/machine-id")
+                        fi
+                    else error_msg "Failed to generate new machine-id!"
+                fi
+        fi
+        if [ ! -n "$NEWMACHINEID" ]
+            then
+                if [ ! -n "$RIM_MACHINEID_FILE" ]
+                    then
+                        if [ -f "$RUNIMAGEDIR/machine-id" ]
+                            then RIM_MACHINEID_FILE="$RUNIMAGEDIR/machine-id"
+                        elif [ -f "$RUNDIR/machine-id" ]
+                            then RIM_MACHINEID_FILE="$RUNDIR/machine-id"
+                        fi
+                fi
+                if [ -f "$RIM_MACHINEID_FILE" ]
+                    then
+                        info_msg "Found machine-id in: '$RIM_MACHINEID_FILE'"
+                        MACHINEID_BIND+=("--bind-try" "$RIM_MACHINEID_FILE" "/etc/machine-id")
+                        [ "$is_machineid_link" != 1 ] && \
+                        MACHINEID_BIND+=("--bind-try" "$RIM_MACHINEID_FILE" "/var/lib/dbus/machine-id")
+                fi
+        fi
+        if [[ ! -n "$NEWMACHINEID" && ! -n "$MACHINEID_BIND" ]]
+            then
+                if [[ -f "/var/lib/dbus/machine-id" && -f "/etc/machine-id" ]]
+                    then
+                        MACHINEID_BIND+=("--ro-bind-try" "/etc/machine-id" "/etc/machine-id")
+                        [ "$is_machineid_link" != 1 ] && \
+                        MACHINEID_BIND+=("--ro-bind-try" "/var/lib/dbus/machine-id" "/var/lib/dbus/machine-id")
+                elif [[ -f "/var/lib/dbus/machine-id" && ! -f "/etc/machine-id" ]]
+                    then
+                        MACHINEID_BIND+=("--ro-bind-try" "/var/lib/dbus/machine-id" "/etc/machine-id")
+                        [ "$is_machineid_link" != 1 ] && \
+                        MACHINEID_BIND+=("--ro-bind-try" "/var/lib/dbus/machine-id" "/var/lib/dbus/machine-id")
+                elif [[ -f "/etc/machine-id" && ! -f "/var/lib/dbus/machine-id" ]]
+                    then
+                        MACHINEID_BIND+=("--ro-bind-try" "/etc/machine-id" "/etc/machine-id")
+                        [ "$is_machineid_link" != 1 ] && \
+                        MACHINEID_BIND+=("--ro-bind-try" "/etc/machine-id" "/var/lib/dbus/machine-id")
+                fi
+        fi
+    else
+        warn_msg "Host machine-id is unshared!"
 fi
 
 VAR_BIND=(
@@ -3651,7 +3755,7 @@ if [ "$RIM_UNSHARE_MODULES" != 1 ]
         warn_msg "Kernel modules are unshared!"
 fi
 
-[ "$RIM_BIND_PWD" == 1 ] &&
+[[ "$RIM_BIND_PWD" == 1 && "$RIM_BIND_RO_PWD" != 1 ]] &&
     RIM_BIND+=",$PWD:$PWD"
 
 if [ -n "$RIM_BIND" ]
@@ -3668,6 +3772,25 @@ if [ -n "$RIM_BIND" ]
                 fi
         done
     else unset BWRAP_BIND
+fi
+
+[ "$RIM_BIND_RO_PWD" == 1 ] &&
+    RIM_BIND_RO+=",$PWD:$PWD"
+
+if [ -n "$RIM_BIND_RO" ]
+    then
+        BWRAP_BIND_RO=()
+        IFS=',' read -r -a pairs <<< "$RIM_BIND_RO"
+        for pair in "${pairs[@]}"
+            do
+                IFS=':' read -r src dst<<<"$pair"
+                if [ -e "$src" ]
+                    then
+                        info_msg "Bind read-only: '$src' -> '$dst'"
+                        BWRAP_BIND_RO+=("--ro-bind-try" "$src" "$dst")
+                fi
+        done
+    else unset BWRAP_BIND_RO
 fi
 
 if [ "$RIM_DINTEG" == 1 ] && \
@@ -3744,7 +3867,7 @@ if [ "$RIM_WAIT_RPIDS_EXIT" == 1 ]
         find_processes() {
             processes="$(ps -ocmd= -p $(get_child_pids "$RUNPID") 2>/dev/null|grep -Ev "$IGNPS")"
         }
-        IGNPS="$RUNPIDDIR|$RUNDIR|/var/RunDir|$RUNIMAGEDIR"
+        IGNPS="$RUNPIDDIR|$RUNDIR|/var/RunDir|$RUNIMAGEDIR|$NVIDIA_DRIVERS_DIR"
         [ -n "$SSRV_PID" ] && IGNPS+="|slirp4netns.*$SSRV_PID"
         find_processes
         while is_pid "$RUNPID" && \

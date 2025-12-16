@@ -19,7 +19,7 @@ echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' > rootfs/etc/resolv.conf
 RIM_ROOT=1 ./runimage sh -c 'yum copr enable nucleo/gocryptfs -y && yum update -y ; \
 yum install -y bash coreutils curl findutils gawk grep iproute kmod procps-ng sed \
 tar util-linux which gocryptfs libnotify lsof slirp4netns socat xhost gzip xz zstd \
-lz4 jq binutils patchelf nftables iptables-nft openresolv iputils fakeroot fakechroot file'||true
+lz4 jq binutils patchelf nftables iptables-nft openresolv iputils fakeroot fakechroot file dbus-tools'||true
 
 curl -L https://raw.githubusercontent.com/VHSgunzo/runimage-fake-sudo-pkexec/refs/heads/main/usr/bin/sudo \
     -o rootfs/usr/bin/sudo && chmod +x rootfs/usr/bin/sudo

@@ -13,7 +13,7 @@ RESETCOLOR='\033[1;00m'
     NOT_TERM=1||NOT_TERM=0
 
 BUILDKEY="$BASHPID"
-EXEPT_RUNSRCNAMES=("Run" "rim-build" "rim-desktop" "rim-update")
+EXEPT_RUNSRCNAMES=("AppRun" "Run" "rim-build" "rim-desktop" "rim-update")
 
 nocolor() { sed -r 's|\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]||g' ; }
 
@@ -152,7 +152,7 @@ CMPRS_EXCLUDE=()
 case "$RIM_CMPRS_FS" in
     sqfs)
           info_msg "Compression file system: SquashFS"
-          RUNOFFSET="$("$RUNRUNTIME" --runtime-offset)"
+          RUNOFFSET="$("$RUNRUNTIME" --runtime-offset 2>/dev/null||"$RUNRUNTIME" --appimage-offset 2>/dev/null)"
           CMPRS_CMD+=("$RUNSTATIC/mksquashfs" "$RUNDIR" "$NEWRUNIMAGE")
           [ -f "$RUNDIR/cryptfs/gocryptfs.conf" ] && \
           CMPRS_EXCLUDE+=(-wildcards -e 'rootfs/*' 'rootfs/.*')
