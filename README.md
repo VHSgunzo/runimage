@@ -687,6 +687,7 @@ Projects based on RunImage
 * [PortArch](https://github.com/VHSgunzo/portarch)
 * [NitroWine](https://github.com/RusNor/NitroWine)
 * [StartWine-Launcher](https://github.com/RusNor/StartWine-Launcher)
+* [Steam-appimage](https://github.com/ivan-hc/Steam-appimage)
 
 </details> 
 
