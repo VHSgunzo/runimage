@@ -57,9 +57,9 @@ ROOTFS_ARCH="$(./RunDir/Run uname -m 2>/dev/null)"
 echo '== update rootfs'
 ## https://runimage-repo.static.hf.space
 ## https://github.com/runimage/repo/releases/download
-./RunDir/Run pacman --noconfirm -Sy pacutils
+./RunDir/Run pacman -Sy archlinux-keyring --needed --noconfirm
 ./RunDir/Run pacman --noconfirm -U "https://github.com/runimage/repo/releases/download/$ROOTFS_ARCH/runimage-mirrorlist.pkg.tar.zst"
-./RunDir/Run rim-update
+yes|./RunDir/Run pacman -Syu --overwrite '*'
 
 echo '== add BlackArch repo'
 if [ ! -x '/tmp/strap.sh' ]
