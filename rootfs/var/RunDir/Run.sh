@@ -434,7 +434,9 @@ get_nvidia_driver_image() {
                                     bin) sys_pths="$(command -v "$item" 2>/dev/null)" ;;
                                     wine) sys_pths=($(find /usr -type f -name "$item" 2>/dev/null)) ;;
                                     .) sys_pths=($(ls "$item" 2>/dev/null)) ;;
-                                    *) sys_pths=($(find /etc/ /usr/share -name "*${item}" -type f 2>/dev/null)) ;;
+                                    # ALT stores configs/drivers as symlinks
+                                    *) sys_pths=($(find /etc/ /usr/share -name "*${item}" \
+                                        \( -type f -o -type l \) 2>/dev/null)) ;;
                                 esac
                                 IFS="$OLD_IFS"
                                 if [ -n "$sys_pths" ]
@@ -500,6 +502,50 @@ get_nvidia_driver_image() {
                             nvvdpau="/usr/$pth/vdpau/libvdpau_nvidia.so"
                             [ -e "$nvvdpau" ] && NVLIBS32+=("$nvvdpau")
                     done
+                    # ALT stores libs in versioned directories, e.g.
+                    #   /usr/lib64/nvidia_580.173.02/libcuda.so.580.173.02
+                    # and exposes them via alternatives symlinks:
+                    #   /usr/lib64/libGLX_nvidia.so.0 -> /etc/X11/lib64_nvidia/libGLX_nvidia.so.0
+                    #   /etc/X11/lib64_nvidia/libGLX_nvidia.so.0 -> /usr/lib64/nvidia_580.173.02/...
+                    # Resolve libGLX_nvidia.so.0 to find the active driver directory and
+                    # collect CUDA, NVML, vdpau, etc. from it.
+                    for libdir in /usr/lib64 /usr/lib32 /usr/lib /lib64 /lib32 /lib \
+                        "/usr/lib/${NVDRVARCH}-linux-gnu" "/lib/${NVDRVARCH}-linux-gnu" \
+                        /usr/lib/i386-linux-gnu /lib/i386-linux-gnu
+                        do
+                            nvglx_so="$libdir/libGLX_nvidia.so.0"
+                            [ -e "$nvglx_so" ] || continue
+                            active_dir="$(dirname "$(realpath "$nvglx_so" 2>/dev/null)")"
+                            [ -d "$active_dir" ] || continue
+                            while IFS= read -r nv_item
+                                do
+                                    nv_target="$(realpath "$nv_item" 2>/dev/null)"
+                                    [ -f "$nv_target" ] || continue
+                                    nv_basename="$(basename "$nv_target")"
+                                    [ "$nv_basename" == 'libnvidianull.so' ] && continue
+                                    [[ "$nv_basename" == *".so."* && \
+                                       "$nv_basename" != *".${nvidia_version}"* ]] && continue
+                                    LC_ALL=C IFS= read -r -N5 nv_class < "$nv_target"
+                                    case "${nv_class:4:1}" in
+                                        $'\1') NVLIBS32+=("$nv_item") ;;
+                                        $'\2') NVLIBS64+=("$nv_item") ;;
+                                    esac
+                            done < <(find "$active_dir" -maxdepth 1 \( -type f -o -type l \) \
+                                \( -name 'lib*nvidia*.so*' -o -name 'libcuda.so*' \
+                                   -o -name 'libnvcuvid.so*' -o -name 'libnvoptix.so*' \
+                                   -o -name 'libcudadebugger.so*' -o -name 'nvidia_drv.so' \) \
+                                -print 2>/dev/null)
+                    done
+                    if [ ! -n "$NVLIBS64" ]
+                        then
+                            error_msg "Nvidia libraries are not found in your system!"
+                            if [[ "$NVLIBS_DLFAILED" == 1 || "$NVDRVARCH" != 'x86_64' ]]
+                                then return 1
+                                else
+                                    RIM_SYS_NVLIBS=0 get_nvidia_driver_image
+                                    return $?
+                            fi
+                    fi
                     if [[ ! -n "$NVLIBS32" && "$RIM_NO_32BIT_NVLIBS_CHECK" != 1 ]]
                         then
                             error_msg "Nvidia 32-bit libraries are not found in your system!"
@@ -520,6 +566,19 @@ get_nvidia_driver_image() {
                     cp_nvfiles bin "${NVBINS[@]}"
                     cp_nvfiles conf "${NVCONFS[@]}"
                     cp_nvfiles json "${NVJSONS[@]}"
+                    # ALT adds ELF architecture to manifest file names, e.g.:
+                    #   nvidia_icd.x86_64.json, 10_nvidia.x86_64.json
+                    # Copy with canonical names so the container-side binding finds them.
+                    for json in json/10_nvidia*.json json/15_nvidia_gbm*.json \
+                        json/nvidia_icd*.json json/nvidia_layers*.json \
+                        json/nvidia_icd_vksc*.json
+                        do
+                            [ -f "$json" ]||continue
+                            json_name="$(basename "$json")"
+                            json_name="${json_name/.x86_64/}"
+                            json_name="${json_name/.i586/}"
+                            [ "$json" == "json/$json_name" ]||cp -f "$json" "json/$json_name"
+                    done
                     if [[ ! -e 'profiles' ]]
                         then
                             if [ -d '/usr/share/nvidia'  ]
