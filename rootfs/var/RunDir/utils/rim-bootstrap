@@ -164,6 +164,7 @@ if [ -d "RunDir/sharun-$ROOTFS_ARCH" ]
         cp -f RunDir/static/uruntime .
         rm -rf RunDir/sharun RunDir/rootfs
         mv "RunDir/sharun-$ROOTFS_ARCH" RunDir/sharun
+        chmod u+rw -R RunDir rootfs
         mv rootfs RunDir/rootfs
         date '+%y.%m.%d.%H%M%S' > RunDir/rootfs/.build
         ./uruntime --runtime-mkdwarfs -f --set-owner 0 --set-group 0 --no-history --log-level error \
